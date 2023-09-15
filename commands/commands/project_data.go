@@ -31,7 +31,7 @@ var gomodS = `module ${BINNAME}
 go 1.19
 
 require (
-	github.com/alibaba/pairec v1.4.7
+	github.com/alibaba/pairec v1.0.1
 	github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.1
 )
 `
