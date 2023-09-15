@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package pai.web;
+
+// service defination
+service VectorRetrieval {
+
+    rpc Search(VectorRequest) returns (VectorReply) {}
+}
+
+message VectorRequest {
+    uint32 k = 1;
+    repeated float vector = 2 [packed = true];
+}
+
+message VectorReply {
+    repeated uint64 retval = 1 [packed = true]; 
+    repeated float scores = 2 [packed = true]; 
+    repeated string labels = 3 ; 
+}
