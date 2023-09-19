@@ -146,7 +146,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service"
 	"github.com/alibaba/pairec/v2/utils"
-	"github.com/alibaba/pairec/v2web"
+	"github.com/alibaba/pairec/v2/web"
 )
 
 type RecommendParam struct {
