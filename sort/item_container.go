@@ -3,7 +3,7 @@ package sort
 import (
 	"math/rand"
 
-	"github.com/alibaba/pairec/module"
+	"github.com/alibaba/pairec/v2/module"
 )
 
 // Strategy use to split items by which way

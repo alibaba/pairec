@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/alibaba/pairec/datasource/hbase_thrift/gen-go/hbase"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/datasource/hbase_thrift/gen-go/hbase"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type HBaseThrift struct {

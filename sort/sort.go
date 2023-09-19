@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 var sortMapping = make(map[string]ISort)

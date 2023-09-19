@@ -3,8 +3,8 @@ package eas
 import (
 	"fmt"
 
-	"github.com/alibaba/pairec/algorithm/response"
-	tensorflow_serving "github.com/alibaba/pairec/pkg/tensorflow_serving/apis"
+	"github.com/alibaba/pairec/v2/algorithm/response"
+	tensorflow_serving "github.com/alibaba/pairec/v2/pkg/tensorflow_serving/apis"
 )
 
 type tfServingResponse struct {

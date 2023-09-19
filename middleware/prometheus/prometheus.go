@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/service/metrics"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/service/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"

@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/golang/snappy"
-	"github.com/alibaba/pairec/utils/jsonutil"
+	"github.com/alibaba/pairec/v2/utils/jsonutil"
 )
 
 type FMRequest struct {

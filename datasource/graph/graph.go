@@ -3,7 +3,7 @@ package graph
 import (
 	"fmt"
 	igraph "github.com/aliyun/aliyun-igraph-go-sdk"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 	"sync"
 )
 

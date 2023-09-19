@@ -5,8 +5,8 @@ import (
 
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/experiments"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 var experimentClient *experiments.ExperimentClient

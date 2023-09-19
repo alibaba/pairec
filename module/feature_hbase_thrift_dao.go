@@ -7,12 +7,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/datasource/hbase_thrift"
-	"github.com/alibaba/pairec/datasource/hbase_thrift/gen-go/hbase"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
+	"github.com/alibaba/pairec/v2/datasource/hbase_thrift/gen-go/hbase"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type FeatureHBaseThriftDao struct {

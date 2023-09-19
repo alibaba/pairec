@@ -3,7 +3,7 @@ package module
 import (
 	"testing"
 
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 func TestContainsFilterOp(t *testing.T) {

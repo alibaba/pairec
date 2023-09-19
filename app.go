@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/pairec/middleware/prometheus"
+	"github.com/alibaba/pairec/v2/middleware/prometheus"
 
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 var (

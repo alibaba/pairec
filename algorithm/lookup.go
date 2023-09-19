@@ -1,8 +1,8 @@
 package algorithm
 
 import (
-	"github.com/alibaba/pairec/algorithm/response"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/algorithm/response"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type LookupPolicy struct {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	gosort "sort"
 
-	"github.com/alibaba/pairec/module"
+	"github.com/alibaba/pairec/v2/module"
 )
 
 type ItemScoreSlice []*module.Item

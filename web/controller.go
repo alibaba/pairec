@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alibaba/pairec/log"
+	"github.com/alibaba/pairec/v2/log"
 )
 
 const (

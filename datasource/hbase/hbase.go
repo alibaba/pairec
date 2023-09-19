@@ -6,7 +6,7 @@ import (
 
 	"github.com/tsuna/gohbase"
 	"github.com/tsuna/gohbase/hrpc"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type HBase struct {

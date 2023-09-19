@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alibaba/pairec/algorithm/eas"
-	"github.com/alibaba/pairec/algorithm/faiss"
-	"github.com/alibaba/pairec/algorithm/seldon"
-	"github.com/alibaba/pairec/algorithm/tfserving"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/algorithm/eas"
+	"github.com/alibaba/pairec/v2/algorithm/faiss"
+	"github.com/alibaba/pairec/v2/algorithm/seldon"
+	"github.com/alibaba/pairec/v2/algorithm/tfserving"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 var algoFactory *AlgorithmFactory

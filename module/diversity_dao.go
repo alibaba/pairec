@@ -2,8 +2,8 @@ package module
 
 import (
 	"fmt"
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type DiversityDao interface {

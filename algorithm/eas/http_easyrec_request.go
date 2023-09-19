@@ -10,8 +10,8 @@ import (
 	"os"
 
 	proto "github.com/golang/protobuf/proto"
-	"github.com/alibaba/pairec/algorithm/eas/easyrec"
-	"github.com/alibaba/pairec/config"
+	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
+	"github.com/alibaba/pairec/v2/config"
 )
 
 type HttpEasyrecRequest struct {

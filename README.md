@@ -5,7 +5,7 @@ A Go web framework for quickly building recommendation online services based on 
 
 ## Install
 ```bash
-go get github.com/alibaba/pairec
+go get github.com/alibaba/pairec/v2
 ```
 
 ## Quick Start

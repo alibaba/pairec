@@ -3,8 +3,8 @@ package sort
 import (
 	"strings"
 
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type DiversityMatchFunc func(item *module.Item) bool

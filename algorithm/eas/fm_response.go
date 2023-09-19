@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alibaba/pairec/algorithm/response"
+	"github.com/alibaba/pairec/v2/algorithm/response"
 )
 
 //easyjson:json

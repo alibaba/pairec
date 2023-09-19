@@ -7,8 +7,8 @@ import (
 
 	kafka "github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/compress"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type KafkaLog struct{}

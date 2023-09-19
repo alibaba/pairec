@@ -6,8 +6,8 @@ import (
 
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
-	"github.com/alibaba/pairec/datasource/ha3engine/ha3client"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/datasource/ha3engine/ha3client"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type Ha3EngineClient struct {

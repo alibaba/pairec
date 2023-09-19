@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/alibaba/pairec/module"
+	"github.com/alibaba/pairec/v2/module"
 )
 
 type ItemRankScoreSort struct {

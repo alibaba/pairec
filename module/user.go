@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/alibaba/pairec/context"
+	"github.com/alibaba/pairec/v2/context"
 )
 
 type UID string

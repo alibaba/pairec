@@ -3,7 +3,7 @@ package module
 import (
 	"errors"
 
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 var (

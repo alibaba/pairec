@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alibaba/pairec/algorithm/response"
+	"github.com/alibaba/pairec/v2/algorithm/response"
 )
 
 var tfservingClient *http.Client

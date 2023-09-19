@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alibaba/pairec/datasource/hbase"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/datasource/hbase"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 // VectorHBaseDao is hbase implement of vector dao

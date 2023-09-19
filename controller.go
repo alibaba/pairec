@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/alibaba/pairec/log"
+	"github.com/alibaba/pairec/v2/log"
 )
 
 type ControllerInterface interface {

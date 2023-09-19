@@ -6,8 +6,8 @@ import (
 
 	alisls "github.com/aliyun/aliyun-log-go-sdk"
 	"github.com/aliyun/aliyun-log-go-sdk/producer"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type SlsClient struct {

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/pkg/eas"
-	tensorflow_serving "github.com/alibaba/pairec/pkg/tensorflow_serving/apis"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/pkg/eas"
+	tensorflow_serving "github.com/alibaba/pairec/v2/pkg/tensorflow_serving/apis"
+	"github.com/alibaba/pairec/v2/recconf"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

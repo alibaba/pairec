@@ -3,7 +3,7 @@ package faiss
 import (
 	"time"
 
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 const ()

@@ -3,7 +3,7 @@ package module
 import (
 	"fmt"
 
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type ItemStateFilterDao interface {

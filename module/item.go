@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type ItemId string

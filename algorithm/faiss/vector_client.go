@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	pb "github.com/alibaba/pairec/algorithm/faiss/pai_web"
+	pb "github.com/alibaba/pairec/v2/algorithm/faiss/pai_web"
 
 	"google.golang.org/grpc"
 )

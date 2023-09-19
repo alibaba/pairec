@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alibaba/pairec"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/web"
+	"github.com/alibaba/pairec/v2"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/web"
 )
 
 type ResponseFunc func(w http.ResponseWriter, requestBody, responseBody []byte) bool

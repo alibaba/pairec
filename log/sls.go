@@ -3,7 +3,7 @@ package log
 import (
 	"strings"
 
-	"github.com/alibaba/pairec/datasource/sls"
+	"github.com/alibaba/pairec/v2/datasource/sls"
 )
 
 var (

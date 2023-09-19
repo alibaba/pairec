@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	be "github.com/aliyun/aliyun-be-go-sdk"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type BeClient struct {

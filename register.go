@@ -1,11 +1,11 @@
 package pairec
 
 import (
-	"github.com/alibaba/pairec/filter"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/service/metrics"
-	"github.com/alibaba/pairec/service/recall"
-	"github.com/alibaba/pairec/sort"
+	"github.com/alibaba/pairec/v2/filter"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/metrics"
+	"github.com/alibaba/pairec/v2/service/recall"
+	"github.com/alibaba/pairec/v2/sort"
 )
 
 func register(conf *recconf.RecommendConfig) {

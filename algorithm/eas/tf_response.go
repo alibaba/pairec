@@ -3,8 +3,8 @@ package eas
 import (
 	"fmt"
 
-	"github.com/alibaba/pairec/algorithm/response"
-	"github.com/alibaba/pairec/pkg/eas/types/tf_predict_protos"
+	"github.com/alibaba/pairec/v2/algorithm/response"
+	"github.com/alibaba/pairec/v2/pkg/eas/types/tf_predict_protos"
 )
 
 type tfResponse struct {

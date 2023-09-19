@@ -1,6 +1,6 @@
 package context
 
-import "github.com/alibaba/pairec/recconf"
+import "github.com/alibaba/pairec/v2/recconf"
 
 type Context struct {
 	RequestId string

@@ -1,9 +1,9 @@
 package module
 
 import (
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/service/hook"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/hook"
 )
 
 type GenerateItemDataFunc func(uid UID, item *Item) string

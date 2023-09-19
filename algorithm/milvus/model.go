@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type MilvusModel struct {

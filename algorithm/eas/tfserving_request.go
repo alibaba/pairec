@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	tensorflow_serving "github.com/alibaba/pairec/pkg/tensorflow_serving/apis"
+	tensorflow_serving "github.com/alibaba/pairec/v2/pkg/tensorflow_serving/apis"
 	"google.golang.org/grpc/metadata"
 )
 

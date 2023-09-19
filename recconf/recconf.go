@@ -6,7 +6,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/alibaba/pairec/config"
+	"github.com/alibaba/pairec/v2/config"
 )
 
 var (

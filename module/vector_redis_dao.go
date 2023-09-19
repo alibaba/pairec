@@ -4,8 +4,8 @@ import (
 	"errors"
 
 	"github.com/gomodule/redigo/redis"
-	"github.com/alibaba/pairec/persist/redisdb"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/persist/redisdb"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type VectorRedisDao struct {

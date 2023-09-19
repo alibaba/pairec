@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/alibaba/pairec/pairecmd/app/options"
-	"github.com/alibaba/pairec/pairecmd/commands"
-	"github.com/alibaba/pairec/pairecmd/log"
+	"github.com/alibaba/pairec/v2/pairecmd/app/options"
+	"github.com/alibaba/pairec/v2/pairecmd/commands"
+	"github.com/alibaba/pairec/v2/pairecmd/log"
 )
 
 func NewProjectCommand(v *viper.Viper, rootcfg *options.RootConfiguration) *cobra.Command {

@@ -1,4 +1,4 @@
-module github.com/alibaba/pairec/pairecmd
+module github.com/alibaba/pairec/v2/pairecmd
 
 go 1.16
 

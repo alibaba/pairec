@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/persist/tablestoredb"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/persist/tablestoredb"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type User2ItemCustomFilterTableStoreDao struct {

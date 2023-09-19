@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alibaba/pairec/abtest"
-	"github.com/alibaba/pairec/config"
+	"github.com/alibaba/pairec/v2/abtest"
+	"github.com/alibaba/pairec/v2/config"
 )
 
 var (

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/alibaba/pairec/datasource/sls"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/datasource/sls"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 const (

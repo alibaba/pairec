@@ -3,7 +3,7 @@ package seldon
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/alibaba/pairec/algorithm/response"
+	"github.com/alibaba/pairec/v2/algorithm/response"
 	"io/ioutil"
 	"net/http"
 	"strconv"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 func TestTrigger(t *testing.T) {

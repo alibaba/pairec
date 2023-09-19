@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gomodule/redigo/redis"
-	"github.com/alibaba/pairec/persist/redisdb"
+	"github.com/alibaba/pairec/v2/persist/redisdb"
 )
 
 func GetBaselineData(uid string, redisdb *redisdb.Redis, prefix string, size, retry int) (ret []string) {

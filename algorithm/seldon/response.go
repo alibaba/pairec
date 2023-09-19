@@ -2,7 +2,7 @@ package seldon
 
 import (
 	"encoding/json"
-	"github.com/alibaba/pairec/algorithm/response"
+	"github.com/alibaba/pairec/v2/algorithm/response"
 )
 
 type Response struct {

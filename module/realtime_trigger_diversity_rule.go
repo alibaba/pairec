@@ -3,7 +3,7 @@ package module
 import (
 	"strings"
 
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type TriggerDiversityRule struct {

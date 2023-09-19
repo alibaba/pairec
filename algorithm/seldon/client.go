@@ -1,7 +1,7 @@
 package seldon
 
 import (
-	"github.com/alibaba/pairec/algorithm/response"
+	"github.com/alibaba/pairec/v2/algorithm/response"
 	"net"
 	"net/http"
 	"time"

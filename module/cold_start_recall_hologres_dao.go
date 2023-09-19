@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/huandu/go-sqlbuilder"
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/persist/holo"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/persist/holo"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type ColdStartRecallHologresDao struct {

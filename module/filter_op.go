@@ -5,8 +5,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 const (

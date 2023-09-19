@@ -1,8 +1,8 @@
 package sort
 
 import (
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/module"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/module"
 )
 
 type MatrixDotFunc func(threshold float64, pre, cur *module.Item) bool
