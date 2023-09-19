@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils/netutil"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils/netutil"
 )
 
 type Redis struct {

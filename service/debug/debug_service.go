@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/datasource/datahub"
-	plog "github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/datasource/datahub"
+	plog "github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type LogOutputer interface {

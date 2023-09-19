@@ -1,8 +1,8 @@
 package general_rank
 
 import (
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/module"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/module"
 )
 
 type IGeneralRank interface {

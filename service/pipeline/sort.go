@@ -1,8 +1,8 @@
 package pipeline
 
 import (
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/sort"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/sort"
 )
 
 type SortService struct {

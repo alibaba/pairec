@@ -7,7 +7,7 @@
 package apis
 
 import (
-	framework "github.com/alibaba/pairec/pkg/tensorflow/core/framework"
+	framework "github.com/alibaba/pairec/v2/pkg/tensorflow/core/framework"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

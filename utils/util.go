@@ -3,10 +3,11 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/tidwall/gjson"
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
 	"strings"
 	"time"
+
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
+	"github.com/tidwall/gjson"
 )
 
 func CostTime(start time.Time) int64 {

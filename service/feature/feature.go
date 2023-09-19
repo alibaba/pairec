@@ -1,9 +1,9 @@
 package feature
 
 import (
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 // Feature is a type for load user or item feature

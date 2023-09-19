@@ -1,8 +1,8 @@
 package pipeline
 
 import (
-	"github.com/alibaba/pairec/filter"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/filter"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type FilterService struct {

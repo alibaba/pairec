@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type ItemStateFilter struct {

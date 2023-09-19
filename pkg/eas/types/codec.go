@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
-	"github.com/alibaba/pairec/pkg/eas/types/queue_service_protos"
+	"github.com/alibaba/pairec/v2/pkg/eas/types/queue_service_protos"
 	"google.golang.org/protobuf/proto"
 	"io"
 )

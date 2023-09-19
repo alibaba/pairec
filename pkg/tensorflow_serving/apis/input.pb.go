@@ -10,7 +10,7 @@
 package apis
 
 import (
-	example "github.com/alibaba/pairec/pkg/tensorflow/core/example"
+	example "github.com/alibaba/pairec/v2/pkg/tensorflow/core/example"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

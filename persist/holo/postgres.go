@@ -9,8 +9,8 @@ import (
 
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 func init() {

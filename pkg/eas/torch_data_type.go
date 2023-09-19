@@ -1,7 +1,7 @@
 package eas
 
 import (
-	"github.com/alibaba/pairec/pkg/eas/types/torch_predict_protos"
+	"github.com/alibaba/pairec/v2/pkg/eas/types/torch_predict_protos"
 )
 
 // type torch_predict_protos.ArrayDataType torch_predict_protos.ArrayDataType

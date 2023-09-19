@@ -528,8 +528,10 @@ type LindormConfig struct {
 	Database string
 }
 type FeatureStoreConfig struct {
-	Host        string
-	Token       string
+	AccessId  string
+	AccessKey string
+	RegionId  string
+
 	ProjectName string
 }
 type KafkaConfig struct {

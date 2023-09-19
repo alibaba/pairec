@@ -3,11 +3,11 @@ package service
 import (
 	"fmt"
 
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/service/hook"
-	"github.com/alibaba/pairec/service/rank"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/service/hook"
+	"github.com/alibaba/pairec/v2/service/rank"
 )
 
 type UserRecallService struct {

@@ -1,7 +1,7 @@
 package eas
 
 import (
-	"github.com/alibaba/pairec/pkg/eas/types/tf_predict_protos"
+	"github.com/alibaba/pairec/v2/pkg/eas/types/tf_predict_protos"
 )
 
 // type tf_predict_protos.ArrayDataType tf_predict_protos.ArrayDataType

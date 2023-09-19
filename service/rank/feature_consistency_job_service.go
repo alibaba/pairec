@@ -11,25 +11,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alibaba/pairec/v2/datasource/beengine"
 	be "github.com/aliyun/aliyun-be-go-sdk"
-	"github.com/alibaba/pairec/datasource/beengine"
 
-	"github.com/alibaba/pairec/algorithm"
-	"github.com/alibaba/pairec/algorithm/eas"
-	"github.com/alibaba/pairec/algorithm/eas/easyrec"
-	"github.com/alibaba/pairec/algorithm/response"
+	"github.com/alibaba/pairec/v2/algorithm"
+	"github.com/alibaba/pairec/v2/algorithm/eas"
+	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
+	"github.com/alibaba/pairec/v2/algorithm/response"
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/common"
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
-	"github.com/alibaba/pairec/abtest"
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/datasource/datahub"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/abtest"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/datasource/datahub"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/common"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	avatica "github.com/apache/calcite-avatica-go/v5"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 func init() {

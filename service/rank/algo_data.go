@@ -4,10 +4,10 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/alibaba/pairec/algorithm/eas"
-	"github.com/alibaba/pairec/algorithm/eas/easyrec"
-	"github.com/alibaba/pairec/algorithm/response"
-	"github.com/alibaba/pairec/module"
+	"github.com/alibaba/pairec/v2/algorithm/eas"
+	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
+	"github.com/alibaba/pairec/v2/algorithm/response"
+	"github.com/alibaba/pairec/v2/module"
 )
 
 type IAlgoData interface {

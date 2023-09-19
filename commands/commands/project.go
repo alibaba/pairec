@@ -4,8 +4,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alibaba/pairec/pairecmd/app/options"
-	"github.com/alibaba/pairec/pairecmd/log"
+	"github.com/alibaba/pairec/v2/pairecmd/app/options"
+	"github.com/alibaba/pairec/v2/pairecmd/log"
 )
 
 func Project(rootcfg *options.RootConfiguration, cfg *options.ProjectConfiguration) error {

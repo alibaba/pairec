@@ -5,9 +5,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
-	psort "github.com/alibaba/pairec/sort"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
+	psort "github.com/alibaba/pairec/v2/sort"
 )
 
 type CompletelyFairCountFilter struct {

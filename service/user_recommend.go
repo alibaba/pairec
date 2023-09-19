@@ -5,16 +5,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/service/debug"
-	"github.com/alibaba/pairec/service/feature"
-	"github.com/alibaba/pairec/service/general_rank"
-	"github.com/alibaba/pairec/service/hook"
-	"github.com/alibaba/pairec/service/metrics"
-	"github.com/alibaba/pairec/service/pipeline"
-	"github.com/alibaba/pairec/service/rank"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/service/debug"
+	"github.com/alibaba/pairec/v2/service/feature"
+	"github.com/alibaba/pairec/v2/service/general_rank"
+	"github.com/alibaba/pairec/v2/service/hook"
+	"github.com/alibaba/pairec/v2/service/metrics"
+	"github.com/alibaba/pairec/v2/service/pipeline"
+	"github.com/alibaba/pairec/v2/service/rank"
 )
 
 type UserRecommendService struct {

@@ -5,17 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
 )
 
 const (
@@ -73,7 +72,7 @@ type RecommendController struct {
 func (c *RecommendController) Process(w http.ResponseWriter, r *http.Request) {
 	c.Start = time.Now()
 	var err error
-	c.RequestBody, err = ioutil.ReadAll(r.Body)
+	c.RequestBody, err = io.ReadAll(r.Body)
 	if err != nil {
 		c.SendError(w, ERROR_PARAMETER_CODE, "read parammeter error")
 		return

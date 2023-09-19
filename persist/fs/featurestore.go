@@ -3,10 +3,10 @@ package fs
 import (
 	"fmt"
 
-	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/domain"
-	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/featurestore"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/featurestore"
 )
 
 var fsInstances = make(map[string]*FSClient)
@@ -35,10 +35,9 @@ func Load(config *recconf.RecommendConfig) {
 		}
 
 		l := log.FeatureStoreLogger{}
-		client, err := featurestore.NewFeatureStoreClient(conf.Host,
+		client, err := featurestore.NewFeatureStoreClient(conf.RegionId, conf.AccessId, conf.AccessKey, conf.ProjectName,
 			featurestore.WithLogger(featurestore.LoggerFunc(l.Infof)),
 			featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
-			featurestore.WithToken(conf.Token),
 		)
 
 		if err != nil {

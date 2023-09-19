@@ -2,7 +2,7 @@ package eas
 
 import (
 	"github.com/golang/protobuf/proto"
-	"github.com/alibaba/pairec/pkg/eas/types/tf_predict_protos"
+	"github.com/alibaba/pairec/v2/pkg/eas/types/tf_predict_protos"
 )
 
 // TFRequest class for tensorflow data and requests

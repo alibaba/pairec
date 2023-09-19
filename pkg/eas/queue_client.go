@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/alibaba/pairec/pkg/eas/types"
+	"github.com/alibaba/pairec/v2/pkg/eas/types"
 	"golang.org/x/net/websocket"
 	"io"
 	"io/ioutil"

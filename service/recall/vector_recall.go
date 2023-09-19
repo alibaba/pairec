@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/pairec/algorithm"
-	"github.com/alibaba/pairec/algorithm/faiss/pai_web"
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/algorithm"
+	"github.com/alibaba/pairec/v2/algorithm/faiss/pai_web"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type VectorRecall struct {

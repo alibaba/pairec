@@ -3,11 +3,11 @@ package app
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/alibaba/pairec/v2/pairecmd/app/options"
 	"github.com/alibaba/pairec/v2/pairecmd/commands"
 	"github.com/alibaba/pairec/v2/pairecmd/log"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func NewProjectCommand(v *viper.Viper, rootcfg *options.RootConfiguration) *cobra.Command {

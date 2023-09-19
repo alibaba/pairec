@@ -6,8 +6,8 @@ import (
 	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type ClickHouse struct {

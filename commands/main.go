@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/alibaba/pairec/pairecmd/app"
+	"github.com/alibaba/pairec/v2/pairecmd/app"
 )
 
 func main() {

@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
+	jsoniter "github.com/json-iterator/go"
 )
 
 type DataSourceInfo struct {

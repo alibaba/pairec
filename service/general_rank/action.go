@@ -3,11 +3,11 @@ package general_rank
 import (
 	"fmt"
 
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/filter"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/sort"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/filter"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/sort"
 )
 
 type ActionType int

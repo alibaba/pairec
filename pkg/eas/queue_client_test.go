@@ -3,7 +3,7 @@ package eas
 import (
 	"context"
 	"fmt"
-	"github.com/alibaba/pairec/pkg/eas/types"
+	"github.com/alibaba/pairec/v2/pkg/eas/types"
 	"strconv"
 	"testing"
 	"time"

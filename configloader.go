@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/alibaba/pairec/v2/datasource/graph"
@@ -119,8 +120,14 @@ func (l *ConfigLoader) loadConfigFromConfigServer() (*recconf.RecommendConfig, e
 		return nil, err
 	}
 	rawdata := configer.RawData()
+	accessId := os.Getenv("AccessKey")
+	accessSecret := os.Getenv("AccessSecret")
+	data := string(rawdata)
+	data = strings.ReplaceAll(data, "${AccessKey}", accessId)
+	data = strings.ReplaceAll(data, "${AccessSecret}", accessSecret)
+
 	configD := &recconf.RecommendConfig{}
-	err = json.Unmarshal(rawdata, configD)
+	err = json.Unmarshal([]byte(data), configD)
 	if err != nil {
 		return nil, err
 	}

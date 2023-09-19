@@ -10,17 +10,17 @@ import (
 
 	"github.com/goburrow/cache"
 
-	"github.com/alibaba/pairec/algorithm"
-	"github.com/alibaba/pairec/algorithm/eas"
-	"github.com/alibaba/pairec/algorithm/response"
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/persist/holo"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/service/feature"
-	"github.com/alibaba/pairec/service/rank"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/algorithm"
+	"github.com/alibaba/pairec/v2/algorithm/eas"
+	"github.com/alibaba/pairec/v2/algorithm/response"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/persist/holo"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/feature"
+	"github.com/alibaba/pairec/v2/service/rank"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 var (

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tidwall/gjson"
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
+	"github.com/tidwall/gjson"
 )
 
 type IParam interface {

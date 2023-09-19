@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Knetic/govaluate"
-	"github.com/alibaba/pairec/log"
+	"github.com/alibaba/pairec/v2/log"
 )
 
 type Normalizer interface {

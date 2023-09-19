@@ -10,14 +10,6 @@ type UserGroupHotRecallDao interface {
 }
 
 func NewUserGroupHotRecallDao(config recconf.RecallConfig) UserGroupHotRecallDao {
-	// if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Mysql {
-	// return NewUserCusteomRecallMysqlDao(config)
-	// } else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_TableStore {
-	// return NewUserGroupHotRecallTableStoreDao(config)
-	// } else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
-	// return NewUserCusteomRecallHologresDao(config)
-	// }
-
 	if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
 		return NewUserGroupHotRecallHologresDao(config)
 	}

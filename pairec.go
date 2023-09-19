@@ -9,7 +9,6 @@ import (
 	"github.com/alibaba/pairec/v2/datasource/graph"
 	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/config"
@@ -37,6 +36,7 @@ import (
 	"github.com/alibaba/pairec/v2/service/recall/berecall"
 	"github.com/alibaba/pairec/v2/sort"
 	"github.com/alibaba/pairec/v2/web"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	_ "go.uber.org/automaxprocs"
 )
 
@@ -97,7 +97,7 @@ func runBeforeStart() {
 	lindorm.Load(recconf.Config)
 	fs.Load(recconf.Config)
 	clickhouse.Load(recconf.Config)
-	abtest.Load(recconf.Config)
+	//abtest.Load(recconf.Config)
 	algorithm.Load(recconf.Config) // holo must be loaded before loading some algorithm
 	register(recconf.Config)
 }

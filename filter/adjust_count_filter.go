@@ -4,8 +4,8 @@ import (
 	"errors"
 	"math/rand"
 
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type AdjustNewItemsFunc func(filterData *FilterData, retainNum int) []*module.Item

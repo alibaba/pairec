@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -18,6 +17,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
 )
 
 type CallBackParam struct {

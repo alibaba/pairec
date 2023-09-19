@@ -31,8 +31,8 @@ var gomodS = `module ${BINNAME}
 go 1.19
 
 require (
-	github.com/alibaba/pairec v1.0.1
-	github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.1
+	github.com/alibaba/pairec/v2 v2.0.1
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.1
 )
 `
 
@@ -96,7 +96,7 @@ var mainfileS = `package main
 
 import (
 	"${BINNAME}/src/controller"
-	"github.com/alibaba/pairec"
+	"github.com/alibaba/pairec/v2"
 )
 
 func main() {
@@ -139,14 +139,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
-	"github.com/alibaba/pairec/abtest"
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/service"
-	"github.com/alibaba/pairec/utils"
-	"github.com/alibaba/pairec/web"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
+	"github.com/alibaba/pairec/v2/abtest"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service"
+	"github.com/alibaba/pairec/v2/utils"
+	"github.com/alibaba/pairec/v2web"
 )
 
 type RecommendParam struct {

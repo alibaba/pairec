@@ -15,9 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goburrow/cache"
-	"github.com/huandu/go-sqlbuilder"
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/experiments"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -26,6 +23,9 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/alibaba/pairec/v2/utils/sqlutil"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/experiments"
+	"github.com/goburrow/cache"
+	"github.com/huandu/go-sqlbuilder"
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/stat/sampleuv"
 )

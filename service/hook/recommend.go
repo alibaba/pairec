@@ -1,7 +1,7 @@
 package hook
 
 import (
-	"github.com/alibaba/pairec/context"
+	"github.com/alibaba/pairec/v2/context"
 )
 
 type RecommendCleanHookFunc func(context *context.RecommendContext, params ...interface{})

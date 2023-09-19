@@ -3,7 +3,7 @@ package filter
 import (
 	"errors"
 
-	"github.com/alibaba/pairec/module"
+	"github.com/alibaba/pairec/v2/module"
 )
 
 // remove duplicate item

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	framework "github.com/alibaba/pairec/pkg/tensorflow/core/framework"
+	framework "github.com/alibaba/pairec/v2/pkg/tensorflow/core/framework"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"

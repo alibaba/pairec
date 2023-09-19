@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 func TestCreateConstValueNormalizer(t *testing.T) {

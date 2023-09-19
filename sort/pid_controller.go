@@ -3,7 +3,13 @@ package sort
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/model"
+	"math"
+	"os"
+	"reflect"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -12,12 +18,7 @@ import (
 	"github.com/alibaba/pairec/v2/persist/redisdb"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
-	"math"
-	"os"
-	"reflect"
-	"strconv"
-	"sync"
-	"time"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
 )
 
 type PIDController struct {

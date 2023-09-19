@@ -3,9 +3,9 @@ package service
 import (
 	"fmt"
 
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/service/recall"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/recall"
 )
 
 type Category struct {

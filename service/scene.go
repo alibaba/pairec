@@ -3,7 +3,7 @@ package service
 import (
 	"fmt"
 
-	"github.com/alibaba/pairec/recconf"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 var scenes = make(map[string]*Scene)
