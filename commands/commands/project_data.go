@@ -156,6 +156,7 @@ type RecommendParam struct {
 	"    Size     int                    `json:\"size\"` // get recommend items size \n" +
 	"    Debug    bool                   `json:\"debug\"` \n" +
 	"    Features map[string]interface{} `json:\"features\"` \n" +
+	"    ItemId   string                 `json:\"item_id\"` // similarity recommendation itemid\n" +
 	`}
 func (r *RecommendParam) GetParameter(name string) interface{} {
 	if name == "uid" {
@@ -169,6 +170,8 @@ func (r *RecommendParam) GetParameter(name string) interface{} {
 		return "default"
 	} else if name == "features" {
 		return r.Features
+	} else if name == "item_id" {
+		return r.ItemId
 	}
 
 	return nil
