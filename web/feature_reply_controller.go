@@ -25,7 +25,7 @@ type DataSourceInfo struct {
 	Topic      string `json:"topic"`
 	VpcAddress string `json:"vpc_address"`
 	Token      string `json:"token"`
-	JobId      uint32 `json:"job_id"`
+	JobId      int    `json:"job_id"`
 }
 type FeatureReplyData struct {
 	Scene        string   `json:"scene"`
