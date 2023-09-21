@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/context"
 	"github.com/alibaba/pairec/log"
 	"github.com/alibaba/pairec/persist/holo"
 	"github.com/alibaba/pairec/recconf"
 	"github.com/alibaba/pairec/utils"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type ItemCollaborativeHologresDao struct {
@@ -28,7 +28,7 @@ type ItemCollaborativeHologresDao struct {
 }
 
 func NewItemCollaborativeHologresDao(config recconf.RecallConfig) *ItemCollaborativeHologresDao {
-	hologres, err := holo.GetPostgres(config.DaoConf.HologresName)
+	hologres, err := holo.GetPostgres(config.ItemCollaborativeDaoConf.HologresName)
 	if err != nil {
 		log.Error(fmt.Sprintf("error=%v", err))
 		return nil
