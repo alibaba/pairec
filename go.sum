@@ -51,8 +51,8 @@ github.com/alibabacloud-go/tea-utils/v2 v2.0.4 h1:SoFgjJuO7pze88j9RBJNbKb7AgTS52
 github.com/alibabacloud-go/tea-utils/v2 v2.0.4/go.mod h1:sj1PbjPodAVTqGTA3olprfeeqqmwD0A5OQz94o9EuXQ=
 github.com/alibabacloud-go/tea-xml v1.1.2 h1:oLxa7JUXm2EDFzMg+7oRsYc+kutgCVwm+bZlhhmvW5M=
 github.com/alibabacloud-go/tea-xml v1.1.2/go.mod h1:Rq08vgCcCAjHyRi/M7xlHKUykZCEtyBy9+DPF6GgEu8=
-github.com/aliyun/alibaba-cloud-sdk-go v1.62.461 h1:BKR0OA4SkKxd070dm7Ic2zWQJPQhw/UBgfrTUERgMhI=
-github.com/aliyun/alibaba-cloud-sdk-go v1.62.461/go.mod h1:Api2AkmMgGaSUAhmk76oaFObkoeCPc/bKAqcyplPODs=
+github.com/aliyun/alibaba-cloud-sdk-go v1.62.563 h1:Zivk4eq3B5mdtR13ULp6CVX2PIU3UDGraBHGohANTa4=
+github.com/aliyun/alibaba-cloud-sdk-go v1.62.563/go.mod h1:Api2AkmMgGaSUAhmk76oaFObkoeCPc/bKAqcyplPODs=
 github.com/aliyun/alibabacloud-lindorm-go-sql-driver/v5 v5.0.1 h1:9IbLal5XJrZ5f4+wtzuToCMDKldTFm4BYYOWqU3wJeg=
 github.com/aliyun/alibabacloud-lindorm-go-sql-driver/v5 v5.0.1/go.mod h1:eCk9u8X533+Sd9CTfI2Mn59ok6Ck/9t7jXHz+FO601g=
 github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c h1:5YWOrdiCtaOjh/IJvn+Aht6vtUeJtBxWLqe5sewcbjg=
@@ -65,8 +65,8 @@ github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8
 github.com/aliyun/aliyun-log-go-sdk v0.1.27/go.mod h1:aBG0R+MWRTgvlIODQkz+a3/RM9bQYKsmSbKdbIx4vpc=
 github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.0 h1:r97U+qo3rmXUqX8KNf4PAwoF2EJ1XiWoho3hkRHmS/4=
 github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.0/go.mod h1:rkSLP46xj41r9Q4oE3r/sEmmgwUU/PGNnekHFRndDww=
-github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.1 h1:vjb0elHIzsZEwo2v8Q9epkz3aiK81XHpPFXh+b8EwW4=
-github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.1/go.mod h1:Ef1Hucj88D+Tb5Dz9pSgmlrImPl2meAiEiKmeQcxUWM=
+github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.2 h1:3xk+2v0mbD2FUFFIeJTrSOMxX5w31VMDzm0UyuNe+Fc=
+github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.2/go.mod h1:QC+UMdK5GIvZ7jxnupaRBXNKrZIwAWLH+NtPCDPKBxE=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7 h1:+d/mcgaxx1jaWtFN2WrBHy4XeM9IK5gmZvbbpVkhqHE=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7/go.mod h1:mZCxM44kLKLY5ci+0j6bJb0DG8PNQ5Mn40Y0bbYOhpE=
 github.com/aliyun/credentials-go v1.1.2 h1:qU1vwGIBb3UJ8BwunHDRFtAhS6jnQLnde/yk0+Ih2GY=

@@ -41,7 +41,7 @@ require (
 
 require (
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.0
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.1
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.2
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
@@ -55,7 +55,7 @@ require (
 	github.com/alibabacloud-go/paifeaturestore-20230621 v1.0.0 // indirect
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.4 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
-	github.com/aliyun/alibaba-cloud-sdk-go v1.62.461 // indirect
+	github.com/aliyun/alibaba-cloud-sdk-go v1.62.563 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect

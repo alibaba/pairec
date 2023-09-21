@@ -1,25 +1,23 @@
 package service
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/http"
 	"sync"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/algorithm/eas"
 	"github.com/alibaba/pairec/v2/algorithm/response"
 	"github.com/alibaba/pairec/v2/context"
-	"github.com/alibaba/pairec/v2/datasource/datahub"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/rank"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
+	jsoniter "github.com/json-iterator/go"
 )
 
 type FeatureReplyService struct {
@@ -316,117 +314,38 @@ func (r *FeatureReplyService) rank(user *module.User, items []*module.Item, cont
 }
 
 func (r *FeatureReplyService) logFeatureReplyResult(user *module.User, items []*module.Item, context *context.RecommendContext) {
-	datasourceType := context.GetParameter("datasource_type").(string)
+	//datasourceType := context.GetParameter("datasource_type").(string)
+	r.logReatureReplyResultToPairecConfigServer(user, items, context)
+	/**
 	if datasourceType == "datahub" {
 		r.logReatureReplyResultToDatahub(user, items, context)
 	} else if datasourceType == "eas" {
 		r.logReatureReplyResultToPairecConfigServer(user, items, context)
 	}
-}
-func (r *FeatureReplyService) logReatureReplyResultToDatahub(user *module.User, items []*module.Item, context *context.RecommendContext) {
-	accessId := context.GetParameter("access_id").(string)
-	accessKey := context.GetParameter("access_key").(string)
-	endpoint := context.GetParameter("endpoint").(string)
-	project := context.GetParameter("project").(string)
-	topic := context.GetParameter("topic").(string)
-
-	name := fmt.Sprintf("%s-%s-%s-%s-%s", accessId, accessKey, endpoint, project, topic)
-
-	var dh *datahub.Datahub
-	dh, err := datahub.GetDatahub(name)
-	if err != nil {
-		dh = datahub.NewDatahub(accessId, accessKey, endpoint, project, topic, nil)
-		err = dh.Init()
-		datahub.RegisterDatahub(name, dh)
-	}
-
-	if dh == nil {
-		log.Error(fmt.Sprintf("requestId=%s\tevent=logFeatureReplyResultToDatahub\tmsg=create datahub error\terror=%v", context.RecommendId, err))
-		return
-	}
-
-	scene := context.Param.GetParameter("scene").(string)
-	var data []map[string]interface{}
-	for _, item := range items {
-		message := make(map[string]interface{})
-		message["request_id"] = context.RecommendId
-		message["request_time"] = time.Now().Unix()
-		message["scene"] = scene
-		message["user_id"] = string(user.Id)
-		message["item_id"] = string(item.Id)
-		message["raw_features"] = item.StringProperty("raw_features")
-		message["generate_features"] = item.StringProperty("generate_features")
-		message["context_features"] = item.StringProperty("context_features")
-		// j, _ := json.Marshal(item.GetAlgoScores())
-		// message["scores"] = string(j)
-		data = append(data, message)
-	}
-	dh.SendMessage(data)
-}
-
-var pairecConfigClient *http.Client
-
-func init() {
-	tr := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   1000 * time.Millisecond, // 1000ms
-			KeepAlive: 5 * time.Minute,
-		}).DialContext,
-		MaxIdleConnsPerHost:   200,
-		MaxIdleConns:          200,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 10 * time.Second,
-	}
-
-	pairecConfigClient = &http.Client{Transport: tr}
+	**/
 }
 
 func (r *FeatureReplyService) logReatureReplyResultToPairecConfigServer(user *module.User, items []*module.Item, context *context.RecommendContext) {
-	endpoint := context.GetParameter("vpc_address").(string)
-	token := context.GetParameter("token").(string)
 	jobId := context.GetParameter("job_id")
-
-	var url string
-	if endpoint[len(endpoint)-1] == '/' {
-		url = endpoint + "v1/feature_consistency_reply"
-	} else {
-		url = endpoint + "/v1/feature_consistency_reply"
-	}
 
 	scene := context.Param.GetParameter("scene").(string)
 	for _, item := range items {
-		message := make(map[string]interface{})
-		message["request_id"] = context.RecommendId
-		message["request_time"] = time.Now().UnixMilli()
-		message["scene"] = scene
-		message["user_id"] = string(user.Id)
-		message["item_id"] = string(item.Id)
-		message["raw_features"] = item.StringProperty("raw_features")
-		message["generate_features"] = item.StringProperty("generate_features")
-		message["context_features"] = item.StringProperty("context_features")
-		message["job_id"] = jobId
-		// j, _ := json.Marshal(item.GetAlgoScores())
-		// message["scores"] = string(j)
-		j, _ := json.Marshal(message)
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(j))
+		replyData := model.FeatureConsistencyReplyData{}
+		replyData.FeatureConsistencyCheckJobConfigId = utils.ToString(jobId, "")
+		replyData.LogRequestId = context.RecommendId
+		replyData.LogRequestTime = time.Now().UnixMilli()
+		replyData.SceneName = scene
+		replyData.LogUserId = string(user.Id)
+		replyData.LogItemId = string(item.Id)
+		replyData.RawFeatures = item.StringProperty("raw_features")
+		replyData.ContextFeatures = item.StringProperty("context_features")
+		replyData.GeneratedFeatures = item.StringProperty("generate_features")
+
+		resp, err := abtest.GetExperimentClient().SyncFeatureConsistencyCheckJobReplayLog(&replyData)
 		if err != nil {
-			log.Error(fmt.Sprintf("requestId=%s\tevent=logReatureReplyResultToPairecConfigServer\terror=%v", context.RecommendId, err))
+			log.Error(fmt.Sprintf("requestId=%s\tevent=logReatureReplyResultToPairecConfigServer\tresponse=%v\terror=%v", context.RecommendId, resp, err))
 			continue
 		}
 
-		headers := map[string][]string{
-			"Authorization": {token},
-			"Content-Type":  {"application/json"},
-		}
-		req.Header = headers
-
-		resp, err := pairecConfigClient.Do(req)
-		if err != nil {
-			log.Error(fmt.Sprintf("requestId=%s\tevent=logReatureReplyResultToPairecConfigServer\terror=%v", context.RecommendId, err))
-			continue
-		}
-
-		resp.Body.Close()
 	}
 }
