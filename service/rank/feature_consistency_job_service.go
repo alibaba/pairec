@@ -130,10 +130,8 @@ func (r *FeatureConsistencyJobService) checkFeatureConsistencyJobForRunning(job 
 
 		var easModelAlgoNames []string
 		for _, algoConfig := range context.Config.AlgoConfs {
-			url := strings.ReplaceAll(algoConfig.EasConf.Url, "http://", "")
-			index := strings.Index(url, "/api/predict/")
-			name := url[index+len("/api/predict/"):]
-			fmt.Println("checkFeatureConsistencyJobForRunning", name, job.EasModelServiceName)
+			urls := strings.Split(algoConfig.EasConf.Url, "/api/predict/")
+			name := urls[1]
 			if name == job.EasModelServiceName {
 				easModelAlgoNames = append(easModelAlgoNames, algoConfig.Name)
 				user.AddProperty("_algo_", algoConfig.Name)
@@ -206,7 +204,6 @@ func (r *FeatureConsistencyJobService) logRankResultToPaiConfigServer(user *modu
 	backflowData.LogRequestTime = time.Now().UnixMilli()
 	backflowData.LogUserId = string(user.Id)
 	backflowData.UserFeatures = userDataStr
-	fmt.Println("logRankResultToPaiConfigServer", len(items))
 
 	i := 0
 	var itemIds []string
