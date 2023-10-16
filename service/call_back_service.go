@@ -172,8 +172,12 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 	}
 
 	var algoData rank.IAlgoData
+	debugLevel := 3
+	if rankConfig.DebugLevel > 0 {
+		debugLevel = rankConfig.DebugLevel
+	}
 	if algoGenerator.HasFeatures() {
-		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(3)
+		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel)
 	}
 
 	var wg sync.WaitGroup
