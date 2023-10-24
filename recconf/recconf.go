@@ -728,9 +728,10 @@ type AdjustCountConfig struct {
 	Type       string
 }
 type CallBackConfig struct {
-	DataSource  DataSourceConfig
-	RankConf    RankConfig
-	RawFeatures bool
+	DataSource      DataSourceConfig
+	RankConf        RankConfig
+	RawFeatures     bool
+	RawFeaturesRate int
 }
 type GeneralRankConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig

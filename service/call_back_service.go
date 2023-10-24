@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -172,8 +173,18 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 	}
 
 	var algoData rank.IAlgoData
+	debugLevel := 3
+
+	writeRawFeatrues := false
+	if callBackConfig.RawFeatures && callBackConfig.RawFeaturesRate > 0 {
+		if rand.Intn(100) < callBackConfig.RawFeaturesRate {
+			debugLevel = 1
+			writeRawFeatrues = true
+		}
+	}
+
 	if algoGenerator.HasFeatures() {
-		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(3)
+		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel)
 	}
 
 	var wg sync.WaitGroup
@@ -220,7 +231,7 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 						itemList := algoData.GetItems()
 						for j := 0; j < len(result) && j < len(itemList); j++ {
 							response, _ := (result[j]).(*eas.EasyrecResponse)
-							if callBackConfig.RawFeatures {
+							if writeRawFeatrues {
 								itemList[j].AddProperty("raw_features", response.RawFeatures)
 							}
 
