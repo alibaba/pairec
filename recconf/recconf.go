@@ -597,7 +597,6 @@ type RankConfig struct {
 	ContextFeatures []string
 	BatchCount      int
 	ScoreRewrite    map[string]string
-	DebugLevel      int
 }
 type ActionConfig struct {
 	ActionType string
@@ -729,9 +728,10 @@ type AdjustCountConfig struct {
 	Type       string
 }
 type CallBackConfig struct {
-	DataSource  DataSourceConfig
-	RankConf    RankConfig
-	RawFeatures bool
+	DataSource      DataSourceConfig
+	RankConf        RankConfig
+	RawFeatures     bool
+	RawFeaturesRate int
 }
 type GeneralRankConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig
