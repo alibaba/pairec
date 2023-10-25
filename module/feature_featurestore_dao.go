@@ -126,7 +126,8 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 		fk = comms[1]
 	}
 	var keys []interface{}
-	key2Item := make(map[string]*Item, len(items))
+	keysMap := make(map[string]bool)
+	key2Item := make(map[string][]*Item, len(items))
 	for _, item := range items {
 		var key string
 		if fk == "item:id" {
@@ -134,9 +135,14 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 		} else {
 			key = item.StringProperty(fk)
 		}
-		keys = append(keys, key)
-		key2Item[key] = item
+		//keys = append(keys, key)
+		keysMap[key] = true
+		key2Item[key] = append(key2Item[key], item)
 	}
+	for k := range keysMap {
+		keys = append(keys, k)
+	}
+
 	model := d.client.GetProject().GetModel(d.fsModel)
 	if model == nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=model not found(%s)", context.RecommendId, d.fsModel))
@@ -155,10 +161,12 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 		return
 	}
 
-	for key, item := range key2Item {
+	for key, itemlist := range key2Item {
 		for i, featureMap := range features {
 			if key == featureMap[entity.FeatureEntityJoinid] {
-				item.AddProperties(featureMap)
+				for _, item := range itemlist {
+					item.AddProperties(featureMap)
+				}
 				features[i] = features[len(features)-1]
 				features = features[:len(features)-1]
 			}
