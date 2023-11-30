@@ -45,6 +45,8 @@ github.com/aliyun/aliyun-pai-featurestore-go-sdk v1.0.1 h1:ixjLzFx370vfo4xlx5uc/
 github.com/aliyun/aliyun-pai-featurestore-go-sdk v1.0.1/go.mod h1:iBkKRJXR9SOZ8r90iJ9RSrWDvs/DzSBp6RMsnHgIK3s=
 github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.0 h1:XSZezgBx7Bi5tQV20HV0Vlx66QalKik9FG/zYPrVgig=
 github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.0/go.mod h1:32h+JXvT4lpPvkNACNzDFD7mwma348mUMPHLzQMolII=
+github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.2 h1:zZXFxsvRfz8xhA9oigo7bHCrua4YFM/aIDr4+xGTJvE=
+github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.2/go.mod h1:32h+JXvT4lpPvkNACNzDFD7mwma348mUMPHLzQMolII=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7 h1:+d/mcgaxx1jaWtFN2WrBHy4XeM9IK5gmZvbbpVkhqHE=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7/go.mod h1:mZCxM44kLKLY5ci+0j6bJb0DG8PNQ5Mn40Y0bbYOhpE=
 github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY3JY=
