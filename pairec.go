@@ -1,6 +1,7 @@
 package pairec
 
 import (
+	"encoding/json"
 	"flag"
 	"io"
 	"net/http"
@@ -132,6 +133,30 @@ func registerRouteInfo() {
 	// use for listen http server state
 	HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "success")
+	})
+	HandleFunc("/route_paths", func(w http.ResponseWriter, r *http.Request) {
+		paths := PairecApp.Handlers.GetRoutePath()
+
+		var result []string
+		for _, p := range paths {
+			if p == "/ping" ||
+				p == "/route_paths" ||
+				p == "/api/recommend" ||
+				p == "/api/recall" ||
+				p == "/api/callback" ||
+				p == "/api/feature_reply" ||
+				p == "/metrics" ||
+				p == "/custom_metrics" {
+				continue
+			}
+
+			result = append(result, p)
+		}
+
+		w.Header().Add("content-type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		d, _ := json.Marshal(result)
+		io.WriteString(w, string(d))
 	})
 
 	// register recommend Controller

@@ -67,6 +67,13 @@ func (c *ControllerRegister) Register(routeInfo *RouteInfo) {
 	c.routeInfos[routeInfo.pattern] = routeInfo
 }
 
+func (c *ControllerRegister) GetRoutePath() (paths []string) {
+	for p := range c.routeInfos {
+		paths = append(paths, p)
+	}
+	return
+}
+
 func (c *ControllerRegister) ApplyMiddlewares() {
 	for p, r := range c.routeInfos {
 		c.routeInfos[p] = applyMiddleware(r, c.Middlewares...)
