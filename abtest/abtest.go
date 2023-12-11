@@ -43,9 +43,12 @@ func LoadFromEnvironment() {
 	}
 
 	l := log.ABTestLogger{}
+	opts := []experiments.ClientOption{experiments.WithLogger(experiments.LoggerFunc(l.Infof)), experiments.WithErrorLogger(experiments.LoggerFunc(l.Errorf))}
+	if os.Getenv("PAIREC_CONFIG_ENDPOINT") != "" {
+		opts = append(opts, experiments.WithDomain(os.Getenv("PAIREC_CONFIG_ENDPOINT")))
+	}
 	client, err := experiments.NewExperimentClient(instanceId, region, accessId, accessSecret, env,
-		experiments.WithLogger(experiments.LoggerFunc(l.Infof)),
-		experiments.WithErrorLogger(experiments.LoggerFunc(l.Errorf)),
+		opts...,
 	)
 
 	if err != nil {
