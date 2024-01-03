@@ -69,6 +69,8 @@ github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.4 h1:5nqa6p9+tBekpQOiGc
 github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.4/go.mod h1:rkSLP46xj41r9Q4oE3r/sEmmgwUU/PGNnekHFRndDww=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.2 h1:3xk+2v0mbD2FUFFIeJTrSOMxX5w31VMDzm0UyuNe+Fc=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.2/go.mod h1:QC+UMdK5GIvZ7jxnupaRBXNKrZIwAWLH+NtPCDPKBxE=
+github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.3 h1:PzSqtM/Oh1JSLAkfblG4JLYe0xmyJCR7wcW0qNj38E0=
+github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.3/go.mod h1:QC+UMdK5GIvZ7jxnupaRBXNKrZIwAWLH+NtPCDPKBxE=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7 h1:+d/mcgaxx1jaWtFN2WrBHy4XeM9IK5gmZvbbpVkhqHE=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7/go.mod h1:mZCxM44kLKLY5ci+0j6bJb0DG8PNQ5Mn40Y0bbYOhpE=
 github.com/aliyun/credentials-go v1.1.2 h1:qU1vwGIBb3UJ8BwunHDRFtAhS6jnQLnde/yk0+Ih2GY=

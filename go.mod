@@ -41,7 +41,7 @@ require (
 
 require (
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.4
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.2
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.3
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
