@@ -40,8 +40,8 @@ require (
 )
 
 require (
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.4
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.3
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.5
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.4
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
@@ -74,7 +74,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/xinsnake/go-http-digest-auth-client v0.6.0 // indirect
-	golang.org/x/crypto v0.11.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
 	gopkg.in/ini.v1 v1.66.2 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
@@ -115,9 +115,9 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.43.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/net v0.12.0
-	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/net v0.17.0
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	modernc.org/b v1.0.0 // indirect
