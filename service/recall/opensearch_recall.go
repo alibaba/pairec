@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -57,34 +56,12 @@ func NewOpenSearchRecall(config recconf.RecallConfig) *OpenSearchRecall {
 
 func (i *OpenSearchRecall) GetCandidateItems(user *module.User, context *context.RecommendContext) (ret []*module.Item) {
 	start := time.Now()
-	if i.cache != nil {
-		key := i.cachePrefix + string(user.Id)
-		cacheRet := i.cache.Get(key)
-		if itemStr, ok := cacheRet.([]uint8); ok {
-			itemIds := strings.Split(string(itemStr), ",")
-			for _, id := range itemIds {
-				var item *module.Item
-				if strings.Contains(id, ":") {
-					vars := strings.Split(id, ":")
-					item = module.NewItem(vars[0])
-					f, _ := strconv.ParseFloat(vars[1], 64)
-					item.Score = f
-				} else {
-					item = module.NewItem(id)
-				}
-				item.RetrieveId = i.modelName
-				ret = append(ret, item)
-			}
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=OpenSearchRecall\tfrom=cache\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))
-			return
-		}
-	}
 	requestParams, err := i.getRequestParams(user, context)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tevent=OpenSearchRecall\terr=%s", context.RecommendId, err.Error()))
 		return
 	}
-	//log query_string
+	//log requestParams
 	if context.Debug {
 		log.Info(fmt.Sprintf("event=OpenSearchRecall\trequest_params=%v", requestParams))
 	}
@@ -115,20 +92,6 @@ func (i *OpenSearchRecall) GetCandidateItems(user *module.User, context *context
 
 			ret = append(ret, item)
 		}
-	}
-
-	if i.cache != nil && len(ret) > 0 {
-		go func() {
-			key := i.cachePrefix + string(user.Id)
-			var itemIds string
-			for _, item := range ret {
-				itemIds += fmt.Sprintf("%s:%v", string(item.Id), item.Score) + ","
-			}
-			itemIds = itemIds[:len(itemIds)-1]
-			if err = i.cache.Put(key, itemIds, time.Duration(i.cacheTime)*time.Second); err != nil {
-				log.Error(fmt.Sprintf("requestId=%s\tmodule=OpenSearchRecall\terror=%v", context.RecommendId, err))
-			}
-		}()
 	}
 
 	log.Info(fmt.Sprintf("requestId=%s\tmodule=OpenSearchRecall\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))

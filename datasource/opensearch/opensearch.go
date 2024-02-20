@@ -24,7 +24,7 @@ func GetOpenSearchClient(name string) (*OpenSearchClient, error) {
 	mu.RLock()
 	defer mu.RUnlock()
 	if _, ok := opensearchInstances[name]; !ok {
-		return nil, fmt.Errorf("ha3EngineClient not found, name:%s", name)
+		return nil, fmt.Errorf("opensearchClient not found, name:%s", name)
 	}
 
 	return opensearchInstances[name], nil
@@ -56,7 +56,6 @@ func NewOpenSearchClient(endpoint, accessId, accessKey string) *OpenSearchClient
 		Autoretry:      tea.Bool(false),
 		IgnoreSSL:      tea.Bool(false),
 		MaxIdleConns:   tea.Int(50),
-		//HttpProxy:      tea.String("http://116.*.*.187:8088"),
 	}
 	return p
 }
