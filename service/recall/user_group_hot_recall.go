@@ -34,21 +34,19 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 		case []uint8:
 			itemIds := strings.Split(string(itemStr), ",")
 			for _, id := range itemIds {
-				item := &module.Item{
-					Id:         module.ItemId(id),
-					ItemType:   r.itemType,
-					RetrieveId: r.modelName,
-				}
+				item := module.NewItem(id)
+				item.ItemType = r.itemType
+				item.RetrieveId = r.modelName
+
 				ret = append(ret, item)
 			}
 		case string:
 			itemIds := strings.Split(itemStr, ",")
 			for _, id := range itemIds {
-				item := &module.Item{
-					Id:         module.ItemId(id),
-					ItemType:   r.itemType,
-					RetrieveId: r.modelName,
-				}
+				item := module.NewItem(id)
+				item.ItemType = r.itemType
+				item.RetrieveId = r.modelName
+
 				ret = append(ret, item)
 			}
 		default:
