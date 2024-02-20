@@ -30,7 +30,8 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 	if r.cache != nil {
 		key := r.cachePrefix + string(user.Id)
 		cacheRet := r.cache.Get(key)
-		if itemStr, ok := cacheRet.([]uint8); ok {
+		switch itemStr := cacheRet.(type) {
+		case []uint8:
 			itemIds := strings.Split(string(itemStr), ",")
 			for _, id := range itemIds {
 				item := &module.Item{
@@ -40,7 +41,21 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 				}
 				ret = append(ret, item)
 			}
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecall\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))
+		case string:
+			itemIds := strings.Split(itemStr, ",")
+			for _, id := range itemIds {
+				item := &module.Item{
+					Id:         module.ItemId(id),
+					ItemType:   r.itemType,
+					RetrieveId: r.modelName,
+				}
+				ret = append(ret, item)
+			}
+		default:
+		}
+
+		if len(ret) > 0 {
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecall\tfrom=cache\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))
 			return
 		}
 	}

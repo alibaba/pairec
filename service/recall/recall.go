@@ -76,6 +76,8 @@ func Load(config *recconf.RecommendConfig) {
 			recall = NewGraphRecall(conf)
 		} else if conf.RecallType == "MockRecall" {
 			recall = NewMockRecall(conf)
+		} else if conf.RecallType == "OpenSearchRecall" {
+			recall = NewOpenSearchRecall(conf)
 		}
 
 		if recall == nil {
