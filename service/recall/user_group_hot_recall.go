@@ -66,7 +66,13 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 				itemIds += string(item.Id) + ","
 			}
 			itemIds = itemIds[:len(itemIds)-1]
-			if err := r.cache.Put(key, itemIds, 1800*time.Second); err != nil {
+
+			cacheTime := r.cacheTime
+			if cacheTime == 0 {
+				cacheTime = 1800
+			}
+
+			if err := r.cache.Put(key, itemIds, time.Duration(cacheTime)*time.Second); err != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecall\terror=%v",
 					context.RecommendId, err))
 			}
