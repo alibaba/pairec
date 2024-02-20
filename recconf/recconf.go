@@ -64,6 +64,7 @@ type RecommendConfig struct {
 	DatahubConfs              map[string]DatahubConfig
 	BEConfs                   map[string]BEConfig
 	Ha3EngineConfs            map[string]Ha3EngineConfig
+	OpenSearchConfs           map[string]OpenSearchConfig
 	HBaseConfs                map[string]HBaseConfig
 	HBaseThriftConfs          map[string]HBaseThriftConfig
 	TableStoreConfs           map[string]TableStoreConfig
@@ -325,8 +326,9 @@ type RecallConfig struct {
 	UserFeatureConfs         []FeatureLoadConfig // get user features
 
 	// be recall config
-	BeConf    BeConfig
-	GraphConf GraphConf
+	BeConf         BeConfig
+	GraphConf      GraphConf
+	OpenSearchConf OpenSearchConf
 }
 
 type GraphConf struct {
@@ -334,6 +336,14 @@ type GraphConf struct {
 	ItemId      string
 	QueryString string
 	Params      []string
+}
+
+type OpenSearchConf struct {
+	OpenSearchName string
+	AppName        string
+	ItemId         string
+	RequestParams  map[string]any
+	Params         []string
 }
 
 type BeConfig struct {
@@ -557,6 +567,11 @@ type Ha3EngineConfig struct {
 	Password   string
 	Endpoint   string
 	InstanceId string
+}
+type OpenSearchConfig struct {
+	EndPoint        string
+	AccessKeyId     string
+	AccessKeySecret string
 }
 type DatahubTopicSchema struct {
 	Field string

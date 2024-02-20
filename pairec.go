@@ -9,6 +9,7 @@ import (
 
 	"github.com/alibaba/pairec/v2/datasource/graph"
 	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
+	"github.com/alibaba/pairec/v2/datasource/opensearch"
 
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/algorithm"
@@ -92,6 +93,7 @@ func runBeforeStart() {
 	beengine.Load(recconf.Config)
 	graph.Load(recconf.Config)
 	ha3engine.Load(recconf.Config)
+	opensearch.Load(recconf.Config)
 	hbase.Load(recconf.Config)
 	hbase_thrift.Load(recconf.Config)
 	holo.Load(recconf.Config)

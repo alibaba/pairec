@@ -9,6 +9,7 @@ import (
 
 	"github.com/alibaba/pairec/v2/datasource/graph"
 	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
+	"github.com/alibaba/pairec/v2/datasource/opensearch"
 
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/algorithm"
@@ -94,6 +95,7 @@ func (l *ConfigLoader) reloadConfig(config *recconf.RecommendConfig) {
 	beengine.Load(config)
 	graph.Load(config)
 	ha3engine.Load(recconf.Config)
+	opensearch.Load(recconf.Config)
 	hbase.Load(config)
 	holo.Load(config)
 	lindorm.Load(config)
