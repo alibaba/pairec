@@ -87,7 +87,11 @@ func (i *OpenSearchRecall) GetCandidateItems(user *module.User, context *context
 
 	for _, item := range result.Body.Result.Items {
 		if itemId, ok := item.Fields[i.ItemId]; ok {
-			item := module.NewItem(itemId)
+			properties := make(map[string]interface{})
+			for k, v := range item.Fields {
+				properties[k] = v
+			}
+			item := module.NewItemWithProperty(itemId, properties)
 			item.RetrieveId = i.modelName
 
 			ret = append(ret, item)
