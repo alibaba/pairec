@@ -61,6 +61,9 @@ func (i *OpenSearchRecall) GetCandidateItems(user *module.User, context *context
 		log.Error(fmt.Sprintf("requestId=%s\tevent=OpenSearchRecall\terr=%s", context.RecommendId, err.Error()))
 		return
 	}
+	if i.recallCount > 0 {
+		requestParams["query"] = fmt.Sprintf("%s&&config=start:0,hit:%d,format:fulljson", requestParams["query"], i.recallCount)
+	}
 	//log requestParams
 	if context.Debug {
 		log.Info(fmt.Sprintf("event=OpenSearchRecall\trequest_params=%v", requestParams))
