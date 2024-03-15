@@ -133,6 +133,8 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			f = NewGroupWeightCountFilter(conf)
 		} else if conf.FilterType == "DimensionFieldUniqueFilter" {
 			f = NewDimensionFieldUniqueFilter(conf)
+		} else if conf.FilterType == "User2ItemExposureWithConditionFilter" {
+			f = NewUser2ItemExposureWithConditionFilter(conf)
 		}
 
 		if f == nil {
