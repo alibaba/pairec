@@ -661,6 +661,7 @@ type FilterConfig struct {
 	DiversityMinCount         int
 	EnsureDiversity           bool
 	FilterVal                 FilterValue
+	Conditions                []FilterParamConfig
 }
 type BeFilterConfig struct {
 	FilterConfig
