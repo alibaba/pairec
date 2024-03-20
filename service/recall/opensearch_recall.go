@@ -1,7 +1,6 @@
 package recall
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,18 +15,6 @@ import (
 	"github.com/alibabacloud-go/tea/tea"
 )
 
-type OpenSearchResult struct {
-	Body struct {
-		Status    string `json:"status"`
-		RequestId string `json:"request_id"`
-		Errors    []any  `json:"errors"`
-		Result    struct {
-			Items []struct {
-				Fields map[string]string `json:"fields"`
-			} `json:"items"`
-		} `json:"result"`
-	} `json:"body"`
-}
 type OpenSearchRecall struct {
 	*BaseRecall
 	openSearchClient *opensearch.OpenSearchClient
@@ -69,26 +56,23 @@ func (i *OpenSearchRecall) GetCandidateItems(user *module.User, context *context
 		log.Info(fmt.Sprintf("event=OpenSearchRecall\trequest_params=%v", requestParams))
 	}
 
-	resp, err := i.openSearchClient.OpenSearchClient.Request(tea.String("GET"), tea.String("/v3/openapi/apps/"+i.AppName+"/search"), requestParams, nil, nil, i.openSearchClient.Runtime)
+	result, err := i.openSearchClient.OpenSearchClient.Request(tea.String("GET"), tea.String("/v3/openapi/apps/"+i.AppName+"/search"), requestParams, nil, nil, i.openSearchClient.Runtime)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tevent=OpenSearchRecall\terr=%s", context.RecommendId, err.Error()))
 		return
 	}
-	j, _ := json.Marshal(resp)
-
-	result := OpenSearchResult{}
-	err = json.Unmarshal(j, &result)
-	if err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tevent=OpenSearchRecall\terr=%s", context.RecommendId, err.Error()))
+	if result == nil {
+		log.Error(fmt.Sprintf("requestId=%s\tevent=OpenSearchRecall\terr=empty result", context.RecommendId))
 		return
 	}
-	if result.Body.Status != "OK" {
-		log.Error(fmt.Sprintf("requestId=%s\tevent=OpenSearchRecall\terr=opensearch invoke error(%v)", context.RecommendId, result.Body.Errors))
+
+	if result.Status != "OK" {
+		log.Error(fmt.Sprintf("requestId=%s\tevent=OpenSearchRecall\terr=opensearch invoke error(%v)", context.RecommendId, result.Errors))
 		return
 
 	}
 
-	for _, item := range result.Body.Result.Items {
+	for _, item := range result.Result.Items {
 		if itemId, ok := item.Fields[i.ItemId]; ok {
 			properties := make(map[string]interface{})
 			for k, v := range item.Fields {
