@@ -72,20 +72,23 @@ func (i *OpenSearchRecall) GetCandidateItems(user *module.User, context *context
 
 	}
 
-	for _, item := range result.Result.Items {
-		if itemId, ok := item.Fields[i.ItemId]; ok {
+	for _, osItem := range result.Result.Items {
+		if itemId, ok := osItem.Fields[i.ItemId]; ok {
 			properties := make(map[string]interface{})
-			for k, v := range item.Fields {
+			for k, v := range osItem.Fields {
 				properties[k] = v
 			}
 			item := module.NewItemWithProperty(itemId, properties)
 			item.RetrieveId = i.modelName
+			if len(osItem.SortExprValues) > 0 {
+				item.Score = utils.ToFloat(osItem.SortExprValues[0], 0)
+			}
 
 			ret = append(ret, item)
 		}
 	}
 
-	log.Info(fmt.Sprintf("requestId=%s\tmodule=OpenSearchRecall\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=OpenSearchRecall\tname=%s\tcount=%d\tcost=%d", context.RecommendId, i.modelName, len(ret), utils.CostTime(start)))
 	return
 }
 

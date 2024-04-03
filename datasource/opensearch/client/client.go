@@ -112,7 +112,8 @@ type OpenSearchResult struct {
 	Errors    []any  `json:"errors"`
 	Result    struct {
 		Items []struct {
-			Fields map[string]string `json:"fields"`
+			Fields         map[string]string `json:"fields"`
+			SortExprValues []any             `json:"sortExprValues"`
 		} `json:"items"`
 	} `json:"result"`
 }
