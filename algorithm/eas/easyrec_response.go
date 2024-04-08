@@ -402,7 +402,6 @@ func torchrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoRespo
 	var (
 		itemFeatures     []string
 		generateFeatures []*bytes.Buffer
-		//contextFeatures  []string
 	)
 	for i, itemId := range resp.ItemIds {
 		scores := make(map[string]float64)
@@ -426,19 +425,9 @@ func torchrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoRespo
 		} else {
 			generateFeatures = append(generateFeatures, new(bytes.Buffer))
 		}
-		/**
-		if c, ok := resp.ContextFeatures[itemId]; ok {
-			features := c.Features
-			j, _ := json.Marshal(features)
-			contextFeatures = append(contextFeatures, string(j))
-		} else {
-			contextFeatures = append(contextFeatures, "")
-		}
-		**/
 	}
 
 	for i, v := range response {
-		//ret = append(ret, &EasyrecResponse{scoreArr: v, multiValModule: true, RawFeatures: itemFeatures[i], GenerateFeatures: generateFeatures[i], ContextFeatures: contextFeatures[i]})
 		ret = append(ret, &EasyrecResponse{scoreArr: v, multiValModule: true, RawFeatures: itemFeatures[i], GenerateFeatures: generateFeatures[i]})
 	}
 
