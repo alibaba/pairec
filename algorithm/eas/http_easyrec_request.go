@@ -8,10 +8,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
-	proto "github.com/golang/protobuf/proto"
 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/config"
+	proto "github.com/golang/protobuf/proto"
 )
 
 type HttpEasyrecRequest struct {
@@ -59,6 +60,19 @@ func (r *HttpEasyrecRequest) Invoke(requestData interface{}) (response interface
 		return
 	}
 
+	if r.responseFuncName != "" && strings.HasPrefix(r.responseFuncName, "torchrec") {
+		responseData := &easyrec.TorchRecPBResponse{}
+		err = proto.Unmarshal(body, responseData)
+		if err != nil {
+			err = fmt.Errorf("error:%s, body:%s", err.Error(), string(body))
+			return
+		}
+
+		responseData.ItemIds = request.ItemIds
+		response = responseData
+		return
+
+	}
 	responseData := &easyrec.PBResponse{}
 	err = proto.Unmarshal(body, responseData)
 	if err != nil {

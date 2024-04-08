@@ -135,6 +135,7 @@ func (b *EasyrecRequestBuilder) AddContextFeature(key string, features []interfa
 		case string:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_StringFeature{val}})
 		default:
+			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_StringFeature{""}})
 		}
 	}
 
