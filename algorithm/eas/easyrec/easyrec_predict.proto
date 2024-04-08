@@ -128,3 +128,18 @@ message PBResponse {
   map<string, ArrayProto> tf_outputs = 10;
 }
 
+// TorchRecPBResponse specifies the response for aggregator
+message TorchRecPBResponse {
+  // torch output tensors
+  map<string, ArrayProto> map_outputs = 1;
+
+  // fg ouput features
+  map<string, string> generate_features = 2;
+
+  // all fg input features
+  map<string, string> raw_features = 3;
+
+  // item ids
+  repeated string item_ids = 4;
+
+}

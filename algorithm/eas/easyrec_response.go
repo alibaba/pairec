@@ -363,3 +363,84 @@ func easyrecUserRealtimeEmbeddingMindResponseFunc(data interface{}) (ret []respo
 
 	return
 }
+
+func torchrecMutValResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	outputs := resp.GetMapOutputs()
+	var response []map[string]float64
+	for i := range resp.ItemIds {
+		scores := make(map[string]float64)
+		for output, arrayProto := range outputs {
+			if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+				scores[output] = float64(arrayProto.FloatVal[i])
+			} else if arrayProto.Dtype == easyrec.ArrayDataType_DT_DOUBLE {
+				scores[output] = arrayProto.DoubleVal[i]
+			}
+		}
+		response = append(response, scores)
+	}
+
+	for _, v := range response {
+		ret = append(ret, &EasyrecResponse{scoreArr: v, multiValModule: true})
+	}
+
+	return
+}
+
+func torchrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	outputs := resp.GetMapOutputs()
+	var response []map[string]float64
+	var (
+		itemFeatures     []string
+		generateFeatures []*bytes.Buffer
+		//contextFeatures  []string
+	)
+	for i, itemId := range resp.ItemIds {
+		scores := make(map[string]float64)
+		for output, arrayProto := range outputs {
+			if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+				scores[output] = float64(arrayProto.FloatVal[i])
+			} else if arrayProto.Dtype == easyrec.ArrayDataType_DT_DOUBLE {
+				scores[output] = arrayProto.DoubleVal[i]
+			}
+		}
+		response = append(response, scores)
+
+		if f, ok := resp.RawFeatures[itemId]; ok {
+			itemFeatures = append(itemFeatures, f)
+		} else {
+			itemFeatures = append(itemFeatures, "")
+		}
+
+		if g, ok := resp.GenerateFeatures[itemId]; ok {
+			generateFeatures = append(generateFeatures, bytes.NewBufferString(g))
+		} else {
+			generateFeatures = append(generateFeatures, new(bytes.Buffer))
+		}
+		/**
+		if c, ok := resp.ContextFeatures[itemId]; ok {
+			features := c.Features
+			j, _ := json.Marshal(features)
+			contextFeatures = append(contextFeatures, string(j))
+		} else {
+			contextFeatures = append(contextFeatures, "")
+		}
+		**/
+	}
+
+	for i, v := range response {
+		//ret = append(ret, &EasyrecResponse{scoreArr: v, multiValModule: true, RawFeatures: itemFeatures[i], GenerateFeatures: generateFeatures[i], ContextFeatures: contextFeatures[i]})
+		ret = append(ret, &EasyrecResponse{scoreArr: v, multiValModule: true, RawFeatures: itemFeatures[i], GenerateFeatures: generateFeatures[i]})
+	}
+
+	return
+}

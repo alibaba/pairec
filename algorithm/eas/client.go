@@ -31,11 +31,12 @@ type IEasRequest interface {
 	GetResponseFunc() response.ResponseFunc
 }
 type EasRequest struct {
-	serviceName  string
-	auth         string
-	url          string
-	timeout      time.Duration
-	responseFunc response.ResponseFunc
+	serviceName      string
+	auth             string
+	url              string
+	timeout          time.Duration
+	responseFunc     response.ResponseFunc
+	responseFuncName string
 }
 
 func (r *EasRequest) SetUrl(url string) {
@@ -81,7 +82,13 @@ func (r *EasRequest) SetResponseFunc(name string) {
 		r.responseFunc = easyrecUserRealtimeEmbeddingMindResponseFunc
 	} else if name == "tfServingResponseFunc" {
 		r.responseFunc = tfServingResponseFunc
+	} else if name == "torchrecMutValResponseFunc" {
+		r.responseFunc = torchrecMutValResponseFunc
+	} else if name == "torchrecMutValResponseFuncDebug" {
+		r.responseFunc = torchrecMutValResponseFuncDebug
 	}
+
+	r.responseFuncName = name
 }
 
 func (r *EasRequest) GetResponseFunc() response.ResponseFunc {
