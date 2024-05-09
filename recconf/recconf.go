@@ -542,7 +542,9 @@ type FeatureStoreConfig struct {
 	AccessKey string
 	RegionId  string
 
-	ProjectName string
+	ProjectName       string
+	FeatureDBUsername string
+	FeatureDBPassword string
 }
 type KafkaConfig struct {
 	BootstrapServers string

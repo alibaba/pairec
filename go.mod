@@ -54,7 +54,7 @@ require (
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.6 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
 	github.com/alibabacloud-go/openapi-util v0.1.0 // indirect
-	github.com/alibabacloud-go/paifeaturestore-20230621 v1.0.0 // indirect
+	github.com/alibabacloud-go/paifeaturestore-20230621/v3 v3.1.4 // indirect
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.5 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.62.698 // indirect
