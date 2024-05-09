@@ -8,7 +8,7 @@ require (
 	github.com/alibabacloud-go/darabonba-encode-util v0.0.1
 	github.com/alibabacloud-go/darabonba-map v0.0.2
 	github.com/alibabacloud-go/darabonba-string v1.0.2
-	github.com/alibabacloud-go/tea v1.1.20
+	github.com/alibabacloud-go/tea v1.2.1
 	github.com/alibabacloud-go/tea-utils v1.4.5
 	github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c
 	github.com/aliyun/aliyun-datahub-sdk-go v0.1.6
@@ -36,14 +36,14 @@ require (
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6
 	gonum.org/v1/gonum v0.12.0
 	google.golang.org/grpc v1.48.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (
 	github.com/alibabacloud-go/opensearch-util v1.0.1
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.5
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.1.0
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.5
-	github.com/aliyun/credentials-go v1.1.2
+	github.com/aliyun/credentials-go v1.3.1
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
@@ -51,12 +51,12 @@ require (
 
 require (
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
-	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.2 // indirect
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.6 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
 	github.com/alibabacloud-go/openapi-util v0.1.0 // indirect
 	github.com/alibabacloud-go/paifeaturestore-20230621 v1.0.0 // indirect
-	github.com/alibabacloud-go/tea-utils/v2 v2.0.4 // indirect
-	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
+	github.com/alibabacloud-go/tea-utils/v2 v2.0.5 // indirect
+	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.62.698 // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
@@ -98,7 +98,7 @@ require (
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12
-	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/klauspost/compress v1.17.3 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
