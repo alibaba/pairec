@@ -34,11 +34,16 @@ func Load(config *recconf.RecommendConfig) {
 			continue
 		}
 
+		hologresPort := 80
+		if conf.HologresPort > 0 {
+			hologresPort = conf.HologresPort
+		}
 		l := log.FeatureStoreLogger{}
 		client, err := featurestore.NewFeatureStoreClient(conf.RegionId, conf.AccessId, conf.AccessKey, conf.ProjectName,
 			featurestore.WithLogger(featurestore.LoggerFunc(l.Infof)),
 			featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
 			featurestore.WithFeatureDBLogin(conf.FeatureDBUsername, conf.FeatureDBPassword),
+			featurestore.WithHologresPort(hologresPort),
 		)
 
 		if err != nil {

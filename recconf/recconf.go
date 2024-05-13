@@ -545,6 +545,7 @@ type FeatureStoreConfig struct {
 	ProjectName       string
 	FeatureDBUsername string
 	FeatureDBPassword string
+	HologresPort      int
 }
 type KafkaConfig struct {
 	BootstrapServers string
