@@ -61,12 +61,129 @@ message ContextFeatures {
   repeated PBFeature features = 1;
 }
 
+//long->others
+message LongStringMap {
+  map<int64, string> map_field = 1;
+}
+message LongIntMap {
+  map<int64, int32> map_field = 1;
+}
+message LongLongMap {
+  map<int64, int64> map_field = 1;
+}
+message LongFloatMap {
+  map<int64, float> map_field = 1;
+}
+message LongDoubleMap {
+  map<int64, double> map_field = 1;
+}
+
+//string->others
+message StringStringMap {
+  map<string, string> map_field = 1;
+}
+message StringIntMap {
+  map<string, int32> map_field = 1;
+}
+message StringLongMap {
+  map<string, int64> map_field = 1;
+}
+message StringFloatMap {
+  map<string, float> map_field = 1;
+}
+message StringDoubleMap {
+  map<string, double> map_field = 1;
+}
+
+//int32->others
+message IntStringMap {
+  map<int32, string> map_field = 1;
+}
+message IntIntMap {
+  map<int32, int32> map_field = 1;
+}
+message IntLongMap {
+  map<int32, int64> map_field = 1;
+}
+message IntFloatMap {
+  map<int32, float> map_field = 1;
+}
+message IntDoubleMap {
+  map<int32, double> map_field = 1;
+}
+
+// list
+message IntList {
+  repeated int32 features = 1;
+}
+message LongList {
+  repeated int64 features  = 1;
+}
+
+message FloatList {
+  repeated float features = 1;
+}
+message DoubleList {
+  repeated double features = 1;
+}
+message StringList {
+  repeated string features = 1;
+}
+
+// lists
+message IntLists {
+  repeated IntList lists = 1;
+}
+message LongLists {
+  repeated LongList lists = 1;
+}
+
+message FloatLists {
+  repeated FloatList lists = 1;
+}
+message DoubleLists {
+  repeated DoubleList lists = 1;
+}
+message StringLists {
+  repeated StringList lists = 1;
+}
 message PBFeature {
   oneof value {
     int32 int_feature = 1;
     int64 long_feature = 2;
     string string_feature = 3;
     float float_feature = 4;
+    double double_feature=5;
+
+    LongStringMap long_string_map = 6; 
+    LongIntMap long_int_map = 7; 
+    LongLongMap long_long_map = 8; 
+    LongFloatMap long_float_map = 9; 
+    LongDoubleMap long_double_map = 10; 
+    
+    StringStringMap string_string_map = 11; 
+    StringIntMap string_int_map = 12; 
+    StringLongMap string_long_map = 13; 
+    StringFloatMap string_float_map = 14; 
+    StringDoubleMap string_double_map = 15; 
+
+    IntStringMap int_string_map = 16; 
+    IntIntMap int_int_map = 17; 
+    IntLongMap int_long_map = 18; 
+    IntFloatMap int_float_map = 19; 
+    IntDoubleMap int_double_map = 20; 
+
+    IntList int_list = 21; 
+    LongList long_list =22;
+    StringList string_list = 23;
+    FloatList float_list = 24;
+    DoubleList double_list = 25;
+
+    IntLists int_lists = 26;
+    LongLists long_lists =27;
+    StringLists string_lists = 28;
+    FloatLists float_lists = 29;
+    DoubleLists double_lists = 30;
   }
 }
 
