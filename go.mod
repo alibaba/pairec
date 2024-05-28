@@ -1,6 +1,7 @@
 module github.com/alibaba/pairec/v2
 
-go 1.18
+go 1.20
+
 
 require (
 	github.com/ClickHouse/clickhouse-go v1.5.1
@@ -33,7 +34,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/tidwall/gjson v1.14.3
 	github.com/tsuna/gohbase v0.0.0-20200414231402-ae5d5a2cd032
-	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6
+	golang.org/x/exp v0.0.0-20240525044651-4c93da0ed11d
 	gonum.org/v1/gonum v0.12.0
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.33.0
@@ -45,6 +46,7 @@ require (
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.5
 	github.com/aliyun/credentials-go v1.3.1
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
+	github.com/bruceding/go-antlr-valuate v0.0.2
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
 )
@@ -58,6 +60,7 @@ require (
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.5 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.62.698 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect

@@ -3,9 +3,11 @@ package ast
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"sync"
+
+	"github.com/alibaba/pairec/v2/log"
+	valuate "github.com/bruceding/go-antlr-valuate"
 )
 
 // 基础表达式节点接口
@@ -206,6 +208,7 @@ func NewAST(toks []*Token, s string) *AST {
 	return a
 }
 
+/**
 // 一个典型的后序遍历求解算法
 func ExprASTResult(expr ExprAST, exprDatas ...ParameterExprData) float64 {
 	// 左右值
@@ -261,27 +264,36 @@ func ExprASTResult(expr ExprAST, exprDatas ...ParameterExprData) float64 {
 
 	return 0.0
 }
+**/
 
 // should use sync map
 var caches = make(map[string]ExprAST)
 var mutex sync.RWMutex
 
+type exprAST struct {
+	expression *valuate.EvaluableExpression
+}
+
+func (e *exprAST) toStr() string {
+	return ""
+}
+
 func GetExpAST(source string) (ExprAST, error) {
 	if source == "" {
-		return nil, nil
+		return nil, errors.New("expression is empty")
 	}
 	var exprAst ExprAST
 	mutex.RLock()
 	exprAst, ok := caches[source]
 	mutex.RUnlock()
 	if !ok {
-		tokens, err := Parse(source)
+		expression, err := valuate.NewEvaluableExpression(source)
 		if err != nil {
 			return nil, err
 		}
-		ast := NewAST(tokens, source)
-		exprAst = ast.ParseExpression()
-
+		exprAst = &exprAST{
+			expression: expression,
+		}
 		mutex.Lock()
 		caches[source] = exprAst
 		mutex.Unlock()
@@ -290,25 +302,23 @@ func GetExpAST(source string) (ExprAST, error) {
 	return exprAst, nil
 }
 
-/**
-func ExprSourceResult(source string, exprDatas ...ParameterExprData) float64 {
-	var exprAst ExprAST
-	mutex.RLock()
-	exprAst, ok := caches[source]
-	mutex.RUnlock()
-	if !ok {
-		tokens, err := Parse(source)
+func ExprASTResult(expr ExprAST, exprDatas ParameterExprData) float64 {
+	switch ast := expr.(type) {
+	// 传入的根节点是 BinaryExprAST
+	case *exprAST:
+		data := exprDatas.ExprData()
+		result, err := ast.expression.Evaluate(data)
 		if err != nil {
+			log.Error(fmt.Sprintf("expression invoke error:%v", err))
 			return float64(0)
 		}
-		ast := NewAST(tokens, source)
-		exprAst = ast.ParseExpression()
-
-		mutex.Lock()
-		caches[source] = exprAst
-		mutex.Unlock()
+		if r, ok := result.(float64); ok {
+			return r
+		} else {
+			log.Error(fmt.Sprintf("expression invoke result:%v error", result))
+			return float64(0)
+		}
 	}
 
-	return ExprASTResult(exprAst, exprDatas...)
+	return float64(0)
 }
-**/
