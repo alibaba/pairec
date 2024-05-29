@@ -3,7 +3,9 @@ package ast
 import (
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/alibaba/pairec/v2/log"
@@ -274,6 +276,29 @@ type exprAST struct {
 	expression *valuate.EvaluableExpression
 }
 
+func (e *exprAST) Evaluate(data map[string]any) (result float64, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			stack := string(debug.Stack())
+			log.Error(fmt.Sprintf("error=%v, stack=%s", err, strings.ReplaceAll(stack, "\n", "\t")))
+			result = float64(0)
+			err = nil
+		}
+	}()
+	ret, err1 := e.expression.Evaluate(data)
+	if err1 != nil {
+		err = err1
+		return
+	}
+	if r, ok := ret.(float64); ok {
+		result = r
+		return
+	} else {
+		result = float64(0)
+		err = fmt.Errorf("expression invoke result:%v", ret)
+		return
+	}
+}
 func (e *exprAST) toStr() string {
 	return ""
 }
@@ -307,17 +332,12 @@ func ExprASTResult(expr ExprAST, exprDatas ParameterExprData) float64 {
 	// 传入的根节点是 BinaryExprAST
 	case *exprAST:
 		data := exprDatas.ExprData()
-		result, err := ast.expression.Evaluate(data)
+		result, err := ast.Evaluate(data)
 		if err != nil {
 			log.Error(fmt.Sprintf("expression invoke error:%v", err))
 			return float64(0)
 		}
-		if r, ok := result.(float64); ok {
-			return r
-		} else {
-			log.Error(fmt.Sprintf("expression invoke result:%v error", result))
-			return float64(0)
-		}
+		return result
 	}
 
 	return float64(0)

@@ -113,4 +113,53 @@ func TestGoAntlrEvaluate3(t *testing.T) {
 		t.Fatal("result not equal")
 
 	}
+
+	expast, err := GetExpAST(expression)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result2 := ExprASTResult(expast, item)
+	t.Log("result2:", result2)
+	if result2 != ret {
+		t.Fatal("result not equal")
+	}
+}
+
+func TestGoAntlrEvaluate4(t *testing.T) {
+	cdn_probs_ctr := 0.004212516359984875
+	cdn_probs_cvr := 0.0014530600747093558
+	log_price := 0.6931471805599453
+	ret := (cdn_probs_ctr + 2*cdn_probs_cvr) * (math.Pow(log_price, 0.1))
+	expression := "(${cdn_probs_ctr}+2*${cdn_probs_cvr})*${log_price}^0.1"
+	ast, err := valuate.NewEvaluableExpression(expression)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	item := module.NewItem("item_1")
+	item.AddAlgoScore("cdn_probs_ctr", cdn_probs_ctr)
+	item.AddAlgoScore("cdn_probs_cvr", cdn_probs_cvr)
+	item.AddProperty("log_price", log_price)
+
+	data := item.ExprData()
+	result, err := ast.Evaluate(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, ok := result.(float64); ok && r == ret {
+	} else {
+		t.Fatal("result not equal")
+
+	}
+	expast, err := GetExpAST(expression)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result2 := ExprASTResult(expast, item)
+	t.Log("result2:", result2)
+	if result2 != ret {
+		t.Fatal("result not equal")
+	}
 }
