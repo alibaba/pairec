@@ -104,6 +104,8 @@ github.com/bruceding/go-antlr-valuate v0.0.1 h1:zjnwReAZwBFqiqbqrtGA5efBNKeXXaPL
 github.com/bruceding/go-antlr-valuate v0.0.1/go.mod h1:mTZJ45zQMHe3QBXlQ8DGO+V6eSf11MR8/WE/gF/NYS4=
 github.com/bruceding/go-antlr-valuate v0.0.2 h1:qNqd7EctErTI4IK54faV+uOv8fi4J2ZCsKrb+S6wdXs=
 github.com/bruceding/go-antlr-valuate v0.0.2/go.mod h1:mTZJ45zQMHe3QBXlQ8DGO+V6eSf11MR8/WE/gF/NYS4=
+github.com/bruceding/go-antlr-valuate v0.0.3 h1:Xv1c/MsAnkV0c0cBzkcIW9GK7d1ah+hKx0EsYgpMwlk=
+github.com/bruceding/go-antlr-valuate v0.0.3/go.mod h1:mTZJ45zQMHe3QBXlQ8DGO+V6eSf11MR8/WE/gF/NYS4=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=

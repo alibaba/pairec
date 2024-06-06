@@ -2,7 +2,6 @@ module github.com/alibaba/pairec/v2
 
 go 1.20
 
-
 require (
 	github.com/ClickHouse/clickhouse-go v1.5.1
 	github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible
@@ -46,7 +45,7 @@ require (
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.5
 	github.com/aliyun/credentials-go v1.3.1
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
-	github.com/bruceding/go-antlr-valuate v0.0.2
+	github.com/bruceding/go-antlr-valuate v0.0.3
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
 )
