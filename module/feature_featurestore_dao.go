@@ -17,12 +17,8 @@ type FeatureFeatureStoreDao struct {
 	fsEntity           string
 	userFeatureKeyName string
 	itemFeatureKeyName string
-	//timestampFeatureKeyName string
-	//eventFeatureKeyName     string
-	//playTimeFeatureKeyName  string
-	//tsFeatureKeyName        string
-	userSelectFields string
-	itemSelectFields string
+	userSelectFields   string
+	itemSelectFields   string
 }
 
 func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureStoreDao {
