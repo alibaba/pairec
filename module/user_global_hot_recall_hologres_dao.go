@@ -8,22 +8,24 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type UserGlobalHotRecallHologresDao struct {
-	db          *sql.DB
-	itemType    string
-	recallName  string
-	table       string
-	recallCount int
-	mu          sync.RWMutex
-	userStmt    *sql.Stmt
+	db             *sql.DB
+	itemType       string
+	recallName     string
+	table          string
+	itemIdField    string
+	itemScoreField string
+	recallCount    int
+	mu             sync.RWMutex
+	userStmt       *sql.Stmt
 }
 
 func NewUserGlobalHotRecallHologresDao(config recconf.RecallConfig) *UserGlobalHotRecallHologresDao {
@@ -34,21 +36,37 @@ func NewUserGlobalHotRecallHologresDao(config recconf.RecallConfig) *UserGlobalH
 	}
 
 	dao := &UserGlobalHotRecallHologresDao{
-		recallCount: config.RecallCount,
-		db:          hologres.DB,
-		table:       config.DaoConf.HologresTableName,
-		itemType:    config.ItemType,
-		recallName:  config.Name,
+		recallCount:    config.RecallCount,
+		db:             hologres.DB,
+		table:          config.DaoConf.HologresTableName,
+		itemIdField:    config.DaoConf.ItemIdField,
+		itemScoreField: config.DaoConf.ItemScoreField,
+		itemType:       config.ItemType,
+		recallName:     config.Name,
 	}
 	return dao
 }
 
 func (d *UserGlobalHotRecallHologresDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
 	uid := string(user.Id)
+
+	itemField := "item_ids"
+	if d.itemIdField != "" {
+		if d.itemScoreField == "" {
+			itemField = d.itemIdField
+		} else {
+			itemField = fmt.Sprintf("CONCAT_WS('::', %s, %s::text)", d.itemIdField, d.itemScoreField)
+		}
+	}
+
 	builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
-	builder.Select("item_ids")
+	builder.Select(itemField)
 	builder.From(d.table)
-	builder.Where(builder.Equal("trigger_id", "-1"))
+
+	// compatible with the original data format
+	if d.itemScoreField == "" {
+		builder.Where(builder.Equal("trigger_id", "-1"))
+	}
 
 	sqlquery, args := builder.Build()
 	if d.userStmt == nil {

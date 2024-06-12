@@ -116,6 +116,9 @@ type DaoConfig struct {
 	ColumnFamily        string
 	Qualifier           string
 
+	ItemIdField    string
+	ItemScoreField string
+
 	// hologres
 	HologresName      string
 	HologresTableName string
@@ -428,8 +431,10 @@ type SqlDaoConfig struct {
 	SelectFields string
 }
 type RealTimeUser2ItemDaoConfig struct {
-	UserTriggerDaoConf UserTriggerDaoConfig
-	Item2ItemTable     string
+	UserTriggerDaoConf    UserTriggerDaoConfig
+	Item2ItemTable        string
+	SimilarItemIdField    string
+	SimilarItemScoreField string
 }
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig

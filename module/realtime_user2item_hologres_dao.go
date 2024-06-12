@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/Knetic/govaluate"
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 var (
@@ -41,6 +41,8 @@ type RealtimeUser2ItemHologresDao struct {
 	userTriggerTable          string
 	whereClause               string
 	itemTable                 string
+	similarItemIdField        string
+	similarItemScoreField     string
 	weightEvaluableExpression *govaluate.EvaluableExpression
 	weightMode                string
 	mu                        sync.RWMutex
@@ -55,6 +57,8 @@ func NewRealtimeUser2ItemHologresDao(config recconf.RecallConfig) *RealtimeUser2
 		whereClause:              config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.WhereClause,
 		hasPlayTimeField:         true,
 		itemTable:                config.RealTimeUser2ItemDaoConf.Item2ItemTable,
+		similarItemIdField:       config.RealTimeUser2ItemDaoConf.SimilarItemIdField,
+		similarItemScoreField:    config.RealTimeUser2ItemDaoConf.SimilarItemScoreField,
 		itemStmtMap:              make(map[int]*sql.Stmt, 0),
 		weightMode:               config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.WeightMode,
 		RealtimeUser2ItemBaseDao: NewRealtimeUser2ItemBaseDao(&config),
@@ -103,8 +107,17 @@ func (d *RealtimeUser2ItemHologresDao) ListItemsByUser(user *User, context *cont
 		itemIds = append(itemIds, id)
 	}
 
+	similarItemField := "similar_item_ids"
+	if d.similarItemIdField != "" {
+		if d.similarItemScoreField == "" {
+			similarItemField = d.similarItemIdField
+		} else {
+			similarItemField = fmt.Sprintf("CONCAT_WS(':', %s, %s::text)", d.similarItemIdField, d.similarItemScoreField)
+		}
+	}
+
 	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
-	sb.Select("item_id", "similar_item_ids").
+	sb.Select("item_id", similarItemField).
 		From(d.itemTable).
 		Where(
 			sb.In("item_id", itemIds...),
