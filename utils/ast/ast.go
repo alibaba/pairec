@@ -305,7 +305,7 @@ func (e *exprAST) toStr() string {
 
 func GetExpAST(source string) (ExprAST, error) {
 	if source == "" {
-		return nil, errors.New("expression is empty")
+		return nil, nil
 	}
 	var exprAst ExprAST
 	mutex.RLock()
