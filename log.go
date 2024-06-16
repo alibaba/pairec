@@ -69,6 +69,7 @@ func (us fileInfoSlice) Swap(i, j int) {
 }
 func clearLoop(config recconf.LogConfig) {
 	fileInfoList := make([]*fileInfo, 0)
+	fmt.Println("setup clean log dir", logDir)
 	for {
 		fileInfoList = fileInfoList[:0]
 
