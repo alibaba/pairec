@@ -29,6 +29,7 @@ func (r *ContextItemRecall) GetCandidateItems(user *module.User, context *contex
 		return
 	}
 	if item_list, ok := context.GetParameter("item_list").([]map[string]any); ok {
+		ret = make([]*module.Item, 0, len(item_list))
 		for _, itemData := range item_list {
 			itemId := itemData["item_id"]
 			itemIdStr := utils.ToString(itemId, "")

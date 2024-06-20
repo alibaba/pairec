@@ -60,6 +60,32 @@ func ToFloat(i interface{}, defaultVal float64) float64 {
 		return defaultVal
 	}
 }
+func ToFloat32(i interface{}, defaultVal float32) float32 {
+	switch value := i.(type) {
+	case float32:
+		return value
+	case float64:
+		return float32(value)
+	case int:
+		return float32(value)
+	case int32:
+		return float32(value)
+	case int64:
+		return float32(value)
+	case uint32:
+		return float32(value)
+	case uint:
+		return float32(value)
+	case string:
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			return float32(f)
+		} else {
+			return defaultVal
+		}
+	default:
+		return defaultVal
+	}
+}
 func ToInt64(i interface{}, defaultVal int64) int64 {
 	switch value := i.(type) {
 	case int:

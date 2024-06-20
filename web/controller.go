@@ -50,6 +50,15 @@ func (c *Controller) LogRequestBegin(r *http.Request) {
 	info := fmt.Sprintf("requestId=%s\tevent=begin\turi=%s\taddress=%s\tbody=%s", c.RequestId, r.RequestURI, r.RemoteAddr, string(c.RequestBody))
 	log.Info(info)
 }
+func (c *Controller) LogRequestBeginWithSize(r *http.Request, size int) {
+	if len(c.RequestBody) > size {
+		info := fmt.Sprintf("requestId=%s\tevent=begin\turi=%s\taddress=%s\tbody=%s\tsize=%d", c.RequestId, r.RequestURI, r.RemoteAddr, string(c.RequestBody[0:size]), len(c.RequestBody))
+		log.Info(info)
+	} else {
+		info := fmt.Sprintf("requestId=%s\tevent=begin\turi=%s\taddress=%s\tbody=%s", c.RequestId, r.RequestURI, r.RemoteAddr, string(c.RequestBody))
+		log.Info(info)
+	}
+}
 func (c *Controller) LogRequestEnd(r *http.Request) {
 	info := fmt.Sprintf("requestId=%s\tevent=end\turi=%s\tcost=%d", c.RequestId, r.RequestURI, c.cost())
 	log.Info(info)
