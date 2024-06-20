@@ -149,7 +149,7 @@ func TestTorchrecMutValResponseFuncDebug(t *testing.T) {
 
 }
 
-func buildDataComplexTAypeRequest() (request *easyrec.PBRequest, item_ids []string, err error) {
+func buildDataComplexTypeRequest() (request *easyrec.PBRequest, item_ids []string, err error) {
 	content, err := os.ReadFile("data_complex.json")
 	if err != nil {
 		return
@@ -353,7 +353,7 @@ pytorch request
 	    float_val: -0.040057118982076645
 */
 func TestTorchrecComplexMutValResponseFunc(t *testing.T) {
-	request, item_ids, err := buildDataComplexTAypeRequest()
+	request, item_ids, err := buildDataComplexTypeRequest()
 	//fmt.Println(request)
 	if err != nil {
 		t.Fatal(err)
