@@ -170,22 +170,19 @@ func NewEasyrecAlgoDataGenerator(contextFeatures []string) *EasyrecAlgoDataGener
 	generator := &EasyrecAlgoDataGenerator{
 		requestItem:     make([]*module.Item, 0, 100),
 		contextFeatures: make(map[string][]interface{}, 8),
-		parseFeature:    false,
+		parseFeature:    true,
 	}
 
 	if len(contextFeatures) > 0 {
-		if contextFeatures[0] != "none" {
-			for _, featureName := range contextFeatures {
-				feature := &feature{
-					name:      featureName,
-					valueType: reflect.TypeOf(""),
-				}
-				generator.itemFeatures = append(generator.itemFeatures, feature)
+		for _, featureName := range contextFeatures {
+			feature := &feature{
+				name:      featureName,
+				valueType: reflect.TypeOf(""),
 			}
+			generator.itemFeatures = append(generator.itemFeatures, feature)
 		}
-
-		generator.parseFeature = true
 	}
+
 	return generator
 }
 
