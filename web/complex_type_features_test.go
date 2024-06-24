@@ -147,9 +147,4761 @@ func BenchmarkJsonIterUnmarshal(b *testing.B) {
 	}
 }
 
+var responseData = `
+{
+    "code": 200,
+    "msg": "success",
+    "request_id": "e65dbafa-73ab-402b-955f-e3a0ec55f3de",
+    "size": 316,
+    "experiment_id": "",
+    "items": [
+        {
+            "item_id": "154759285",
+            "score": 0.543042,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.543042,
+                    "ctcvr": 0.543042,
+                    "ctr": 0.775414,
+                    "job_rec_rank_8_x_logits_ctcvr": 0.172595,
+                    "job_rec_rank_8_x_probs_ctr": 0.775414,
+                    "job_rec_rank_8_x_logits_ctr": 1.239136
+                }
+            }
+        },
+        {
+            "item_id": "120865232",
+            "score": 0.490782,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 1.448234,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.490782,
+                    "ctr": 0.809727,
+                    "ctcvr": 0.490782,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.036876,
+                    "job_rec_rank_8_x_probs_ctr": 0.809727
+                }
+            }
+        },
+        {
+            "item_id": "154755423",
+            "score": 0.485,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 1.098626,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.485,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.060018,
+                    "ctr": 0.750003,
+                    "ctcvr": 0.485,
+                    "job_rec_rank_8_x_probs_ctr": 0.750003
+                }
+            }
+        },
+        {
+            "item_id": "155774932",
+            "score": 0.464071,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.143966,
+                    "job_rec_rank_8_x_probs_ctr": 0.763837,
+                    "job_rec_rank_8_x_logits_ctr": 1.17383,
+                    "ctr": 0.763837,
+                    "ctcvr": 0.464071,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.464071
+                }
+            }
+        },
+        {
+            "item_id": "154014853",
+            "score": 0.453624,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.453624,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.186037,
+                    "job_rec_rank_8_x_probs_ctr": 0.770234,
+                    "job_rec_rank_8_x_logits_ctr": 1.209634,
+                    "ctr": 0.770234,
+                    "ctcvr": 0.453624
+                }
+            }
+        },
+        {
+            "item_id": "146934377",
+            "score": 0.445341,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.700268,
+                    "job_rec_rank_8_x_logits_ctr": 0.848575,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.445341,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.219511,
+                    "ctr": 0.700268,
+                    "ctcvr": 0.445341
+                }
+            }
+        },
+        {
+            "item_id": "129770961",
+            "score": 0.439524,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.439524,
+                    "ctr": 0.790713,
+                    "job_rec_rank_8_x_probs_ctr": 0.790713,
+                    "job_rec_rank_8_x_logits_ctr": 1.329228,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.439524,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.243096
+                }
+            }
+        },
+        {
+            "item_id": "155788474",
+            "score": 0.429137,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.429137,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.285372,
+                    "ctr": 0.728433,
+                    "ctcvr": 0.429137,
+                    "job_rec_rank_8_x_probs_ctr": 0.728433,
+                    "job_rec_rank_8_x_logits_ctr": 0.986687
+                }
+            }
+        },
+        {
+            "item_id": "156070841",
+            "score": 0.402449,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.402449,
+                    "job_rec_rank_8_x_probs_ctr": 0.688954,
+                    "job_rec_rank_8_x_logits_ctr": 0.795234,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.402449,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.395273,
+                    "ctr": 0.688954
+                }
+            }
+        },
+        {
+            "item_id": "135481672",
+            "score": 0.400348,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.689056,
+                    "job_rec_rank_8_x_logits_ctr": 0.79571,
+                    "ctr": 0.689056,
+                    "ctcvr": 0.400348,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.400348,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.404017
+                }
+            }
+        },
+        {
+            "item_id": "106488503",
+            "score": 0.398083,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.724138,
+                    "job_rec_rank_8_x_logits_ctr": 0.965083,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.398083,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.413459,
+                    "ctr": 0.724138,
+                    "ctcvr": 0.398083
+                }
+            }
+        },
+        {
+            "item_id": "156070915",
+            "score": 0.395233,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.695852,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.395233,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.425368,
+                    "job_rec_rank_8_x_probs_ctr": 0.667267,
+                    "ctr": 0.667267,
+                    "ctcvr": 0.395233
+                }
+            }
+        },
+        {
+            "item_id": "120865453",
+            "score": 0.395193,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.762795,
+                    "job_rec_rank_8_x_logits_ctr": 1.168064,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.395193,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.425533,
+                    "ctr": 0.762795,
+                    "ctcvr": 0.395193
+                }
+            }
+        },
+        {
+            "item_id": "149933573",
+            "score": 0.388492,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.388492,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.453654,
+                    "job_rec_rank_8_x_probs_ctr": 0.737433,
+                    "job_rec_rank_8_x_logits_ctr": 1.03267,
+                    "ctr": 0.737433,
+                    "ctcvr": 0.388492
+                }
+            }
+        },
+        {
+            "item_id": "153747511",
+            "score": 0.384711,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.695686,
+                    "ctr": 0.695686,
+                    "ctcvr": 0.384711,
+                    "job_rec_rank_8_x_logits_ctr": 0.826838,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.384711,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.469599
+                }
+            }
+        },
+        {
+            "item_id": "129249554",
+            "score": 0.383839,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.744841,
+                    "job_rec_rank_8_x_logits_ctr": 1.071286,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.383839,
+                    "ctr": 0.744841,
+                    "ctcvr": 0.383839,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.473285
+                }
+            }
+        },
+        {
+            "item_id": "140522542",
+            "score": 0.381515,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.724316,
+                    "job_rec_rank_8_x_probs_ctr": 0.724316,
+                    "job_rec_rank_8_x_logits_ctr": 0.965972,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.381515,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.483121,
+                    "ctcvr": 0.381515
+                }
+            }
+        },
+        {
+            "item_id": "152887941",
+            "score": 0.381151,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.764644,
+                    "job_rec_rank_8_x_logits_ctr": 1.17831,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.381151,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.484666,
+                    "ctr": 0.764644,
+                    "ctcvr": 0.381151
+                }
+            }
+        },
+        {
+            "item_id": "145916785",
+            "score": 0.371529,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.981657,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.371529,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.525664,
+                    "ctr": 0.727437,
+                    "ctcvr": 0.371529,
+                    "job_rec_rank_8_x_probs_ctr": 0.727437
+                }
+            }
+        },
+        {
+            "item_id": "146872876",
+            "score": 0.366996,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.647402,
+                    "job_rec_rank_8_x_logits_ctr": 0.607638,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.366996,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.545125,
+                    "ctr": 0.647402,
+                    "ctcvr": 0.366996
+                }
+            }
+        },
+        {
+            "item_id": "141576020",
+            "score": 0.363515,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.363515,
+                    "ctr": 0.712816,
+                    "job_rec_rank_8_x_probs_ctr": 0.712816,
+                    "job_rec_rank_8_x_logits_ctr": 0.909099,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.363515,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.56014
+                }
+            }
+        },
+        {
+            "item_id": "136546073",
+            "score": 0.362865,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.780899,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.362865,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.562949,
+                    "job_rec_rank_8_x_probs_ctr": 0.685874,
+                    "ctr": 0.685874,
+                    "ctcvr": 0.362865
+                }
+            }
+        },
+        {
+            "item_id": "154175885",
+            "score": 0.362378,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.362378,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.565056,
+                    "job_rec_rank_8_x_probs_ctr": 0.640249,
+                    "job_rec_rank_8_x_logits_ctr": 0.576446,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.362378,
+                    "ctr": 0.640249
+                }
+            }
+        },
+        {
+            "item_id": "136148770",
+            "score": 0.362133,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.784436,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.362133,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.56612,
+                    "job_rec_rank_8_x_probs_ctr": 0.686635,
+                    "ctr": 0.686635,
+                    "ctcvr": 0.362133
+                }
+            }
+        },
+        {
+            "item_id": "141522907",
+            "score": 0.361953,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.692633,
+                    "job_rec_rank_8_x_logits_ctr": 0.812456,
+                    "ctcvr": 0.361953,
+                    "ctr": 0.692633,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.361953,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.566896
+                }
+            }
+        },
+        {
+            "item_id": "141324683",
+            "score": 0.361879,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.709001,
+                    "job_rec_rank_8_x_logits_ctr": 0.890539,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.361879,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.567219,
+                    "ctr": 0.709001,
+                    "ctcvr": 0.361879
+                }
+            }
+        },
+        {
+            "item_id": "98962810",
+            "score": 0.356983,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.356983,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.588483,
+                    "job_rec_rank_8_x_probs_ctr": 0.672963,
+                    "job_rec_rank_8_x_logits_ctr": 0.721615,
+                    "ctr": 0.672963,
+                    "ctcvr": 0.356983
+                }
+            }
+        },
+        {
+            "item_id": "115544651",
+            "score": 0.356358,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.591208,
+                    "ctcvr": 0.356358,
+                    "ctr": 0.703009,
+                    "job_rec_rank_8_x_probs_ctr": 0.703009,
+                    "job_rec_rank_8_x_logits_ctr": 0.861667,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.356358
+                }
+            }
+        },
+        {
+            "item_id": "145993345",
+            "score": 0.355154,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.596459,
+                    "job_rec_rank_8_x_probs_ctr": 0.694955,
+                    "job_rec_rank_8_x_logits_ctr": 0.823389,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.355154,
+                    "ctr": 0.694955,
+                    "ctcvr": 0.355154
+                }
+            }
+        },
+        {
+            "item_id": "115146036",
+            "score": 0.349939,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.674162,
+                    "job_rec_rank_8_x_logits_ctr": 0.727072,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.349939,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.619307,
+                    "ctr": 0.674162,
+                    "ctcvr": 0.349939
+                }
+            }
+        },
+        {
+            "item_id": "137329189",
+            "score": 0.349026,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.64417,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.349026,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.623323,
+                    "job_rec_rank_8_x_probs_ctr": 0.655696,
+                    "ctr": 0.655696,
+                    "ctcvr": 0.349026
+                }
+            }
+        },
+        {
+            "item_id": "96055664",
+            "score": 0.3468,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.3468,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.3468,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.633133,
+                    "job_rec_rank_8_x_probs_ctr": 0.651249,
+                    "job_rec_rank_8_x_logits_ctr": 0.624535,
+                    "ctr": 0.651249
+                }
+            }
+        },
+        {
+            "item_id": "156103942",
+            "score": 0.343636,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.343636,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.647132,
+                    "ctr": 0.749045,
+                    "ctcvr": 0.343636,
+                    "job_rec_rank_8_x_probs_ctr": 0.749045,
+                    "job_rec_rank_8_x_logits_ctr": 1.093523
+                }
+            }
+        },
+        {
+            "item_id": "136151377",
+            "score": 0.341462,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.341462,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.656785,
+                    "ctr": 0.674091,
+                    "ctcvr": 0.341462,
+                    "job_rec_rank_8_x_probs_ctr": 0.674091,
+                    "job_rec_rank_8_x_logits_ctr": 0.726746
+                }
+            }
+        },
+        {
+            "item_id": "154197635",
+            "score": 0.336947,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.648264,
+                    "job_rec_rank_8_x_logits_ctr": 0.611419,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.336947,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.676929,
+                    "ctr": 0.648264,
+                    "ctcvr": 0.336947
+                }
+            }
+        },
+        {
+            "item_id": "132627738",
+            "score": 0.3329,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.3329,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.695096,
+                    "job_rec_rank_8_x_probs_ctr": 0.648393,
+                    "ctr": 0.648393,
+                    "ctcvr": 0.3329,
+                    "job_rec_rank_8_x_logits_ctr": 0.611983
+                }
+            }
+        },
+        {
+            "item_id": "153221990",
+            "score": 0.332797,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.61575,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.332797,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.695563,
+                    "ctcvr": 0.332797,
+                    "ctr": 0.649251,
+                    "job_rec_rank_8_x_probs_ctr": 0.649251
+                }
+            }
+        },
+        {
+            "item_id": "72337623",
+            "score": 0.332726,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.686448,
+                    "job_rec_rank_8_x_logits_ctr": 0.783565,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.332726,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.695879,
+                    "ctr": 0.686448,
+                    "ctcvr": 0.332726
+                }
+            }
+        },
+        {
+            "item_id": "113537823",
+            "score": 0.331103,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.331103,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.7032,
+                    "job_rec_rank_8_x_probs_ctr": 0.589341,
+                    "job_rec_rank_8_x_logits_ctr": 0.361241,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.331103,
+                    "ctr": 0.589341
+                }
+            }
+        },
+        {
+            "item_id": "154183100",
+            "score": 0.329122,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.329122,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.329122,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.712157,
+                    "job_rec_rank_8_x_probs_ctr": 0.708516,
+                    "job_rec_rank_8_x_logits_ctr": 0.888189,
+                    "ctr": 0.708516
+                }
+            }
+        },
+        {
+            "item_id": "150417844",
+            "score": 0.328258,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.605721,
+                    "job_rec_rank_8_x_logits_ctr": 0.429362,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.328258,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.716076,
+                    "ctcvr": 0.328258,
+                    "ctr": 0.605721
+                }
+            }
+        },
+        {
+            "item_id": "142649325",
+            "score": 0.326955,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.693756,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.326955,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.721992,
+                    "ctcvr": 0.326955,
+                    "ctr": 0.666802,
+                    "job_rec_rank_8_x_probs_ctr": 0.666802
+                }
+            }
+        },
+        {
+            "item_id": "134559466",
+            "score": 0.326554,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.636804,
+                    "ctcvr": 0.326554,
+                    "job_rec_rank_8_x_probs_ctr": 0.636804,
+                    "job_rec_rank_8_x_logits_ctr": 0.561518,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.326554,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.723811
+                }
+            }
+        },
+        {
+            "item_id": "151659447",
+            "score": 0.325374,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.70624,
+                    "ctcvr": 0.325374,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.729185,
+                    "job_rec_rank_8_x_probs_ctr": 0.70624,
+                    "job_rec_rank_8_x_logits_ctr": 0.877194,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.325374
+                }
+            }
+        },
+        {
+            "item_id": "153703896",
+            "score": 0.324279,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.687697,
+                    "ctr": 0.687697,
+                    "ctcvr": 0.324279,
+                    "job_rec_rank_8_x_logits_ctr": 0.789373,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.324279,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.734176
+                }
+            }
+        },
+        {
+            "item_id": "142207333",
+            "score": 0.323585,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.673067,
+                    "ctcvr": 0.323585,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.323585,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.737345,
+                    "job_rec_rank_8_x_probs_ctr": 0.673067,
+                    "job_rec_rank_8_x_logits_ctr": 0.722092
+                }
+            }
+        },
+        {
+            "item_id": "149266196",
+            "score": 0.321968,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.744741,
+                    "job_rec_rank_8_x_probs_ctr": 0.729591,
+                    "ctr": 0.729591,
+                    "ctcvr": 0.321968,
+                    "job_rec_rank_8_x_logits_ctr": 0.992551,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.321968
+                }
+            }
+        },
+        {
+            "item_id": "141761388",
+            "score": 0.320664,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.641926,
+                    "job_rec_rank_8_x_logits_ctr": 0.583734,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.320664,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.750723,
+                    "ctr": 0.641926,
+                    "ctcvr": 0.320664
+                }
+            }
+        },
+        {
+            "item_id": "111149511",
+            "score": 0.315764,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.50164,
+                    "ctr": 0.622845,
+                    "ctcvr": 0.315764,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.315764,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.77331,
+                    "job_rec_rank_8_x_probs_ctr": 0.622845
+                }
+            }
+        },
+        {
+            "item_id": "147527438",
+            "score": 0.315385,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.652695,
+                    "job_rec_rank_8_x_logits_ctr": 0.630907,
+                    "ctcvr": 0.315385,
+                    "ctr": 0.652695,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.315385,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.775061
+                }
+            }
+        },
+        {
+            "item_id": "107410057",
+            "score": 0.314363,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.7798,
+                    "job_rec_rank_8_x_probs_ctr": 0.728778,
+                    "job_rec_rank_8_x_logits_ctr": 0.988431,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.314363,
+                    "ctcvr": 0.314363,
+                    "ctr": 0.728778
+                }
+            }
+        },
+        {
+            "item_id": "149774265",
+            "score": 0.314337,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.643468,
+                    "job_rec_rank_8_x_logits_ctr": 0.590448,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.314337,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.779921,
+                    "ctr": 0.643468,
+                    "ctcvr": 0.314337
+                }
+            }
+        },
+        {
+            "item_id": "142258208",
+            "score": 0.314332,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.665937,
+                    "job_rec_rank_8_x_logits_ctr": 0.689866,
+                    "ctr": 0.665937,
+                    "ctcvr": 0.314332,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.314332,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.779944
+                }
+            }
+        },
+        {
+            "item_id": "156235308",
+            "score": 0.312761,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.677289,
+                    "job_rec_rank_8_x_logits_ctr": 0.741342,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.312761,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.787242,
+                    "ctcvr": 0.312761,
+                    "ctr": 0.677289
+                }
+            }
+        },
+        {
+            "item_id": "153416717",
+            "score": 0.311732,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.605573,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.311732,
+                    "ctr": 0.64693,
+                    "ctcvr": 0.311732,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.792034,
+                    "job_rec_rank_8_x_probs_ctr": 0.64693
+                }
+            }
+        },
+        {
+            "item_id": "138368277",
+            "score": 0.310281,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.310281,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.798806,
+                    "job_rec_rank_8_x_probs_ctr": 0.638105,
+                    "job_rec_rank_8_x_logits_ctr": 0.567149,
+                    "ctcvr": 0.310281,
+                    "ctr": 0.638105
+                }
+            }
+        },
+        {
+            "item_id": "147520505",
+            "score": 0.309638,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.801811,
+                    "ctr": 0.644857,
+                    "ctcvr": 0.309638,
+                    "job_rec_rank_8_x_probs_ctr": 0.644857,
+                    "job_rec_rank_8_x_logits_ctr": 0.596506,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.309638
+                }
+            }
+        },
+        {
+            "item_id": "97332473",
+            "score": 0.309372,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.309372,
+                    "job_rec_rank_8_x_logits_ctr": 0.456177,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.309372,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.803055,
+                    "job_rec_rank_8_x_probs_ctr": 0.612107,
+                    "ctr": 0.612107
+                }
+            }
+        },
+        {
+            "item_id": "141207977",
+            "score": 0.308066,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.609366,
+                    "job_rec_rank_8_x_logits_ctr": 0.44465,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.308066,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.809178,
+                    "ctr": 0.609366,
+                    "ctcvr": 0.308066
+                }
+            }
+        },
+        {
+            "item_id": "112485235",
+            "score": 0.307704,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.810877,
+                    "job_rec_rank_8_x_probs_ctr": 0.606219,
+                    "job_rec_rank_8_x_logits_ctr": 0.431445,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.307704,
+                    "ctr": 0.606219,
+                    "ctcvr": 0.307704
+                }
+            }
+        },
+        {
+            "item_id": "153889970",
+            "score": 0.306913,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.814593,
+                    "job_rec_rank_8_x_probs_ctr": 0.671783,
+                    "job_rec_rank_8_x_logits_ctr": 0.716262,
+                    "ctcvr": 0.306913,
+                    "ctr": 0.671783,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.306913
+                }
+            }
+        },
+        {
+            "item_id": "129507298",
+            "score": 0.304271,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.304271,
+                    "ctcvr": 0.304271,
+                    "ctr": 0.646924,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.827043,
+                    "job_rec_rank_8_x_probs_ctr": 0.646924,
+                    "job_rec_rank_8_x_logits_ctr": 0.605546
+                }
+            }
+        },
+        {
+            "item_id": "152224009",
+            "score": 0.298953,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.469034,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.298953,
+                    "ctr": 0.615155,
+                    "ctcvr": 0.298953,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.852291,
+                    "job_rec_rank_8_x_probs_ctr": 0.615155
+                }
+            }
+        },
+        {
+            "item_id": "142605159",
+            "score": 0.297181,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.328856,
+                    "ctcvr": 0.297181,
+                    "ctr": 0.581481,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.297181,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.86076,
+                    "job_rec_rank_8_x_probs_ctr": 0.581481
+                }
+            }
+        },
+        {
+            "item_id": "149154491",
+            "score": 0.296811,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.296811,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.296811,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.862528,
+                    "job_rec_rank_8_x_probs_ctr": 0.550464,
+                    "job_rec_rank_8_x_logits_ctr": 0.202547,
+                    "ctr": 0.550464
+                }
+            }
+        },
+        {
+            "item_id": "121210671",
+            "score": 0.296448,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.595988,
+                    "job_rec_rank_8_x_logits_ctr": 0.388776,
+                    "ctr": 0.595988,
+                    "ctcvr": 0.296448,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.296448,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.864272
+                }
+            }
+        },
+        {
+            "item_id": "152623915",
+            "score": 0.293346,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.879187,
+                    "job_rec_rank_8_x_probs_ctr": 0.625968,
+                    "ctr": 0.625968,
+                    "ctcvr": 0.293346,
+                    "job_rec_rank_8_x_logits_ctr": 0.514956,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.293346
+                }
+            }
+        },
+        {
+            "item_id": "141739205",
+            "score": 0.287559,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.449369,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.287559,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.907269,
+                    "job_rec_rank_8_x_probs_ctr": 0.610489,
+                    "ctcvr": 0.287559,
+                    "ctr": 0.610489
+                }
+            }
+        },
+        {
+            "item_id": "137051840",
+            "score": 0.286942,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.286942,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.91028,
+                    "job_rec_rank_8_x_probs_ctr": 0.566426,
+                    "job_rec_rank_8_x_logits_ctr": 0.267284,
+                    "ctr": 0.566426,
+                    "ctcvr": 0.286942
+                }
+            }
+        },
+        {
+            "item_id": "136148683",
+            "score": 0.285277,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.603611,
+                    "ctcvr": 0.285277,
+                    "ctr": 0.603611,
+                    "job_rec_rank_8_x_logits_ctr": 0.420534,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.285277,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.918433
+                }
+            }
+        },
+        {
+            "item_id": "156037954",
+            "score": 0.284398,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.922749,
+                    "ctcvr": 0.284398,
+                    "ctr": 0.695527,
+                    "job_rec_rank_8_x_probs_ctr": 0.695527,
+                    "job_rec_rank_8_x_logits_ctr": 0.826089,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.284398
+                }
+            }
+        },
+        {
+            "item_id": "152161302",
+            "score": 0.283899,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.571829,
+                    "job_rec_rank_8_x_logits_ctr": 0.289319,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.283899,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.9252,
+                    "ctr": 0.571829,
+                    "ctcvr": 0.283899
+                }
+            }
+        },
+        {
+            "item_id": "156581416",
+            "score": 0.283072,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.505293,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.929274,
+                    "job_rec_rank_8_x_probs_ctr": 0.505293,
+                    "job_rec_rank_8_x_logits_ctr": 0.021175,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.283072,
+                    "ctcvr": 0.283072
+                }
+            }
+        },
+        {
+            "item_id": "140395678",
+            "score": 0.282823,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.9305,
+                    "job_rec_rank_8_x_probs_ctr": 0.601089,
+                    "job_rec_rank_8_x_logits_ctr": 0.410006,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.282823,
+                    "ctr": 0.601089,
+                    "ctcvr": 0.282823
+                }
+            }
+        },
+        {
+            "item_id": "154757087",
+            "score": 0.282569,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.565824,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.282569,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.931753,
+                    "ctr": 0.637799,
+                    "ctcvr": 0.282569,
+                    "job_rec_rank_8_x_probs_ctr": 0.637799
+                }
+            }
+        },
+        {
+            "item_id": "141224026",
+            "score": 0.282503,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.282503,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.932082,
+                    "job_rec_rank_8_x_probs_ctr": 0.682935,
+                    "ctcvr": 0.282503,
+                    "ctr": 0.682935,
+                    "job_rec_rank_8_x_logits_ctr": 0.767292
+                }
+            }
+        },
+        {
+            "item_id": "135485987",
+            "score": 0.282067,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -0.93423,
+                    "job_rec_rank_8_x_probs_ctr": 0.647935,
+                    "job_rec_rank_8_x_logits_ctr": 0.609975,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.282067,
+                    "ctr": 0.647935,
+                    "ctcvr": 0.282067
+                }
+            }
+        },
+        {
+            "item_id": "154327681",
+            "score": 0.281686,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.640304,
+                    "job_rec_rank_8_x_logits_ctr": 0.576683,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.281686,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.936115,
+                    "ctr": 0.640304,
+                    "ctcvr": 0.281686
+                }
+            }
+        },
+        {
+            "item_id": "149774232",
+            "score": 0.278742,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.587526,
+                    "job_rec_rank_8_x_logits_ctr": 0.353746,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.278742,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.950709,
+                    "ctr": 0.587526,
+                    "ctcvr": 0.278742
+                }
+            }
+        },
+        {
+            "item_id": "135485938",
+            "score": 0.277303,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.592832,
+                    "job_rec_rank_8_x_logits_ctr": 0.375685,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.277303,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.957882,
+                    "ctcvr": 0.277303,
+                    "ctr": 0.592832
+                }
+            }
+        },
+        {
+            "item_id": "149658765",
+            "score": 0.276927,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.362871,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.276927,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.959756,
+                    "ctcvr": 0.276927,
+                    "ctr": 0.589735,
+                    "job_rec_rank_8_x_probs_ctr": 0.589735
+                }
+            }
+        },
+        {
+            "item_id": "137730107",
+            "score": 0.273235,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.273235,
+                    "job_rec_rank_8_x_probs_ctr": 0.535008,
+                    "job_rec_rank_8_x_logits_ctr": 0.140262,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.273235,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.978272,
+                    "ctr": 0.535008
+                }
+            }
+        },
+        {
+            "item_id": "156151458",
+            "score": 0.270277,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.270277,
+                    "job_rec_rank_8_x_logits_ctr": 0.362101,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.270277,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.993219,
+                    "job_rec_rank_8_x_probs_ctr": 0.589549,
+                    "ctr": 0.589549
+                }
+            }
+        },
+        {
+            "item_id": "145404774",
+            "score": 0.269366,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.269366,
+                    "ctr": 0.620693,
+                    "job_rec_rank_8_x_logits_ctr": 0.49249,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.269366,
+                    "job_rec_rank_8_x_logits_ctcvr": -0.997843,
+                    "job_rec_rank_8_x_probs_ctr": 0.620693
+                }
+            }
+        },
+        {
+            "item_id": "153316468",
+            "score": 0.267744,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.607358,
+                    "job_rec_rank_8_x_logits_ctr": 0.436221,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.267744,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.006098,
+                    "ctr": 0.607358,
+                    "ctcvr": 0.267744
+                }
+            }
+        },
+        {
+            "item_id": "156192707",
+            "score": 0.263759,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.026524,
+                    "job_rec_rank_8_x_probs_ctr": 0.515805,
+                    "job_rec_rank_8_x_logits_ctr": 0.06324,
+                    "ctr": 0.515805,
+                    "ctcvr": 0.263759,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.263759
+                }
+            }
+        },
+        {
+            "item_id": "137829712",
+            "score": 0.262773,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.262773,
+                    "ctr": 0.547134,
+                    "job_rec_rank_8_x_probs_ctr": 0.547134,
+                    "job_rec_rank_8_x_logits_ctr": 0.189099,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.262773,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.031605
+                }
+            }
+        },
+        {
+            "item_id": "156165640",
+            "score": 0.262647,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.595827,
+                    "ctcvr": 0.262647,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.032256,
+                    "job_rec_rank_8_x_probs_ctr": 0.595827,
+                    "job_rec_rank_8_x_logits_ctr": 0.388107,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.262647
+                }
+            }
+        },
+        {
+            "item_id": "121065071",
+            "score": 0.262639,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.55709,
+                    "ctcvr": 0.262639,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.032299,
+                    "job_rec_rank_8_x_probs_ctr": 0.55709,
+                    "job_rec_rank_8_x_logits_ctr": 0.229362,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.262639
+                }
+            }
+        },
+        {
+            "item_id": "154251704",
+            "score": 0.262391,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.03358,
+                    "ctr": 0.542878,
+                    "ctcvr": 0.262391,
+                    "job_rec_rank_8_x_probs_ctr": 0.542878,
+                    "job_rec_rank_8_x_logits_ctr": 0.171935,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.262391
+                }
+            }
+        },
+        {
+            "item_id": "155883535",
+            "score": 0.261937,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.035927,
+                    "job_rec_rank_8_x_probs_ctr": 0.616952,
+                    "ctr": 0.616952,
+                    "ctcvr": 0.261937,
+                    "job_rec_rank_8_x_logits_ctr": 0.476629,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.261937
+                }
+            }
+        },
+        {
+            "item_id": "49545953",
+            "score": 0.260843,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.350373,
+                    "ctcvr": 0.260843,
+                    "ctr": 0.586708,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.260843,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.041591,
+                    "job_rec_rank_8_x_probs_ctr": 0.586708
+                }
+            }
+        },
+        {
+            "item_id": "154070958",
+            "score": 0.260033,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.045796,
+                    "job_rec_rank_8_x_probs_ctr": 0.592244,
+                    "job_rec_rank_8_x_logits_ctr": 0.37325,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.260033,
+                    "ctr": 0.592244,
+                    "ctcvr": 0.260033
+                }
+            }
+        },
+        {
+            "item_id": "151166652",
+            "score": 0.258602,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.286651,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.258602,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.053248,
+                    "ctr": 0.571176,
+                    "ctcvr": 0.258602,
+                    "job_rec_rank_8_x_probs_ctr": 0.571176
+                }
+            }
+        },
+        {
+            "item_id": "153029340",
+            "score": 0.254648,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.254648,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.073977,
+                    "job_rec_rank_8_x_probs_ctr": 0.574919,
+                    "job_rec_rank_8_x_logits_ctr": 0.301948,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.254648,
+                    "ctr": 0.574919
+                }
+            }
+        },
+        {
+            "item_id": "154195048",
+            "score": 0.253592,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.686509,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.253592,
+                    "ctr": 0.66519,
+                    "ctcvr": 0.253592,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.079543,
+                    "job_rec_rank_8_x_probs_ctr": 0.66519
+                }
+            }
+        },
+        {
+            "item_id": "153946623",
+            "score": 0.251393,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.582545,
+                    "job_rec_rank_8_x_logits_ctr": 0.333229,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.251393,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.091194,
+                    "ctr": 0.582545,
+                    "ctcvr": 0.251393
+                }
+            }
+        },
+        {
+            "item_id": "139634537",
+            "score": 0.24738,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.567974,
+                    "job_rec_rank_8_x_logits_ctr": 0.273589,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.24738,
+                    "ctr": 0.567974,
+                    "ctcvr": 0.24738,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.112635
+                }
+            }
+        },
+        {
+            "item_id": "146809579",
+            "score": 0.246754,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.246754,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.116001,
+                    "job_rec_rank_8_x_probs_ctr": 0.581937,
+                    "job_rec_rank_8_x_logits_ctr": 0.330732,
+                    "ctcvr": 0.246754,
+                    "ctr": 0.581937
+                }
+            }
+        },
+        {
+            "item_id": "152698647",
+            "score": 0.246696,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.246696,
+                    "job_rec_rank_8_x_probs_ctr": 0.561354,
+                    "job_rec_rank_8_x_logits_ctr": 0.246657,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.246696,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.116315,
+                    "ctr": 0.561354
+                }
+            }
+        },
+        {
+            "item_id": "96443515",
+            "score": 0.245773,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.121287,
+                    "ctr": 0.585418,
+                    "ctcvr": 0.245773,
+                    "job_rec_rank_8_x_probs_ctr": 0.585418,
+                    "job_rec_rank_8_x_logits_ctr": 0.345056,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.245773
+                }
+            }
+        },
+        {
+            "item_id": "129670528",
+            "score": 0.240808,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.588644,
+                    "ctcvr": 0.240808,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.148253,
+                    "job_rec_rank_8_x_probs_ctr": 0.588644,
+                    "job_rec_rank_8_x_logits_ctr": 0.358361,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.240808
+                }
+            }
+        },
+        {
+            "item_id": "136009315",
+            "score": 0.239963,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.086357,
+                    "ctr": 0.521576,
+                    "ctcvr": 0.239963,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.239963,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.152885,
+                    "job_rec_rank_8_x_probs_ctr": 0.521576
+                }
+            }
+        },
+        {
+            "item_id": "156253333",
+            "score": 0.239671,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.154484,
+                    "ctcvr": 0.239671,
+                    "ctr": 0.485527,
+                    "job_rec_rank_8_x_probs_ctr": 0.485527,
+                    "job_rec_rank_8_x_logits_ctr": -0.057907,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.239671
+                }
+            }
+        },
+        {
+            "item_id": "125406722",
+            "score": 0.238266,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.627376,
+                    "ctcvr": 0.238266,
+                    "job_rec_rank_8_x_probs_ctr": 0.627376,
+                    "job_rec_rank_8_x_logits_ctr": 0.520974,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.238266,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.162211
+                }
+            }
+        },
+        {
+            "item_id": "136912848",
+            "score": 0.238169,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.13632,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.238169,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.162743,
+                    "job_rec_rank_8_x_probs_ctr": 0.534027,
+                    "ctr": 0.534027,
+                    "ctcvr": 0.238169
+                }
+            }
+        },
+        {
+            "item_id": "137844574",
+            "score": 0.23627,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.569512,
+                    "ctcvr": 0.23627,
+                    "job_rec_rank_8_x_logits_ctr": 0.279861,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.23627,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.173237,
+                    "job_rec_rank_8_x_probs_ctr": 0.569512
+                }
+            }
+        },
+        {
+            "item_id": "156538078",
+            "score": 0.236127,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.174034,
+                    "job_rec_rank_8_x_probs_ctr": 0.633892,
+                    "ctr": 0.633892,
+                    "ctcvr": 0.236127,
+                    "job_rec_rank_8_x_logits_ctr": 0.54895,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.236127
+                }
+            }
+        },
+        {
+            "item_id": "156152230",
+            "score": 0.235693,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.068505,
+                    "ctr": 0.517119,
+                    "ctcvr": 0.235693,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.235693,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.176437,
+                    "job_rec_rank_8_x_probs_ctr": 0.517119
+                }
+            }
+        },
+        {
+            "item_id": "154643718",
+            "score": 0.235176,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.559204,
+                    "job_rec_rank_8_x_logits_ctr": 0.237931,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.235176,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.179314,
+                    "ctr": 0.559204,
+                    "ctcvr": 0.235176
+                }
+            }
+        },
+        {
+            "item_id": "137832077",
+            "score": 0.233766,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.233766,
+                    "job_rec_rank_8_x_probs_ctr": 0.576652,
+                    "job_rec_rank_8_x_logits_ctr": 0.309045,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.233766,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.187169,
+                    "ctr": 0.576652
+                }
+            }
+        },
+        {
+            "item_id": "156151353",
+            "score": 0.233756,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.187222,
+                    "ctcvr": 0.233756,
+                    "ctr": 0.600897,
+                    "job_rec_rank_8_x_probs_ctr": 0.600897,
+                    "job_rec_rank_8_x_logits_ctr": 0.409205,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.233756
+                }
+            }
+        },
+        {
+            "item_id": "135426868",
+            "score": 0.232547,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.232547,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.193985,
+                    "job_rec_rank_8_x_probs_ctr": 0.520278,
+                    "job_rec_rank_8_x_logits_ctr": 0.081156,
+                    "ctcvr": 0.232547,
+                    "ctr": 0.520278
+                }
+            }
+        },
+        {
+            "item_id": "146935183",
+            "score": 0.232182,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.50776,
+                    "job_rec_rank_8_x_logits_ctr": 0.031043,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.232182,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.196031,
+                    "ctr": 0.50776,
+                    "ctcvr": 0.232182
+                }
+            }
+        },
+        {
+            "item_id": "130239036",
+            "score": 0.230584,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.230584,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.205014,
+                    "ctcvr": 0.230584,
+                    "ctr": 0.495949,
+                    "job_rec_rank_8_x_probs_ctr": 0.495949,
+                    "job_rec_rank_8_x_logits_ctr": -0.016204
+                }
+            }
+        },
+        {
+            "item_id": "147753215",
+            "score": 0.229316,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.494875,
+                    "job_rec_rank_8_x_logits_ctr": -0.020502,
+                    "ctcvr": 0.229316,
+                    "ctr": 0.494875,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.229316,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.212178
+                }
+            }
+        },
+        {
+            "item_id": "152445326",
+            "score": 0.22779,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.541468,
+                    "job_rec_rank_8_x_logits_ctr": 0.166255,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.22779,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.220831,
+                    "job_rec_rank_8_x_probs_ctr": 0.541468,
+                    "ctcvr": 0.22779
+                }
+            }
+        },
+        {
+            "item_id": "154367022",
+            "score": 0.226469,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.617171,
+                    "ctcvr": 0.226469,
+                    "job_rec_rank_8_x_probs_ctr": 0.617171,
+                    "job_rec_rank_8_x_logits_ctr": 0.47756,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.226469,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.228359
+                }
+            }
+        },
+        {
+            "item_id": "151827363",
+            "score": 0.223367,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.223367,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.24615,
+                    "ctr": 0.496848,
+                    "ctcvr": 0.223367,
+                    "job_rec_rank_8_x_probs_ctr": 0.496848,
+                    "job_rec_rank_8_x_logits_ctr": -0.012608
+                }
+            }
+        },
+        {
+            "item_id": "124407452",
+            "score": 0.223015,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.455872,
+                    "job_rec_rank_8_x_logits_ctr": -0.176973,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.223015,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.248184,
+                    "ctr": 0.455872,
+                    "ctcvr": 0.223015
+                }
+            }
+        },
+        {
+            "item_id": "138095879",
+            "score": 0.220582,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.262276,
+                    "ctr": 0.552439,
+                    "ctcvr": 0.220582,
+                    "job_rec_rank_8_x_probs_ctr": 0.552439,
+                    "job_rec_rank_8_x_logits_ctr": 0.210529,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.220582
+                }
+            }
+        },
+        {
+            "item_id": "154449446",
+            "score": 0.220172,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.53359,
+                    "job_rec_rank_8_x_logits_ctr": 0.134561,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.220172,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.264664,
+                    "ctr": 0.53359,
+                    "ctcvr": 0.220172
+                }
+            }
+        },
+        {
+            "item_id": "154685047",
+            "score": 0.21936,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.024163,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.21936,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.269397,
+                    "ctr": 0.493959,
+                    "ctcvr": 0.21936,
+                    "job_rec_rank_8_x_probs_ctr": 0.493959
+                }
+            }
+        },
+        {
+            "item_id": "148645386",
+            "score": 0.217218,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.217218,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.281954,
+                    "job_rec_rank_8_x_probs_ctr": 0.532119,
+                    "job_rec_rank_8_x_logits_ctr": 0.128653,
+                    "ctr": 0.532119,
+                    "ctcvr": 0.217218
+                }
+            }
+        },
+        {
+            "item_id": "130392564",
+            "score": 0.216968,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.612092,
+                    "job_rec_rank_8_x_logits_ctr": 0.456113,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.216968,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.283425,
+                    "ctr": 0.612092,
+                    "ctcvr": 0.216968
+                }
+            }
+        },
+        {
+            "item_id": "156557460",
+            "score": 0.214821,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.016109,
+                    "ctr": 0.495973,
+                    "ctcvr": 0.214821,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.214821,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.296108,
+                    "job_rec_rank_8_x_probs_ctr": 0.495973
+                }
+            }
+        },
+        {
+            "item_id": "156584737",
+            "score": 0.213305,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.60423,
+                    "ctcvr": 0.213305,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.213305,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.305116,
+                    "job_rec_rank_8_x_probs_ctr": 0.60423,
+                    "job_rec_rank_8_x_logits_ctr": 0.423122
+                }
+            }
+        },
+        {
+            "item_id": "136165516",
+            "score": 0.213202,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.144436,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.213202,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.305734,
+                    "job_rec_rank_8_x_probs_ctr": 0.463954,
+                    "ctcvr": 0.213202,
+                    "ctr": 0.463954
+                }
+            }
+        },
+        {
+            "item_id": "142232822",
+            "score": 0.211524,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.617151,
+                    "job_rec_rank_8_x_logits_ctr": 0.477472,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.211524,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.315763,
+                    "ctr": 0.617151,
+                    "ctcvr": 0.211524
+                }
+            }
+        },
+        {
+            "item_id": "151823477",
+            "score": 0.21005,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.21005,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.324622,
+                    "job_rec_rank_8_x_probs_ctr": 0.50353,
+                    "ctr": 0.50353,
+                    "ctcvr": 0.21005,
+                    "job_rec_rank_8_x_logits_ctr": 0.01412
+                }
+            }
+        },
+        {
+            "item_id": "134320960",
+            "score": 0.209945,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.524942,
+                    "ctcvr": 0.209945,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.325257,
+                    "job_rec_rank_8_x_probs_ctr": 0.524942,
+                    "job_rec_rank_8_x_logits_ctr": 0.099849,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.209945
+                }
+            }
+        },
+        {
+            "item_id": "144272058",
+            "score": 0.209371,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.528231,
+                    "job_rec_rank_8_x_logits_ctr": 0.113045,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.209371,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.328719,
+                    "ctr": 0.528231,
+                    "ctcvr": 0.209371
+                }
+            }
+        },
+        {
+            "item_id": "156141491",
+            "score": 0.208259,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.123767,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.208259,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.335451,
+                    "job_rec_rank_8_x_probs_ctr": 0.530902,
+                    "ctr": 0.530902,
+                    "ctcvr": 0.208259
+                }
+            }
+        },
+        {
+            "item_id": "154103297",
+            "score": 0.207936,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.461172,
+                    "job_rec_rank_8_x_logits_ctr": -0.155627,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.207936,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.337411,
+                    "ctr": 0.461172,
+                    "ctcvr": 0.207936
+                }
+            }
+        },
+        {
+            "item_id": "140294524",
+            "score": 0.206988,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.507734,
+                    "job_rec_rank_8_x_logits_ctr": 0.030939,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.206988,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.34318,
+                    "ctr": 0.507734,
+                    "ctcvr": 0.206988
+                }
+            }
+        },
+        {
+            "item_id": "116420184",
+            "score": 0.205397,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.616745,
+                    "job_rec_rank_8_x_logits_ctr": 0.475754,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.205397,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.352901,
+                    "ctr": 0.616745,
+                    "ctcvr": 0.205397
+                }
+            }
+        },
+        {
+            "item_id": "154779615",
+            "score": 0.204012,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.49547,
+                    "job_rec_rank_8_x_logits_ctr": -0.018119,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.204012,
+                    "ctr": 0.49547,
+                    "ctcvr": 0.204012,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.361403
+                }
+            }
+        },
+        {
+            "item_id": "154697471",
+            "score": 0.202278,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.024865,
+                    "ctcvr": 0.202278,
+                    "ctr": 0.493784,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.202278,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.372117,
+                    "job_rec_rank_8_x_probs_ctr": 0.493784
+                }
+            }
+        },
+        {
+            "item_id": "153750465",
+            "score": 0.201859,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.201859,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.201859,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.374715,
+                    "job_rec_rank_8_x_probs_ctr": 0.575447,
+                    "job_rec_rank_8_x_logits_ctr": 0.30411,
+                    "ctr": 0.575447
+                }
+            }
+        },
+        {
+            "item_id": "154569587",
+            "score": 0.201808,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.431943,
+                    "job_rec_rank_8_x_logits_ctr": -0.273927,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.201808,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.375033,
+                    "ctr": 0.431943,
+                    "ctcvr": 0.201808
+                }
+            }
+        },
+        {
+            "item_id": "75857124",
+            "score": 0.201061,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.201061,
+                    "job_rec_rank_8_x_probs_ctr": 0.461625,
+                    "job_rec_rank_8_x_logits_ctr": -0.153804,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.201061,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.379679,
+                    "ctr": 0.461625
+                }
+            }
+        },
+        {
+            "item_id": "119563722",
+            "score": 0.200389,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.200389,
+                    "ctr": 0.475309,
+                    "ctcvr": 0.200389,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.383867,
+                    "job_rec_rank_8_x_probs_ctr": 0.475309,
+                    "job_rec_rank_8_x_logits_ctr": -0.098844
+                }
+            }
+        },
+        {
+            "item_id": "153321153",
+            "score": 0.200087,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.38575,
+                    "ctr": 0.551853,
+                    "ctcvr": 0.200087,
+                    "job_rec_rank_8_x_probs_ctr": 0.551853,
+                    "job_rec_rank_8_x_logits_ctr": 0.208161,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.200087
+                }
+            }
+        },
+        {
+            "item_id": "150557208",
+            "score": 0.199293,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.550151,
+                    "job_rec_rank_8_x_logits_ctr": 0.20128,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.199293,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.390719,
+                    "ctr": 0.550151,
+                    "ctcvr": 0.199293
+                }
+            }
+        },
+        {
+            "item_id": "148797429",
+            "score": 0.199049,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.392251,
+                    "ctr": 0.511815,
+                    "ctcvr": 0.199049,
+                    "job_rec_rank_8_x_probs_ctr": 0.511815,
+                    "job_rec_rank_8_x_logits_ctr": 0.047268,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.199049
+                }
+            }
+        },
+        {
+            "item_id": "133175775",
+            "score": 0.197222,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.197222,
+                    "job_rec_rank_8_x_probs_ctr": 0.494764,
+                    "job_rec_rank_8_x_logits_ctr": -0.020944,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.197222,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.403749,
+                    "ctr": 0.494764
+                }
+            }
+        },
+        {
+            "item_id": "149400946",
+            "score": 0.197148,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.150533,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.197148,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.404215,
+                    "ctr": 0.462438,
+                    "ctcvr": 0.197148,
+                    "job_rec_rank_8_x_probs_ctr": 0.462438
+                }
+            }
+        },
+        {
+            "item_id": "146569083",
+            "score": 0.196837,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.406184,
+                    "job_rec_rank_8_x_probs_ctr": 0.498495,
+                    "job_rec_rank_8_x_logits_ctr": -0.00602,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.196837,
+                    "ctr": 0.498495,
+                    "ctcvr": 0.196837
+                }
+            }
+        },
+        {
+            "item_id": "155846862",
+            "score": 0.196288,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.196288,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.409658,
+                    "ctr": 0.34376,
+                    "ctcvr": 0.196288,
+                    "job_rec_rank_8_x_probs_ctr": 0.34376,
+                    "job_rec_rank_8_x_logits_ctr": -0.646585
+                }
+            }
+        },
+        {
+            "item_id": "129333920",
+            "score": 0.194157,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.497603,
+                    "job_rec_rank_8_x_logits_ctr": -0.009587,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.194157,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.42322,
+                    "ctr": 0.497603,
+                    "ctcvr": 0.194157
+                }
+            }
+        },
+        {
+            "item_id": "156060469",
+            "score": 0.194142,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.555949,
+                    "job_rec_rank_8_x_logits_ctr": 0.224738,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.194142,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.423315,
+                    "ctr": 0.555949,
+                    "ctcvr": 0.194142
+                }
+            }
+        },
+        {
+            "item_id": "153613476",
+            "score": 0.193831,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.531504,
+                    "ctcvr": 0.193831,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.193831,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.425306,
+                    "job_rec_rank_8_x_probs_ctr": 0.531504,
+                    "job_rec_rank_8_x_logits_ctr": 0.126185
+                }
+            }
+        },
+        {
+            "item_id": "153186335",
+            "score": 0.188404,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.446732,
+                    "job_rec_rank_8_x_logits_ctr": -0.213882,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.188404,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.460417,
+                    "ctr": 0.446732,
+                    "ctcvr": 0.188404
+                }
+            }
+        },
+        {
+            "item_id": "118359036",
+            "score": 0.186405,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.071141,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.186405,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.473539,
+                    "job_rec_rank_8_x_probs_ctr": 0.482222,
+                    "ctr": 0.482222,
+                    "ctcvr": 0.186405
+                }
+            }
+        },
+        {
+            "item_id": "153911246",
+            "score": 0.185569,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.479063,
+                    "ctr": 0.473526,
+                    "ctcvr": 0.185569,
+                    "job_rec_rank_8_x_probs_ctr": 0.473526,
+                    "job_rec_rank_8_x_logits_ctr": -0.105995,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.185569
+                }
+            }
+        },
+        {
+            "item_id": "151025483",
+            "score": 0.18544,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.452403,
+                    "ctcvr": 0.18544,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.18544,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.479914,
+                    "job_rec_rank_8_x_probs_ctr": 0.452403,
+                    "job_rec_rank_8_x_logits_ctr": -0.190965
+                }
+            }
+        },
+        {
+            "item_id": "152013196",
+            "score": 0.184852,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.271306,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.184852,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.483817,
+                    "ctr": 0.432587,
+                    "ctcvr": 0.184852,
+                    "job_rec_rank_8_x_probs_ctr": 0.432587
+                }
+            }
+        },
+        {
+            "item_id": "154401252",
+            "score": 0.184034,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.184034,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.489255,
+                    "job_rec_rank_8_x_probs_ctr": 0.499971,
+                    "ctr": 0.499971,
+                    "ctcvr": 0.184034,
+                    "job_rec_rank_8_x_logits_ctr": -0.000117
+                }
+            }
+        },
+        {
+            "item_id": "152941598",
+            "score": 0.182488,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.182488,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.499581,
+                    "ctr": 0.454226,
+                    "ctcvr": 0.182488,
+                    "job_rec_rank_8_x_probs_ctr": 0.454226,
+                    "job_rec_rank_8_x_logits_ctr": -0.18361
+                }
+            }
+        },
+        {
+            "item_id": "104002267",
+            "score": 0.181742,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.181742,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.504587,
+                    "job_rec_rank_8_x_probs_ctr": 0.464762,
+                    "job_rec_rank_8_x_logits_ctr": -0.141186,
+                    "ctr": 0.464762,
+                    "ctcvr": 0.181742
+                }
+            }
+        },
+        {
+            "item_id": "153231180",
+            "score": 0.181602,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.505534,
+                    "job_rec_rank_8_x_probs_ctr": 0.605551,
+                    "job_rec_rank_8_x_logits_ctr": 0.428649,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.181602,
+                    "ctr": 0.605551,
+                    "ctcvr": 0.181602
+                }
+            }
+        },
+        {
+            "item_id": "154367010",
+            "score": 0.179583,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.4287,
+                    "job_rec_rank_8_x_logits_ctr": -0.287158,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.179583,
+                    "ctcvr": 0.179583,
+                    "ctr": 0.4287,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.519174
+                }
+            }
+        },
+        {
+            "item_id": "141241019",
+            "score": 0.178439,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.178439,
+                    "job_rec_rank_8_x_logits_ctr": -0.212334,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.178439,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.526962,
+                    "job_rec_rank_8_x_probs_ctr": 0.447115,
+                    "ctr": 0.447115
+                }
+            }
+        },
+        {
+            "item_id": "154011602",
+            "score": 0.178147,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.501092,
+                    "ctcvr": 0.178147,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.52895,
+                    "job_rec_rank_8_x_probs_ctr": 0.501092,
+                    "job_rec_rank_8_x_logits_ctr": 0.004369,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.178147
+                }
+            }
+        },
+        {
+            "item_id": "156052082",
+            "score": 0.177493,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.534586,
+                    "ctcvr": 0.177493,
+                    "ctr": 0.534586,
+                    "job_rec_rank_8_x_logits_ctr": 0.138566,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.177493,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.533425
+                }
+            }
+        },
+        {
+            "item_id": "154581728",
+            "score": 0.176927,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.176927,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.537311,
+                    "ctcvr": 0.176927,
+                    "ctr": 0.395483,
+                    "job_rec_rank_8_x_probs_ctr": 0.395483,
+                    "job_rec_rank_8_x_logits_ctr": -0.424323
+                }
+            }
+        },
+        {
+            "item_id": "150981752",
+            "score": 0.176921,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.411351,
+                    "job_rec_rank_8_x_logits_ctr": -0.358385,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.176921,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.537348,
+                    "ctr": 0.411351,
+                    "ctcvr": 0.176921
+                }
+            }
+        },
+        {
+            "item_id": "155153380",
+            "score": 0.176355,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.448579,
+                    "job_rec_rank_8_x_logits_ctr": -0.206413,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.176355,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.541242,
+                    "ctcvr": 0.176355,
+                    "ctr": 0.448579
+                }
+            }
+        },
+        {
+            "item_id": "149175330",
+            "score": 0.174754,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.552302,
+                    "job_rec_rank_8_x_probs_ctr": 0.440979,
+                    "job_rec_rank_8_x_logits_ctr": -0.237191,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.174754,
+                    "ctcvr": 0.174754,
+                    "ctr": 0.440979
+                }
+            }
+        },
+        {
+            "item_id": "148769472",
+            "score": 0.174214,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.477629,
+                    "job_rec_rank_8_x_logits_ctr": -0.089544,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.174214,
+                    "ctr": 0.477629,
+                    "ctcvr": 0.174214,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.556051
+                }
+            }
+        },
+        {
+            "item_id": "155153440",
+            "score": 0.173948,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.173948,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.557899,
+                    "job_rec_rank_8_x_probs_ctr": 0.489404,
+                    "job_rec_rank_8_x_logits_ctr": -0.042389,
+                    "ctr": 0.489404,
+                    "ctcvr": 0.173948
+                }
+            }
+        },
+        {
+            "item_id": "129872385",
+            "score": 0.173196,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.173196,
+                    "job_rec_rank_8_x_probs_ctr": 0.378374,
+                    "job_rec_rank_8_x_logits_ctr": -0.496455,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.173196,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.563144,
+                    "ctr": 0.378374
+                }
+            }
+        },
+        {
+            "item_id": "153300960",
+            "score": 0.173073,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.564001,
+                    "job_rec_rank_8_x_probs_ctr": 0.524767,
+                    "job_rec_rank_8_x_logits_ctr": 0.099149,
+                    "ctr": 0.524767,
+                    "ctcvr": 0.173073,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.173073
+                }
+            }
+        },
+        {
+            "item_id": "154576430",
+            "score": 0.172863,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.172863,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.565473,
+                    "job_rec_rank_8_x_probs_ctr": 0.508184,
+                    "job_rec_rank_8_x_logits_ctr": 0.032738,
+                    "ctr": 0.508184,
+                    "ctcvr": 0.172863
+                }
+            }
+        },
+        {
+            "item_id": "135499743",
+            "score": 0.172804,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.455873,
+                    "job_rec_rank_8_x_logits_ctr": -0.17697,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.172804,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.565885,
+                    "ctr": 0.455873,
+                    "ctcvr": 0.172804
+                }
+            }
+        },
+        {
+            "item_id": "137051902",
+            "score": 0.171631,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.472771,
+                    "job_rec_rank_8_x_logits_ctr": -0.109024,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.171631,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.574109,
+                    "ctr": 0.472771,
+                    "ctcvr": 0.171631
+                }
+            }
+        },
+        {
+            "item_id": "112526573",
+            "score": 0.170652,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.429279,
+                    "job_rec_rank_8_x_logits_ctr": -0.284793,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.170652,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.581015,
+                    "ctr": 0.429279,
+                    "ctcvr": 0.170652
+                }
+            }
+        },
+        {
+            "item_id": "156153359",
+            "score": 0.170487,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.481568,
+                    "job_rec_rank_8_x_logits_ctr": -0.073763,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.170487,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.582181,
+                    "ctcvr": 0.170487,
+                    "ctr": 0.481568
+                }
+            }
+        },
+        {
+            "item_id": "154657832",
+            "score": 0.170057,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.170057,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.585222,
+                    "job_rec_rank_8_x_probs_ctr": 0.4792,
+                    "ctr": 0.4792,
+                    "ctcvr": 0.170057,
+                    "job_rec_rank_8_x_logits_ctr": -0.08325
+                }
+            }
+        },
+        {
+            "item_id": "154038413",
+            "score": 0.169962,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.530181,
+                    "job_rec_rank_8_x_logits_ctr": 0.12087,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.169962,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.585894,
+                    "ctr": 0.530181,
+                    "ctcvr": 0.169962
+                }
+            }
+        },
+        {
+            "item_id": "122787139",
+            "score": 0.169435,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.169435,
+                    "ctr": 0.405066,
+                    "ctcvr": 0.169435,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.589636,
+                    "job_rec_rank_8_x_probs_ctr": 0.405066,
+                    "job_rec_rank_8_x_logits_ctr": -0.384402
+                }
+            }
+        },
+        {
+            "item_id": "147506996",
+            "score": 0.168397,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.485083,
+                    "job_rec_rank_8_x_logits_ctr": -0.059687,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.168397,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.597033,
+                    "ctr": 0.485083,
+                    "ctcvr": 0.168397
+                }
+            }
+        },
+        {
+            "item_id": "146441247",
+            "score": 0.163188,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.453056,
+                    "job_rec_rank_8_x_logits_ctr": -0.18833,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.163188,
+                    "ctr": 0.453056,
+                    "ctcvr": 0.163188,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.634696
+                }
+            }
+        },
+        {
+            "item_id": "122401987",
+            "score": 0.163053,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.452037,
+                    "ctcvr": 0.163053,
+                    "job_rec_rank_8_x_probs_ctr": 0.452037,
+                    "job_rec_rank_8_x_logits_ctr": -0.192445,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.163053,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.635689
+                }
+            }
+        },
+        {
+            "item_id": "152692933",
+            "score": 0.161941,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.161941,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.643857,
+                    "job_rec_rank_8_x_probs_ctr": 0.560638,
+                    "ctcvr": 0.161941,
+                    "ctr": 0.560638,
+                    "job_rec_rank_8_x_logits_ctr": 0.243752
+                }
+            }
+        },
+        {
+            "item_id": "153447009",
+            "score": 0.161407,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.477601,
+                    "job_rec_rank_8_x_probs_ctr": 0.477601,
+                    "job_rec_rank_8_x_logits_ctr": -0.089654,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.161407,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.647797,
+                    "ctcvr": 0.161407
+                }
+            }
+        },
+        {
+            "item_id": "154647748",
+            "score": 0.160688,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.418638,
+                    "job_rec_rank_8_x_logits_ctr": -0.328365,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.160688,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.653119,
+                    "ctr": 0.418638,
+                    "ctcvr": 0.160688
+                }
+            }
+        },
+        {
+            "item_id": "116963374",
+            "score": 0.160546,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.358043,
+                    "job_rec_rank_8_x_logits_ctr": -0.583869,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.160546,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.654173,
+                    "ctr": 0.358043,
+                    "ctcvr": 0.160546
+                }
+            }
+        },
+        {
+            "item_id": "148955434",
+            "score": 0.160197,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.656761,
+                    "job_rec_rank_8_x_probs_ctr": 0.471976,
+                    "job_rec_rank_8_x_logits_ctr": -0.112215,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.160197,
+                    "ctcvr": 0.160197,
+                    "ctr": 0.471976
+                }
+            }
+        },
+        {
+            "item_id": "111894845",
+            "score": 0.159928,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.470633,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.159928,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.658761,
+                    "job_rec_rank_8_x_probs_ctr": 0.384466,
+                    "ctr": 0.384466,
+                    "ctcvr": 0.159928
+                }
+            }
+        },
+        {
+            "item_id": "149586324",
+            "score": 0.158829,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.158829,
+                    "ctr": 0.481248,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.158829,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.666966,
+                    "job_rec_rank_8_x_probs_ctr": 0.481248,
+                    "job_rec_rank_8_x_logits_ctr": -0.075043
+                }
+            }
+        },
+        {
+            "item_id": "155792340",
+            "score": 0.158707,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.191006,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.158707,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.667883,
+                    "job_rec_rank_8_x_probs_ctr": 0.452393,
+                    "ctr": 0.452393,
+                    "ctcvr": 0.158707
+                }
+            }
+        },
+        {
+            "item_id": "154671299",
+            "score": 0.157619,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.54019,
+                    "job_rec_rank_8_x_logits_ctr": 0.161107,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.157619,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.676052,
+                    "ctcvr": 0.157619,
+                    "ctr": 0.54019
+                }
+            }
+        },
+        {
+            "item_id": "142467419",
+            "score": 0.157044,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.194491,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.157044,
+                    "ctr": 0.45153,
+                    "ctcvr": 0.157044,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.680392,
+                    "job_rec_rank_8_x_probs_ctr": 0.45153
+                }
+            }
+        },
+        {
+            "item_id": "144646739",
+            "score": 0.15577,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.690046,
+                    "ctr": 0.412428,
+                    "ctcvr": 0.15577,
+                    "job_rec_rank_8_x_probs_ctr": 0.412428,
+                    "job_rec_rank_8_x_logits_ctr": -0.353939,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.15577
+                }
+            }
+        },
+        {
+            "item_id": "156533330",
+            "score": 0.154308,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0.00524,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.154308,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.701207,
+                    "job_rec_rank_8_x_probs_ctr": 0.50131,
+                    "ctr": 0.50131,
+                    "ctcvr": 0.154308
+                }
+            }
+        },
+        {
+            "item_id": "154379039",
+            "score": 0.153087,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.101183,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.153087,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.710589,
+                    "ctr": 0.474726,
+                    "ctcvr": 0.153087,
+                    "job_rec_rank_8_x_probs_ctr": 0.474726
+                }
+            }
+        },
+        {
+            "item_id": "151580866",
+            "score": 0.151065,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.294916,
+                    "ctcvr": 0.151065,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.726269,
+                    "job_rec_rank_8_x_probs_ctr": 0.294916,
+                    "job_rec_rank_8_x_logits_ctr": -0.871627,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.151065
+                }
+            }
+        },
+        {
+            "item_id": "151398774",
+            "score": 0.150349,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.398409,
+                    "ctcvr": 0.150349,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.731867,
+                    "job_rec_rank_8_x_probs_ctr": 0.398409,
+                    "job_rec_rank_8_x_logits_ctr": -0.412098,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.150349
+                }
+            }
+        },
+        {
+            "item_id": "154854077",
+            "score": 0.15025,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.415084,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.15025,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.732639,
+                    "job_rec_rank_8_x_probs_ctr": 0.415084,
+                    "job_rec_rank_8_x_logits_ctr": -0.342989,
+                    "ctcvr": 0.15025
+                }
+            }
+        },
+        {
+            "item_id": "146331599",
+            "score": 0.149624,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.348096,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.149624,
+                    "ctr": 0.413844,
+                    "ctcvr": 0.149624,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.737552,
+                    "job_rec_rank_8_x_probs_ctr": 0.413844
+                }
+            }
+        },
+        {
+            "item_id": "153408886",
+            "score": 0.14954,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.426593,
+                    "job_rec_rank_8_x_logits_ctr": -0.295765,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.14954,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.738217,
+                    "ctr": 0.426593,
+                    "ctcvr": 0.14954
+                }
+            }
+        },
+        {
+            "item_id": "141935996",
+            "score": 0.147265,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.147265,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.756218,
+                    "ctr": 0.410512,
+                    "ctcvr": 0.147265,
+                    "job_rec_rank_8_x_probs_ctr": 0.410512,
+                    "job_rec_rank_8_x_logits_ctr": -0.361848
+                }
+            }
+        },
+        {
+            "item_id": "145511169",
+            "score": 0.146724,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.146724,
+                    "job_rec_rank_8_x_logits_ctr": -0.438967,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.146724,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.760529,
+                    "job_rec_rank_8_x_probs_ctr": 0.391987,
+                    "ctr": 0.391987
+                }
+            }
+        },
+        {
+            "item_id": "154009509",
+            "score": 0.146265,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.442437,
+                    "job_rec_rank_8_x_logits_ctr": -0.231276,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.146265,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.764197,
+                    "ctr": 0.442437,
+                    "ctcvr": 0.146265
+                }
+            }
+        },
+        {
+            "item_id": "119737414",
+            "score": 0.144829,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.775744,
+                    "job_rec_rank_8_x_probs_ctr": 0.461969,
+                    "job_rec_rank_8_x_logits_ctr": -0.152419,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.144829,
+                    "ctcvr": 0.144829,
+                    "ctr": 0.461969
+                }
+            }
+        },
+        {
+            "item_id": "148753253",
+            "score": 0.142235,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.552873,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.142235,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.796847,
+                    "ctr": 0.365198,
+                    "ctcvr": 0.142235,
+                    "job_rec_rank_8_x_probs_ctr": 0.365198
+                }
+            }
+        },
+        {
+            "item_id": "139981845",
+            "score": 0.140735,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.809197,
+                    "job_rec_rank_8_x_probs_ctr": 0.39693,
+                    "ctr": 0.39693,
+                    "ctcvr": 0.140735,
+                    "job_rec_rank_8_x_logits_ctr": -0.418272,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.140735
+                }
+            }
+        },
+        {
+            "item_id": "155674025",
+            "score": 0.139744,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.139744,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.817417,
+                    "job_rec_rank_8_x_probs_ctr": 0.359077,
+                    "job_rec_rank_8_x_logits_ctr": -0.579374,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.139744,
+                    "ctr": 0.359077
+                }
+            }
+        },
+        {
+            "item_id": "155491481",
+            "score": 0.139669,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.139669,
+                    "job_rec_rank_8_x_probs_ctr": 0.470439,
+                    "job_rec_rank_8_x_logits_ctr": -0.118382,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.139669,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.81804,
+                    "ctr": 0.470439
+                }
+            }
+        },
+        {
+            "item_id": "150893634",
+            "score": 0.137446,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.416695,
+                    "job_rec_rank_8_x_probs_ctr": 0.416695,
+                    "job_rec_rank_8_x_logits_ctr": -0.336355,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.137446,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.836663,
+                    "ctcvr": 0.137446
+                }
+            }
+        },
+        {
+            "item_id": "153554431",
+            "score": 0.135757,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.398374,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.135757,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.850988,
+                    "job_rec_rank_8_x_probs_ctr": 0.401703,
+                    "ctr": 0.401703,
+                    "ctcvr": 0.135757
+                }
+            }
+        },
+        {
+            "item_id": "132120440",
+            "score": 0.135675,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.620456,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.135675,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.85169,
+                    "ctcvr": 0.135675,
+                    "ctr": 0.349678,
+                    "job_rec_rank_8_x_probs_ctr": 0.349678
+                }
+            }
+        },
+        {
+            "item_id": "149478519",
+            "score": 0.135214,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.435842,
+                    "ctcvr": 0.135214,
+                    "job_rec_rank_8_x_logits_ctr": -0.258056,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.135214,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.85562,
+                    "job_rec_rank_8_x_probs_ctr": 0.435842
+                }
+            }
+        },
+        {
+            "item_id": "151585327",
+            "score": 0.135133,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.856312,
+                    "ctr": 0.339584,
+                    "ctcvr": 0.135133,
+                    "job_rec_rank_8_x_probs_ctr": 0.339584,
+                    "job_rec_rank_8_x_logits_ctr": -0.66515,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.135133
+                }
+            }
+        },
+        {
+            "item_id": "152878630",
+            "score": 0.13338,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.13338,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.871396,
+                    "job_rec_rank_8_x_probs_ctr": 0.351264,
+                    "job_rec_rank_8_x_logits_ctr": -0.61349,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.13338,
+                    "ctr": 0.351264
+                }
+            }
+        },
+        {
+            "item_id": "154679610",
+            "score": 0.133161,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.218146,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.133161,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.873294,
+                    "job_rec_rank_8_x_probs_ctr": 0.445679,
+                    "ctr": 0.445679,
+                    "ctcvr": 0.133161
+                }
+            }
+        },
+        {
+            "item_id": "150836074",
+            "score": 0.132759,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.132759,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.876781,
+                    "job_rec_rank_8_x_probs_ctr": 0.305298,
+                    "job_rec_rank_8_x_logits_ctr": -0.822195,
+                    "ctr": 0.305298,
+                    "ctcvr": 0.132759
+                }
+            }
+        },
+        {
+            "item_id": "112484551",
+            "score": 0.129647,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.428181,
+                    "job_rec_rank_8_x_logits_ctr": -0.289277,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.129647,
+                    "ctr": 0.428181,
+                    "ctcvr": 0.129647,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.904087
+                }
+            }
+        },
+        {
+            "item_id": "149876399",
+            "score": 0.12811,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.12811,
+                    "job_rec_rank_8_x_probs_ctr": 0.404081,
+                    "job_rec_rank_8_x_logits_ctr": -0.38849,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.12811,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.917771,
+                    "ctr": 0.404081
+                }
+            }
+        },
+        {
+            "item_id": "156254292",
+            "score": 0.126833,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.126833,
+                    "job_rec_rank_8_x_probs_ctr": 0.409788,
+                    "job_rec_rank_8_x_logits_ctr": -0.364841,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.126833,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.929259,
+                    "ctr": 0.409788
+                }
+            }
+        },
+        {
+            "item_id": "153831876",
+            "score": 0.126739,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.126739,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.126739,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.930102,
+                    "job_rec_rank_8_x_probs_ctr": 0.362766,
+                    "job_rec_rank_8_x_logits_ctr": -0.563378,
+                    "ctr": 0.362766
+                }
+            }
+        },
+        {
+            "item_id": "118889472",
+            "score": 0.126489,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.337918,
+                    "ctcvr": 0.126489,
+                    "job_rec_rank_8_x_logits_ctr": -0.672585,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.126489,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.93237,
+                    "job_rec_rank_8_x_probs_ctr": 0.337918
+                }
+            }
+        },
+        {
+            "item_id": "152995820",
+            "score": 0.12438,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.951593,
+                    "job_rec_rank_8_x_probs_ctr": 0.407523,
+                    "job_rec_rank_8_x_logits_ctr": -0.374216,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.12438,
+                    "ctcvr": 0.12438,
+                    "ctr": 0.407523
+                }
+            }
+        },
+        {
+            "item_id": "118416614",
+            "score": 0.123913,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.424332,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.123913,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.955886,
+                    "job_rec_rank_8_x_probs_ctr": 0.395481,
+                    "ctr": 0.395481,
+                    "ctcvr": 0.123913
+                }
+            }
+        },
+        {
+            "item_id": "150884844",
+            "score": 0.12221,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.12221,
+                    "ctr": 0.298166,
+                    "job_rec_rank_8_x_probs_ctr": 0.298166,
+                    "job_rec_rank_8_x_logits_ctr": -0.856045,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.12221,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.971669
+                }
+            }
+        },
+        {
+            "item_id": "130238327",
+            "score": 0.122005,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.383359,
+                    "job_rec_rank_8_x_logits_ctr": -0.475316,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.122005,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.973578,
+                    "ctr": 0.383359,
+                    "ctcvr": 0.122005
+                }
+            }
+        },
+        {
+            "item_id": "153163048",
+            "score": 0.12031,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -1.989499,
+                    "ctr": 0.490293,
+                    "ctcvr": 0.12031,
+                    "job_rec_rank_8_x_probs_ctr": 0.490293,
+                    "job_rec_rank_8_x_logits_ctr": -0.038831,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.12031
+                }
+            }
+        },
+        {
+            "item_id": "128856755",
+            "score": 0.119852,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.119852,
+                    "job_rec_rank_8_x_logits_ctcvr": -1.993828,
+                    "job_rec_rank_8_x_probs_ctr": 0.460549,
+                    "job_rec_rank_8_x_logits_ctr": -0.158131,
+                    "ctr": 0.460549,
+                    "ctcvr": 0.119852
+                }
+            }
+        },
+        {
+            "item_id": "150829125",
+            "score": 0.11869,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.270331,
+                    "ctr": 0.432826,
+                    "ctcvr": 0.11869,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.11869,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.004896,
+                    "job_rec_rank_8_x_probs_ctr": 0.432826
+                }
+            }
+        },
+        {
+            "item_id": "150707212",
+            "score": 0.11835,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.17248,
+                    "ctr": 0.456987,
+                    "ctcvr": 0.11835,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.11835,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.008144,
+                    "job_rec_rank_8_x_probs_ctr": 0.456987
+                }
+            }
+        },
+        {
+            "item_id": "133179924",
+            "score": 0.117734,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.402124,
+                    "job_rec_rank_8_x_logits_ctr": -0.396621,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.117734,
+                    "ctr": 0.402124,
+                    "ctcvr": 0.117734,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.014063
+                }
+            }
+        },
+        {
+            "item_id": "130687732",
+            "score": 0.117503,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.351082,
+                    "ctcvr": 0.117503,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.117503,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.016294,
+                    "job_rec_rank_8_x_probs_ctr": 0.351082,
+                    "job_rec_rank_8_x_logits_ctr": -0.614289
+                }
+            }
+        },
+        {
+            "item_id": "154074761",
+            "score": 0.117242,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.117242,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.018815,
+                    "job_rec_rank_8_x_probs_ctr": 0.280295,
+                    "job_rec_rank_8_x_logits_ctr": -0.942998,
+                    "ctr": 0.280295,
+                    "ctcvr": 0.117242
+                }
+            }
+        },
+        {
+            "item_id": "151616326",
+            "score": 0.116756,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.352374,
+                    "job_rec_rank_8_x_logits_ctr": -0.608622,
+                    "ctr": 0.352374,
+                    "ctcvr": 0.116756,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.116756,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.02352
+                }
+            }
+        },
+        {
+            "item_id": "119782259",
+            "score": 0.115567,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.675526,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.115567,
+                    "ctr": 0.33726,
+                    "ctcvr": 0.115567,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.035095,
+                    "job_rec_rank_8_x_probs_ctr": 0.33726
+                }
+            }
+        },
+        {
+            "item_id": "152731634",
+            "score": 0.115403,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -2.036705,
+                    "ctcvr": 0.115403,
+                    "ctr": 0.392795,
+                    "job_rec_rank_8_x_probs_ctr": 0.392795,
+                    "job_rec_rank_8_x_logits_ctr": -0.435579,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.115403
+                }
+            }
+        },
+        {
+            "item_id": "146892402",
+            "score": 0.112394,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.260511,
+                    "ctcvr": 0.112394,
+                    "job_rec_rank_8_x_probs_ctr": 0.260511,
+                    "job_rec_rank_8_x_logits_ctr": -1.043312,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.112394,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.066518
+                }
+            }
+        },
+        {
+            "item_id": "154456624",
+            "score": 0.112273,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.537616,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.112273,
+                    "ctr": 0.368742,
+                    "ctcvr": 0.112273,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.067736,
+                    "job_rec_rank_8_x_probs_ctr": 0.368742
+                }
+            }
+        },
+        {
+            "item_id": "148948274",
+            "score": 0.112005,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.354197,
+                    "job_rec_rank_8_x_logits_ctr": -0.600643,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.112005,
+                    "ctr": 0.354197,
+                    "ctcvr": 0.112005,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.070425
+                }
+            }
+        },
+        {
+            "item_id": "148599292",
+            "score": 0.111619,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.325296,
+                    "ctcvr": 0.111619,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.111619,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.074313,
+                    "job_rec_rank_8_x_probs_ctr": 0.325296,
+                    "job_rec_rank_8_x_logits_ctr": -0.729537
+                }
+            }
+        },
+        {
+            "item_id": "154001477",
+            "score": 0.108736,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.351097,
+                    "ctcvr": 0.108736,
+                    "job_rec_rank_8_x_logits_ctr": -0.614221,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.108736,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.103721,
+                    "job_rec_rank_8_x_probs_ctr": 0.351097
+                }
+            }
+        },
+        {
+            "item_id": "139787709",
+            "score": 0.10873,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -2.103778,
+                    "job_rec_rank_8_x_probs_ctr": 0.339523,
+                    "job_rec_rank_8_x_logits_ctr": -0.665422,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.10873,
+                    "ctcvr": 0.10873,
+                    "ctr": 0.339523
+                }
+            }
+        },
+        {
+            "item_id": "138727342",
+            "score": 0.107058,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.340851,
+                    "ctr": 0.340851,
+                    "ctcvr": 0.107058,
+                    "job_rec_rank_8_x_logits_ctr": -0.659505,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.107058,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.121148
+                }
+            }
+        },
+        {
+            "item_id": "154370559",
+            "score": 0.105994,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.503018,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.105994,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.132329,
+                    "ctr": 0.376832,
+                    "ctcvr": 0.105994,
+                    "job_rec_rank_8_x_probs_ctr": 0.376832
+                }
+            }
+        },
+        {
+            "item_id": "153669403",
+            "score": 0.104048,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.362276,
+                    "job_rec_rank_8_x_logits_ctr": -0.565497,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.104048,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.153039,
+                    "ctr": 0.362276,
+                    "ctcvr": 0.104048
+                }
+            }
+        },
+        {
+            "item_id": "136208438",
+            "score": 0.099227,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -2.205847,
+                    "job_rec_rank_8_x_probs_ctr": 0.371055,
+                    "job_rec_rank_8_x_logits_ctr": -0.527694,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.099227,
+                    "ctr": 0.371055,
+                    "ctcvr": 0.099227
+                }
+            }
+        },
+        {
+            "item_id": "154500146",
+            "score": 0.098386,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.098386,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.098386,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.215283,
+                    "job_rec_rank_8_x_probs_ctr": 0.33126,
+                    "job_rec_rank_8_x_logits_ctr": -0.702494,
+                    "ctr": 0.33126
+                }
+            }
+        },
+        {
+            "item_id": "146593483",
+            "score": 0.098299,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.278836,
+                    "job_rec_rank_8_x_logits_ctr": -0.950245,
+                    "ctr": 0.278836,
+                    "ctcvr": 0.098299,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.098299,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.216268
+                }
+            }
+        },
+        {
+            "item_id": "156238476",
+            "score": 0.09738,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.50519,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.09738,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.226681,
+                    "ctcvr": 0.09738,
+                    "ctr": 0.376322,
+                    "job_rec_rank_8_x_probs_ctr": 0.376322
+                }
+            }
+        },
+        {
+            "item_id": "151020766",
+            "score": 0.096399,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.304941,
+                    "ctcvr": 0.096399,
+                    "job_rec_rank_8_x_probs_ctr": 0.304941,
+                    "job_rec_rank_8_x_logits_ctr": -0.823879,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.096399,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.237887
+                }
+            }
+        },
+        {
+            "item_id": "124040485",
+            "score": 0.094876,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -2.255502,
+                    "job_rec_rank_8_x_probs_ctr": 0.281669,
+                    "job_rec_rank_8_x_logits_ctr": -0.936197,
+                    "ctr": 0.281669,
+                    "ctcvr": 0.094876,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.094876
+                }
+            }
+        },
+        {
+            "item_id": "154087294",
+            "score": 0.093734,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.388317,
+                    "ctr": 0.388317,
+                    "ctcvr": 0.093734,
+                    "job_rec_rank_8_x_logits_ctr": -0.454393,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.093734,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.268872
+                }
+            }
+        },
+        {
+            "item_id": "124613839",
+            "score": 0.093566,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.093566,
+                    "ctr": 0.25187,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.093566,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.270856,
+                    "job_rec_rank_8_x_probs_ctr": 0.25187,
+                    "job_rec_rank_8_x_logits_ctr": -1.088665
+                }
+            }
+        },
+        {
+            "item_id": "156039549",
+            "score": 0.091966,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.229286,
+                    "ctcvr": 0.091966,
+                    "job_rec_rank_8_x_probs_ctr": 0.229286,
+                    "job_rec_rank_8_x_logits_ctr": -1.212345,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.091966,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.289868
+                }
+            }
+        },
+        {
+            "item_id": "134075860",
+            "score": 0.09184,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -2.291373,
+                    "job_rec_rank_8_x_probs_ctr": 0.299026,
+                    "job_rec_rank_8_x_logits_ctr": -0.851939,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.09184,
+                    "ctr": 0.299026,
+                    "ctcvr": 0.09184
+                }
+            }
+        },
+        {
+            "item_id": "144146654",
+            "score": 0.089471,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.240999,
+                    "job_rec_rank_8_x_logits_ctr": -1.147209,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.089471,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.320111,
+                    "ctcvr": 0.089471,
+                    "ctr": 0.240999
+                }
+            }
+        },
+        {
+            "item_id": "154367019",
+            "score": 0.087827,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -2.340456,
+                    "ctcvr": 0.087827,
+                    "ctr": 0.405397,
+                    "job_rec_rank_8_x_probs_ctr": 0.405397,
+                    "job_rec_rank_8_x_logits_ctr": -0.383027,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.087827
+                }
+            }
+        },
+        {
+            "item_id": "141539999",
+            "score": 0.086071,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.196342,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.086071,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.362577,
+                    "ctcvr": 0.086071,
+                    "ctr": 0.451072,
+                    "job_rec_rank_8_x_probs_ctr": 0.451072
+                }
+            }
+        },
+        {
+            "item_id": "137512683",
+            "score": 0.085728,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.320008,
+                    "job_rec_rank_8_x_logits_ctr": -0.753734,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.085728,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.366946,
+                    "ctr": 0.320008,
+                    "ctcvr": 0.085728
+                }
+            }
+        },
+        {
+            "item_id": "154772981",
+            "score": 0.085444,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.332202,
+                    "ctcvr": 0.085444,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.37058,
+                    "job_rec_rank_8_x_probs_ctr": 0.332202,
+                    "job_rec_rank_8_x_logits_ctr": -0.698242,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.085444
+                }
+            }
+        },
+        {
+            "item_id": "154715712",
+            "score": 0.079532,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.079532,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.44872,
+                    "job_rec_rank_8_x_probs_ctr": 0.350571,
+                    "job_rec_rank_8_x_logits_ctr": -0.616531,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.079532,
+                    "ctr": 0.350571
+                }
+            }
+        },
+        {
+            "item_id": "153329222",
+            "score": 0.078669,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.234923,
+                    "ctcvr": 0.078669,
+                    "job_rec_rank_8_x_probs_ctr": 0.234923,
+                    "job_rec_rank_8_x_logits_ctr": -1.18072,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.078669,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.460565
+                }
+            }
+        },
+        {
+            "item_id": "106581322",
+            "score": 0.078006,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.078006,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.469754,
+                    "ctr": 0.263038,
+                    "ctcvr": 0.078006,
+                    "job_rec_rank_8_x_probs_ctr": 0.263038,
+                    "job_rec_rank_8_x_logits_ctr": -1.030237
+                }
+            }
+        },
+        {
+            "item_id": "156218353",
+            "score": 0.077272,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -2.479997,
+                    "job_rec_rank_8_x_probs_ctr": 0.27611,
+                    "job_rec_rank_8_x_logits_ctr": -0.963839,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.077272,
+                    "ctr": 0.27611,
+                    "ctcvr": 0.077272
+                }
+            }
+        },
+        {
+            "item_id": "156176037",
+            "score": 0.076613,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -0.462764,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.076613,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.489285,
+                    "ctr": 0.38633,
+                    "ctcvr": 0.076613,
+                    "job_rec_rank_8_x_probs_ctr": 0.38633
+                }
+            }
+        },
+        {
+            "item_id": "132934925",
+            "score": 0.075542,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.075542,
+                    "job_rec_rank_8_x_logits_ctr": -1.147021,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.075542,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.504525,
+                    "job_rec_rank_8_x_probs_ctr": 0.241034,
+                    "ctr": 0.241034
+                }
+            }
+        },
+        {
+            "item_id": "153401414",
+            "score": 0.072933,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.072933,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.542484,
+                    "job_rec_rank_8_x_probs_ctr": 0.518551,
+                    "job_rec_rank_8_x_logits_ctr": 0.07424,
+                    "ctr": 0.518551,
+                    "ctcvr": 0.072933
+                }
+            }
+        },
+        {
+            "item_id": "99962804",
+            "score": 0.069174,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.194931,
+                    "ctcvr": 0.069174,
+                    "job_rec_rank_8_x_probs_ctr": 0.194931,
+                    "job_rec_rank_8_x_logits_ctr": -1.41828,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.069174,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.599446
+                }
+            }
+        },
+        {
+            "item_id": "156149010",
+            "score": 0.068834,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.068834,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.604744,
+                    "job_rec_rank_8_x_probs_ctr": 0.244164,
+                    "job_rec_rank_8_x_logits_ctr": -1.129983,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.068834,
+                    "ctr": 0.244164
+                }
+            }
+        },
+        {
+            "item_id": "153162940",
+            "score": 0.068614,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.224032,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.608178,
+                    "job_rec_rank_8_x_probs_ctr": 0.224032,
+                    "job_rec_rank_8_x_logits_ctr": -1.242321,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.068614,
+                    "ctcvr": 0.068614
+                }
+            }
+        },
+        {
+            "item_id": "139954264",
+            "score": 0.063511,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.268785,
+                    "ctr": 0.268785,
+                    "ctcvr": 0.063511,
+                    "job_rec_rank_8_x_logits_ctr": -1.000798,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.063511,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.690927
+                }
+            }
+        },
+        {
+            "item_id": "147823380",
+            "score": 0.05984,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -1.222145,
+                    "ctr": 0.227559,
+                    "ctcvr": 0.05984,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.05984,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.754372,
+                    "job_rec_rank_8_x_probs_ctr": 0.227559
+                }
+            }
+        },
+        {
+            "item_id": "131882609",
+            "score": 0.059696,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -1.496518,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.059696,
+                    "ctcvr": 0.059696,
+                    "ctr": 0.182945,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.756941,
+                    "job_rec_rank_8_x_probs_ctr": 0.182945
+                }
+            }
+        },
+        {
+            "item_id": "154469970",
+            "score": 0.059016,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.274914,
+                    "job_rec_rank_8_x_logits_ctr": -0.969834,
+                    "ctr": 0.274914,
+                    "ctcvr": 0.059016,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.059016,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.769124
+                }
+            }
+        },
+        {
+            "item_id": "154044411",
+            "score": 0.058882,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.352706,
+                    "job_rec_rank_8_x_logits_ctr": -0.607167,
+                    "ctr": 0.352706,
+                    "ctcvr": 0.058882,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.058882,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.771542
+                }
+            }
+        },
+        {
+            "item_id": "84676219",
+            "score": 0.058072,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.203055,
+                    "job_rec_rank_8_x_logits_ctr": -1.367308,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.058072,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.786254,
+                    "ctr": 0.203055,
+                    "ctcvr": 0.058072
+                }
+            }
+        },
+        {
+            "item_id": "156047265",
+            "score": 0.05793,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.05793,
+                    "ctcvr": 0.05793,
+                    "ctr": 0.313076,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.788849,
+                    "job_rec_rank_8_x_probs_ctr": 0.313076,
+                    "job_rec_rank_8_x_logits_ctr": -0.785779
+                }
+            }
+        },
+        {
+            "item_id": "156220476",
+            "score": 0.056684,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -1.1256,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.056684,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.811918,
+                    "job_rec_rank_8_x_probs_ctr": 0.244974,
+                    "ctr": 0.244974,
+                    "ctcvr": 0.056684
+                }
+            }
+        },
+        {
+            "item_id": "151651718",
+            "score": 0.055624,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.185512,
+                    "job_rec_rank_8_x_logits_ctr": -1.479439,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.055624,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.83191,
+                    "ctr": 0.185512,
+                    "ctcvr": 0.055624
+                }
+            }
+        },
+        {
+            "item_id": "153760967",
+            "score": 0.052987,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -1.161066,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.052987,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.883259,
+                    "job_rec_rank_8_x_probs_ctr": 0.238474,
+                    "ctcvr": 0.052987,
+                    "ctr": 0.238474
+                }
+            }
+        },
+        {
+            "item_id": "152696126",
+            "score": 0.050773,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.050773,
+                    "job_rec_rank_8_x_logits_ctcvr": -2.928273,
+                    "job_rec_rank_8_x_probs_ctr": 0.172609,
+                    "job_rec_rank_8_x_logits_ctr": -1.567245,
+                    "ctcvr": 0.050773,
+                    "ctr": 0.172609
+                }
+            }
+        },
+        {
+            "item_id": "135139742",
+            "score": 0.04707,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.04707,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.007902,
+                    "job_rec_rank_8_x_probs_ctr": 0.131107,
+                    "job_rec_rank_8_x_logits_ctr": -1.891205,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.04707,
+                    "ctr": 0.131107
+                }
+            }
+        },
+        {
+            "item_id": "135701348",
+            "score": 0.046387,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -1.095525,
+                    "ctr": 0.250579,
+                    "ctcvr": 0.046387,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.046387,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.023242,
+                    "job_rec_rank_8_x_probs_ctr": 0.250579
+                }
+            }
+        },
+        {
+            "item_id": "113370522",
+            "score": 0.044279,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -1.249441,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.044279,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.071953,
+                    "job_rec_rank_8_x_probs_ctr": 0.222797,
+                    "ctr": 0.222797,
+                    "ctcvr": 0.044279
+                }
+            }
+        },
+        {
+            "item_id": "153642532",
+            "score": 0.03962,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -1.248739,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.03962,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.188001,
+                    "ctr": 0.222919,
+                    "ctcvr": 0.03962,
+                    "job_rec_rank_8_x_probs_ctr": 0.222919
+                }
+            }
+        },
+        {
+            "item_id": "124657914",
+            "score": 0.038713,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.038713,
+                    "job_rec_rank_8_x_logits_ctr": -1.525403,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.038713,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.212106,
+                    "job_rec_rank_8_x_probs_ctr": 0.178667,
+                    "ctr": 0.178667
+                }
+            }
+        },
+        {
+            "item_id": "152134575",
+            "score": 0.037773,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -2.015189,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.037773,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.237656,
+                    "job_rec_rank_8_x_probs_ctr": 0.117617,
+                    "ctr": 0.117617,
+                    "ctcvr": 0.037773
+                }
+            }
+        },
+        {
+            "item_id": "156207741",
+            "score": 0.031295,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.031295,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.432502,
+                    "job_rec_rank_8_x_probs_ctr": 0.132041,
+                    "job_rec_rank_8_x_logits_ctr": -1.883031,
+                    "ctcvr": 0.031295,
+                    "ctr": 0.132041
+                }
+            }
+        },
+        {
+            "item_id": "82472929",
+            "score": 0.02743,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0.064445,
+                    "ctcvr": 0.02743,
+                    "job_rec_rank_8_x_probs_ctr": 0.064445,
+                    "job_rec_rank_8_x_logits_ctr": -2.675322,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.02743,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.568317
+                }
+            }
+        },
+        {
+            "item_id": "151523508",
+            "score": 0.026915,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -3.587805,
+                    "job_rec_rank_8_x_probs_ctr": 0.11377,
+                    "job_rec_rank_8_x_logits_ctr": -2.052796,
+                    "ctcvr": 0.026915,
+                    "ctr": 0.11377,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.026915
+                }
+            }
+        },
+        {
+            "item_id": "142334619",
+            "score": 0.026487,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.026487,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.604242,
+                    "job_rec_rank_8_x_probs_ctr": 0.153806,
+                    "job_rec_rank_8_x_logits_ctr": -1.705059,
+                    "ctcvr": 0.026487,
+                    "ctr": 0.153806
+                }
+            }
+        },
+        {
+            "item_id": "143184496",
+            "score": 0.025614,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.025614,
+                    "job_rec_rank_8_x_probs_ctr": 0.100563,
+                    "job_rec_rank_8_x_logits_ctr": -2.190982,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.025614,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.638682,
+                    "ctr": 0.100563
+                }
+            }
+        },
+        {
+            "item_id": "127510985",
+            "score": 0.024109,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -3.700768,
+                    "job_rec_rank_8_x_probs_ctr": 0.077104,
+                    "ctr": 0.077104,
+                    "ctcvr": 0.024109,
+                    "job_rec_rank_8_x_logits_ctr": -2.482368,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.024109
+                }
+            }
+        },
+        {
+            "item_id": "156055528",
+            "score": 0.019556,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.171362,
+                    "job_rec_rank_8_x_logits_ctr": -1.576007,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.019556,
+                    "job_rec_rank_8_x_logits_ctcvr": -3.914707,
+                    "ctr": 0.171362,
+                    "ctcvr": 0.019556
+                }
+            }
+        },
+        {
+            "item_id": "154560627",
+            "score": 0.017695,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": -2.289062,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.017695,
+                    "job_rec_rank_8_x_logits_ctcvr": -4.016611,
+                    "job_rec_rank_8_x_probs_ctr": 0.092033,
+                    "ctr": 0.092033,
+                    "ctcvr": 0.017695
+                }
+            }
+        },
+        {
+            "item_id": "150864237",
+            "score": 0.016671,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.016671,
+                    "job_rec_rank_8_x_logits_ctcvr": -4.07728,
+                    "job_rec_rank_8_x_probs_ctr": 0.174673,
+                    "ctr": 0.174673,
+                    "ctcvr": 0.016671,
+                    "job_rec_rank_8_x_logits_ctr": -1.552865
+                }
+            }
+        },
+        {
+            "item_id": "138326990",
+            "score": 0.009021,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.009021,
+                    "ctr": 0.024996,
+                    "ctcvr": 0.009021,
+                    "job_rec_rank_8_x_logits_ctcvr": -4.699166,
+                    "job_rec_rank_8_x_probs_ctr": 0.024996,
+                    "job_rec_rank_8_x_logits_ctr": -3.663736
+                }
+            }
+        },
+        {
+            "item_id": "132542779",
+            "score": 0.005154,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.005154,
+                    "job_rec_rank_8_x_logits_ctcvr": -5.262793,
+                    "job_rec_rank_8_x_probs_ctr": 0.015077,
+                    "ctr": 0.015077,
+                    "ctcvr": 0.005154,
+                    "job_rec_rank_8_x_logits_ctr": -4.179368
+                }
+            }
+        },
+        {
+            "item_id": "148639758",
+            "score": 0.002884,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.002884,
+                    "job_rec_rank_8_x_probs_ctr": 0.555772,
+                    "job_rec_rank_8_x_logits_ctr": 0.224022,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.002884,
+                    "job_rec_rank_8_x_logits_ctcvr": -5.845664,
+                    "ctr": 0.555772
+                }
+            }
+        },
+        {
+            "item_id": "148908685",
+            "score": 0.00001,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0.00001,
+                    "job_rec_rank_8_x_logits_ctcvr": -11.555143,
+                    "job_rec_rank_8_x_probs_ctr": 0.528789,
+                    "job_rec_rank_8_x_logits_ctr": 0.115282,
+                    "job_rec_rank_8_x_probs_ctcvr": 0.00001,
+                    "ctr": 0.528789
+                }
+            }
+        },
+        {
+            "item_id": "151249607",
+            "score": 0.000001,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctcvr": 0.000001,
+                    "job_rec_rank_8_x_logits_ctcvr": -14.497211,
+                    "job_rec_rank_8_x_probs_ctr": 0.395075,
+                    "job_rec_rank_8_x_logits_ctr": -0.426028,
+                    "ctr": 0.395075,
+                    "ctcvr": 0.000001
+                }
+            }
+        },
+        {
+            "item_id": "150485183",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": -15.411179,
+                    "job_rec_rank_8_x_probs_ctr": 0.194065,
+                    "job_rec_rank_8_x_logits_ctr": -1.42381,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "ctr": 0.194065,
+                    "ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "151249662",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0.189761,
+                    "job_rec_rank_8_x_logits_ctr": -1.451562,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": -15.70988,
+                    "ctcvr": 0,
+                    "ctr": 0.189761
+                }
+            }
+        },
+        {
+            "item_id": "154776545",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "ctr": 0,
+                    "ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "148851527",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "ctr": 0,
+                    "ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "155787797",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0,
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "ctr": 0
+                }
+            }
+        },
+        {
+            "item_id": "140135204",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "ctr": 0,
+                    "ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "151144764",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "ctr": 0,
+                    "ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "148852259",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0,
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "ctr": 0
+                }
+            }
+        },
+        {
+            "item_id": "148846376",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctr": 0,
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "155787046",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "ctr": 0,
+                    "ctcvr": 0,
+                    "job_rec_rank_8_x_probs_ctr": 0
+                }
+            }
+        },
+        {
+            "item_id": "153013537",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "ctcvr": 0,
+                    "ctr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "148851051",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "ctr": 0,
+                    "ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "144642194",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "ctr": 0,
+                    "ctcvr": 0
+                }
+            }
+        },
+        {
+            "item_id": "154440888",
+            "score": 0,
+            "retrieve_id": "ContextItemRecall",
+            "extra": {
+                "algo_scores": {
+                    "ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctr": 0,
+                    "job_rec_rank_8_x_probs_ctcvr": 0,
+                    "job_rec_rank_8_x_logits_ctcvr": 0,
+                    "job_rec_rank_8_x_probs_ctr": 0,
+                    "ctr": 0
+                }
+            }
+        }
+    ]
+}
+`
+
 func BenchmarkJsonMarshal(b *testing.B) {
 	req := make(map[string]any)
-	if err := json.Unmarshal([]byte(data), &req); err != nil {
+	if err := json.Unmarshal([]byte(responseData), &req); err != nil {
 		b.Fatal(err)
 	}
 
@@ -162,7 +4914,7 @@ func BenchmarkJsonMarshal(b *testing.B) {
 
 func BenchmarkJsonIterMarshal(b *testing.B) {
 	req := make(map[string]any)
-	if err := json_iter.Unmarshal([]byte(data), &req); err != nil {
+	if err := json_iter.Unmarshal([]byte(responseData), &req); err != nil {
 		b.Fatal(err)
 	}
 
@@ -177,7 +4929,7 @@ var json_iter_fast = jsoniter.ConfigFastest
 
 func BenchmarkJsonIterFastMarshal(b *testing.B) {
 	req := make(map[string]any)
-	if err := json_iter.Unmarshal([]byte(data), &req); err != nil {
+	if err := json_iter.Unmarshal([]byte(responseData), &req); err != nil {
 		b.Fatal(err)
 	}
 
