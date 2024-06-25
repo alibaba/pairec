@@ -50,6 +50,13 @@ func (t *Item) GetAlgoScores() map[string]float64 {
 	defer t.mutex.RUnlock()
 	return t.algoScores
 }
+func (t *Item) GetAlgoScoreWithNames(names []string) map[string]float64 {
+	ret := make(map[string]float64, len(names))
+	for _, n := range names {
+		ret[n] = t.algoScores[n]
+	}
+	return ret
+}
 func (t *Item) GetAlgoScore(key string) float64 {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()

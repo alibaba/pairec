@@ -175,7 +175,14 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 			continue
 		}
 
-		features := item.GetFeatures()
+		var features map[string]any
+		if rankConfig.Processor == eas.Eas_Processor_EASYREC {
+			if len(rankConfig.ContextFeatures) > 0 {
+				features = item.GetFeatures()
+			}
+		} else {
+			features = item.GetFeatures()
+		}
 		algoGenerator.AddFeatures(item, features, userFeatures)
 		i++
 		if i%batchCount == 0 {
@@ -244,7 +251,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 		}()
 	}
 
-	exprAst, err := ast.GetExpAST(rankConfig.RankScore)
+	exprAst, err := ast.GetExpASTWithType(rankConfig.RankScore, rankConfig.ASTType)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=rank\trankscore=%s\terror=%v", context.RecommendId, rankConfig.RankScore, err))
 	}
@@ -253,7 +260,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	if len(rankConfig.ScoreRewrite) > 0 {
 		scoreRewriteAst = make(map[string]ast.ExprAST, len(rankConfig.ScoreRewrite))
 		for source, sourceExpr := range rankConfig.ScoreRewrite {
-			ast, err := ast.GetExpAST(sourceExpr)
+			ast, err := ast.GetExpASTWithType(sourceExpr, rankConfig.ASTType)
 			if err != nil {
 				log.Info(fmt.Sprintf("requestId=%s\tmodule=rank\tscorerewrite=%s\terror=%v", context.RecommendId, rankConfig.RankScore, err))
 				continue
@@ -288,7 +295,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 					scores := make(map[string]float64, len(rankConfig.ScoreRewrite))
 					for source := range rankConfig.ScoreRewrite {
 						if exprAst, ok := scoreRewriteAst[source]; ok {
-							scores[source] = ast.ExprASTResult(exprAst, itemList[k])
+							scores[source] = ast.ExprASTResultWithType(exprAst, itemList[k], rankConfig.ASTType)
 						} else {
 							scores[source] = 0
 						}
@@ -297,7 +304,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 				}
 
 				if exprAst != nil {
-					itemList[k].Score = ast.ExprASTResult(exprAst, itemList[k])
+					itemList[k].Score = ast.ExprASTResultWithType(exprAst, itemList[k], rankConfig.ASTType)
 				}
 
 				if boostScoreFunc != nil {

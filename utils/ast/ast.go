@@ -3,6 +3,7 @@ package ast
 import (
 	"errors"
 	"fmt"
+	"math"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -210,7 +211,6 @@ func NewAST(toks []*Token, s string) *AST {
 	return a
 }
 
-/**
 // 一个典型的后序遍历求解算法
 func ExprASTResult(expr ExprAST, exprDatas ...ParameterExprData) float64 {
 	// 左右值
@@ -266,10 +266,10 @@ func ExprASTResult(expr ExprAST, exprDatas ...ParameterExprData) float64 {
 
 	return 0.0
 }
-**/
 
 // should use sync map
 var caches = make(map[string]ExprAST)
+var cachesByAntlr = make(map[string]ExprAST)
 var mutex sync.RWMutex
 
 type exprAST struct {
@@ -303,13 +303,13 @@ func (e *exprAST) toStr() string {
 	return ""
 }
 
-func GetExpAST(source string) (ExprAST, error) {
+func GetExpASTByAntlr(source string) (ExprAST, error) {
 	if source == "" {
 		return nil, nil
 	}
 	var exprAst ExprAST
 	mutex.RLock()
-	exprAst, ok := caches[source]
+	exprAst, ok := cachesByAntlr[source]
 	mutex.RUnlock()
 	if !ok {
 		expression, err := valuate.NewEvaluableExpression(source)
@@ -320,14 +320,51 @@ func GetExpAST(source string) (ExprAST, error) {
 			expression: expression,
 		}
 		mutex.Lock()
-		caches[source] = exprAst
+		cachesByAntlr[source] = exprAst
 		mutex.Unlock()
 	}
 
 	return exprAst, nil
 }
 
-func ExprASTResult(expr ExprAST, exprDatas ParameterExprData) float64 {
+func GetExpASTWithType(source, astType string) (ExprAST, error) {
+	if astType == "antlr" {
+		return GetExpASTByAntlr(source)
+	}
+	return GetExpAST(source)
+}
+func GetExpAST(source string) (ExprAST, error) {
+	if source == "" {
+		return nil, nil
+	}
+	var exprAst ExprAST
+	mutex.RLock()
+	exprAst, ok := caches[source]
+	mutex.RUnlock()
+	if !ok {
+		tokens, err := Parse(source)
+		if err != nil {
+			return nil, err
+		}
+		ast := NewAST(tokens, source)
+		exprAst = ast.ParseExpression()
+
+		mutex.Lock()
+		caches[source] = exprAst
+		mutex.Unlock()
+	}
+
+	return exprAst, nil
+}
+func ExprASTResultWithType(expr ExprAST, exprDatas ParameterExprData, astType string) float64 {
+	if astType == "antlr" {
+		return ExprASTResultByAntlr(expr, exprDatas)
+	} else {
+		return ExprASTResult(expr, exprDatas)
+	}
+}
+
+func ExprASTResultByAntlr(expr ExprAST, exprDatas ParameterExprData) float64 {
 	switch ast := expr.(type) {
 	// 传入的根节点是 BinaryExprAST
 	case *exprAST:

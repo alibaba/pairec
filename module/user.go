@@ -36,15 +36,24 @@ func NewUser(id string) *User {
 func NewUserWithContext(id UID, context *context.RecommendContext) *User {
 	user := NewUser(string(id))
 
-	user.AddProperty("uid", string(id))
 	features := context.GetParameter("features")
 
-	if _, ok := features.(map[string]interface{}); ok {
-		for k, v := range features.(map[string]interface{}) {
-			user.AddProperty(k, v)
+	properties := make(map[string]any, 64)
+	if featuresMap, ok := features.(map[string]interface{}); ok {
+		properties = make(map[string]any, len(featuresMap))
+		for k, v := range featuresMap {
+			if strValue, ok := v.(string); ok {
+				if strValue != "" {
+					properties[k] = v
+				}
+			} else {
+				properties[k] = v
+			}
 		}
 	}
 
+	properties["uid"] = string(id)
+	user.Properties = properties
 	return user
 }
 func (u *User) Clone() *User {

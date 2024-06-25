@@ -92,10 +92,12 @@ func (fs *FilterService) Filter(filterData *FilterData, tag string) {
 
 		}
 
-		if len(filters) == 0 {
-			log.Error(fmt.Sprintf("Filters:not find, scene:%s", scene))
-			return
-		}
+		/*
+			if len(filters) == 0 {
+				log.Error(fmt.Sprintf("Filters:not find, scene:%s", scene))
+				return
+			}
+		*/
 
 	}
 
