@@ -28,7 +28,7 @@ type PIDController struct {
 	ki               float32                   // The value for the integral gain
 	kd               float32                   // The value for the derivative gain
 	sampleTime       float32                   // The time in seconds which the controller should wait before generating a new output value
-	errDiscount      float64                   // the discount of err sum
+	errDiscount      float64                   // the discount of err sum.
 	status           *PIDStatus
 	itemStatus       sync.Map // for single granularity or experiment wisely task
 	cache            cache.Cache
