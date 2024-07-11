@@ -671,6 +671,14 @@ type FilterConfig struct {
 	EnsureDiversity           bool
 	FilterVal                 FilterValue
 	Conditions                []FilterParamConfig
+
+	ConditionFilterConfs struct {
+		FilterConfs []struct {
+			Conditions []FilterParamConfig
+			FilterName string
+		}
+		DefaultFilterName string
+	}
 }
 type BeFilterConfig struct {
 	FilterConfig
