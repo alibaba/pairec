@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
@@ -379,6 +380,134 @@ func TestTorchrecComplexMutValResponseFunc(t *testing.T) {
 	}
 	for _, algo := range alogResponse {
 		fmt.Println(algo.GetScoreMap())
+	}
+
+}
+
+func buildUserEmbeddingRequest() (request *easyrec.PBRequest, item_ids []string, err error) {
+	content, err := os.ReadFile("rec_data.json")
+	if err != nil {
+		return
+	}
+	data := make(map[string]any)
+
+	json.Unmarshal(content, &data)
+
+	builder := easyrec.NewEasyrecRequestBuilder()
+
+	for k, v := range data {
+		if strings.HasPrefix(k, "user_") {
+			m := v.(map[string]any)
+			values := m["values"].([]any)
+			builder.AddUserFeature(k, utils.ToString(values[0], ""))
+		}
+	}
+
+	request = builder.EasyrecRequest()
+	return
+
+}
+
+func TestTorchrecUserEmbeddingResponseFunc(t *testing.T) {
+	request, _, err := buildUserEmbeddingRequest()
+	//fmt.Println(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pbData, _ := proto.Marshal(request)
+	client := eas.NewPredictClient("http://1730760139076263.cn-beijing.pai-eas.aliyuncs.com", "test_dssm_rec")
+	client.SetToken(os.Getenv("TEST_TORCHREC_DSSM_REC_TOKEN"))
+	err = client.Init()
+	if err != nil {
+		t.Fatal(err)
+	}
+	respBody, err := client.BytesPredict(pbData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	responseData := &easyrec.TorchRecPBResponse{}
+	proto.Unmarshal(respBody, responseData)
+
+	alogResponse, err := torchrecEmbeddingResponseFunc(responseData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp, ok := alogResponse[0].(*TorchrecEmbeddingResponse); !ok {
+		t.Fatal("not torchrecEmbeddingResponse")
+	} else {
+		t.Log(resp.GetEmbedding(), resp.dimSize)
+	}
+
+}
+
+func buildItemEmbeddingRequest() (request *easyrec.PBRequest, err error) {
+	content, err := os.ReadFile("rec_data.json")
+	if err != nil {
+		return
+	}
+	data := make(map[string]any)
+
+	json.Unmarshal(content, &data)
+
+	builder := easyrec.NewEasyrecRequestBuilder()
+
+	for k, v := range data {
+		if !strings.HasPrefix(k, "user_") {
+			m := v.(map[string]any)
+			values := m["values"].([]any)
+			builder.AddUserFeature(k, utils.ToString(values[0], ""))
+			if m["dtype"].(string) == "int64" {
+				iValues := make([]any, 0)
+				for _, v := range values {
+					switch val := v.(type) {
+					case int64:
+						iValues = append(iValues, val)
+					case float64:
+						iValues = append(iValues, utils.ToInt64(val, 0))
+					default:
+						iValues = append(iValues, "")
+					}
+				}
+				builder.AddContextFeature(k, iValues)
+
+			} else {
+				builder.AddContextFeature(k, values)
+			}
+		}
+	}
+
+	request = builder.EasyrecRequest()
+	return
+
+}
+
+func TestTorchrecItemEmbeddingResponseFunc(t *testing.T) {
+	request, err := buildItemEmbeddingRequest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pbData, _ := proto.Marshal(request)
+	client := eas.NewPredictClient("http://1730760139076263.cn-beijing.pai-eas.aliyuncs.com", "test_dssm_item")
+	client.SetToken(os.Getenv("TEST_TORCHREC_DSSM_ITEM_TOKEN"))
+	err = client.Init()
+	if err != nil {
+		t.Fatal(err)
+	}
+	respBody, err := client.BytesPredict(pbData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	responseData := &easyrec.TorchRecPBResponse{}
+	proto.Unmarshal(respBody, responseData)
+
+	alogResponse, err := torchrecEmbeddingResponseFunc(responseData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp, ok := alogResponse[0].(*TorchrecEmbeddingResponse); !ok {
+		t.Fatal("not torchrecEmbeddingResponse")
+	} else {
+		t.Log(resp.GetEmbedding(), resp.dimSize)
 	}
 
 }

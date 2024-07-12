@@ -73,6 +73,7 @@ type RecommendConfig struct {
 	LogConf                   LogConfig
 	ABTestConf                ABTestConfig
 	CallBackConfs             map[string]CallBackConfig
+	EmbeddingConfs            map[string]EmbeddingConfig
 	GeneralRankConfs          map[string]GeneralRankConfig
 	ColdStartGeneralRankConfs map[string]ColdStartGeneralRankConfig
 	ColdStartRankConfs        map[string]ColdStartRankConfig
@@ -767,6 +768,9 @@ type CallBackConfig struct {
 	RankConf        RankConfig
 	RawFeatures     bool
 	RawFeaturesRate int
+}
+type EmbeddingConfig struct {
+	RankConf RankConfig
 }
 type GeneralRankConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig
