@@ -137,6 +137,8 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			f = NewDimensionFieldUniqueFilter(conf)
 		} else if conf.FilterType == "User2ItemExposureWithConditionFilter" {
 			f = NewUser2ItemExposureWithConditionFilter(conf)
+		} else if conf.FilterType == "ConditionFilter" {
+			f = NewConditionFilter(conf)
 		}
 
 		if f == nil {
