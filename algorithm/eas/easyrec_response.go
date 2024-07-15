@@ -433,3 +433,51 @@ func torchrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoRespo
 
 	return
 }
+
+type TorchrecEmbeddingResponse struct {
+	embeddings []float32
+	dimSize    int
+}
+
+func (r *TorchrecEmbeddingResponse) GetScore() float64 {
+	return 0
+}
+
+func (r *TorchrecEmbeddingResponse) GetScoreMap() map[string]float64 {
+	return nil
+}
+
+func (r *TorchrecEmbeddingResponse) GetModuleType() bool {
+	return false
+}
+func (r *TorchrecEmbeddingResponse) GetEmbedding() []float32 {
+	return r.embeddings
+}
+func (r *TorchrecEmbeddingResponse) GetEmbeddingSize() int {
+	return r.dimSize
+}
+
+func torchrecEmbeddingResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	outputs := resp.GetMapOutputs()
+	var embeddings []float32
+	var dimSize int
+	for _, arrayProto := range outputs {
+
+		if len(arrayProto.ArrayShape.Dim) >= 2 {
+			dimSize = int(arrayProto.ArrayShape.Dim[1])
+		}
+		if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+			embeddings = append(embeddings, arrayProto.FloatVal...)
+		}
+		break
+	}
+
+	ret = append(ret, &TorchrecEmbeddingResponse{embeddings: embeddings, dimSize: dimSize})
+
+	return
+}
