@@ -770,7 +770,8 @@ type CallBackConfig struct {
 	RawFeaturesRate int
 }
 type EmbeddingConfig struct {
-	RankConf RankConfig
+	DataSource DataSourceConfig
+	RankConf   RankConfig
 }
 type GeneralRankConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig

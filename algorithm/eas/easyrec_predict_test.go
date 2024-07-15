@@ -396,7 +396,7 @@ func buildUserEmbeddingRequest() (request *easyrec.PBRequest, item_ids []string,
 	builder := easyrec.NewEasyrecRequestBuilder()
 
 	for k, v := range data {
-		if strings.HasPrefix(k, "user_") {
+		if strings.HasPrefix(k, "user_") || strings.HasPrefix(k, "context_") {
 			m := v.(map[string]any)
 			values := m["values"].([]any)
 			builder.AddUserFeature(k, utils.ToString(values[0], ""))
@@ -452,10 +452,9 @@ func buildItemEmbeddingRequest() (request *easyrec.PBRequest, err error) {
 	builder := easyrec.NewEasyrecRequestBuilder()
 
 	for k, v := range data {
-		if !strings.HasPrefix(k, "user_") {
+		if !(strings.HasPrefix(k, "user_") || strings.HasPrefix(k, "context_")) {
 			m := v.(map[string]any)
 			values := m["values"].([]any)
-			builder.AddUserFeature(k, utils.ToString(values[0], ""))
 			if m["dtype"].(string) == "int64" {
 				iValues := make([]any, 0)
 				for _, v := range values {

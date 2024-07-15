@@ -148,6 +148,7 @@ func registerRouteInfo() {
 				p == "/api/callback" ||
 				p == "/api/feature_reply" ||
 				p == "/metrics" ||
+				p == "/api/embedding" ||
 				p == "/custom_metrics" {
 				continue
 			}
@@ -166,6 +167,7 @@ func registerRouteInfo() {
 	Route("/api/recall", &web.UserRecallController{})
 	Route("/api/callback", &web.CallBackController{})
 	Route("/api/feature_reply", &web.FeatureReplyController{})
+	Route("/api/embedding", &web.EmbeddingController{})
 	HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		promhttp.Handler().ServeHTTP(w, r)
 	})
