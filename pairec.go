@@ -145,10 +145,8 @@ func registerRouteInfo() {
 				p == "/route_paths" ||
 				p == "/api/recommend" ||
 				p == "/api/recall" ||
-				p == "/api/callback" ||
 				p == "/api/feature_reply" ||
 				p == "/metrics" ||
-				p == "/api/embedding" ||
 				p == "/custom_metrics" {
 				continue
 			}
