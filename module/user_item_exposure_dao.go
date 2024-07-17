@@ -1,6 +1,8 @@
 package module
 
 import (
+	"fmt"
+
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/hook"
@@ -57,18 +59,19 @@ func NewUser2ItemExposureDao(config recconf.FilterConfig) User2ItemExposureDao {
 	}
 
 	if config.WriteLog {
-		hook.AddRecommendCleanHook(func(dao User2ItemExposureDao) hook.RecommendCleanHookFunc {
+		f := func(dao User2ItemExposureDao) hook.RecommendCleanHookFunc {
 
 			return func(context *context.RecommendContext, params ...interface{}) {
 				user := params[0].(*User)
 				items := params[1].([]*Item)
 				dao.LogHistory(user, items, context)
 			}
-		}(dao))
+		}(dao)
+		hook.RegisterRecommendCleanHook(fmt.Sprintf("%s_write_log", config.Name), f)
 	}
 
 	if config.ClearLogIfNotEnoughScene != "" {
-		hook.AddRecommendCleanHook(func(dao User2ItemExposureDao) hook.RecommendCleanHookFunc {
+		f := func(dao User2ItemExposureDao) hook.RecommendCleanHookFunc {
 			return func(context *context.RecommendContext, params ...interface{}) {
 				user := params[0].(*User)
 				items := params[1].([]*Item)
@@ -76,7 +79,8 @@ func NewUser2ItemExposureDao(config recconf.FilterConfig) User2ItemExposureDao {
 					dao.ClearHistory(user, context)
 				}
 			}
-		}(dao))
+		}(dao)
+		hook.RegisterRecommendCleanHook(fmt.Sprintf("%s_clear_log", config.Name), f)
 	}
 	return dao
 }
