@@ -140,6 +140,7 @@ type DaoConfig struct {
 	FeatureStoreName       string
 	FeatureStoreModelName  string
 	FeatureStoreEntityName string
+	FeatureStoreViewName   string
 
 	// graph
 	GraphName  string
