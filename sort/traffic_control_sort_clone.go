@@ -9,7 +9,7 @@ import (
 	"github.com/alibaba/pairec/v2/utils"
 )
 
-func (p *PositionReviseSort) CloneWithConfig(params map[string]interface{}) ISort {
+func (p *TrafficControlSort) CloneWithConfig(params map[string]interface{}) ISort {
 	j, err := json.Marshal(params)
 	if err != nil {
 		log.Error(fmt.Sprintf("event=CloneWithConfig\terror=%v", err))
@@ -28,13 +28,13 @@ func (p *PositionReviseSort) CloneWithConfig(params map[string]interface{}) ISor
 		return sort
 	}
 
-	sort := NewPositionReviseSort(config)
+	sort := NewTrafficControlSort(config)
 	if sort != nil {
 		p.cloneInstances[md5] = sort
 	}
 	return sort
 }
 
-func (p *PositionReviseSort) GetSortName() string {
+func (p *TrafficControlSort) GetSortName() string {
 	return p.name
 }

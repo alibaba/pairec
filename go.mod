@@ -42,7 +42,7 @@ require (
 require (
 	github.com/alibabacloud-go/opensearch-util v1.0.1
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.5
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.4
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.6-0.20240717080533-34338ca8030d
 	github.com/aliyun/credentials-go v1.1.2
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/google/uuid v1.3.0
@@ -57,7 +57,7 @@ require (
 	github.com/alibabacloud-go/paifeaturestore-20230621 v1.0.0 // indirect
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.4 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
-	github.com/aliyun/alibaba-cloud-sdk-go v1.62.563 // indirect
+	github.com/aliyun/alibaba-cloud-sdk-go v1.62.789 // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
@@ -76,7 +76,7 @@ require (
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/xinsnake/go-http-digest-auth-client v0.6.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
-	gopkg.in/ini.v1 v1.66.2 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
 )

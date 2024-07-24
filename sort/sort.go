@@ -180,7 +180,7 @@ func RegisterSortWithConfig(config *recconf.RecommendConfig) {
 		} else if conf.SortType == "AlgoScoreSort" {
 			s = NewAlgoScoreSort(conf)
 		} else if conf.SortType == "PositionReviseSort" {
-			s = NewPositionReviseSort(conf)
+			s = NewTrafficControlSort(conf)
 		} else if conf.SortType == "BoostScoreByWeight" {
 			s = NewBoostScoreByWeight(conf)
 		} else if conf.SortType == "DistinctIdSort" {
