@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/log"
 	"github.com/alibaba/pairec/persist/holo"
 	"github.com/alibaba/pairec/recconf"
 	"github.com/alibaba/pairec/utils"
 	"github.com/alibaba/pairec/utils/sqlutil"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 var (
@@ -64,9 +64,10 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)
 	requestCh := make(chan []interface{}, cpuCount)
 	maps := make(map[int][]interface{}, cpuCount)
-
+	itemMap := make(map[ItemId]*Item, len(items))
 	index := 0
 	for i, item := range items {
+		itemMap[item.Id] = item
 		maps[index%cpuCount] = append(maps[index%cpuCount], string(item.Id))
 		if (i+1)%requestCount == 0 {
 			index++
@@ -247,7 +248,9 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 								}
 							}
 						}
-
+						if item, ok := itemMap[ItemId(id)]; ok {
+							item.AddProperties(properties)
+						}
 						if d.filterParam != nil {
 							result, err := d.filterParam.Evaluate(properties)
 							if err == nil && result == true {
