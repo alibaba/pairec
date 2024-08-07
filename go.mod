@@ -42,7 +42,7 @@ require (
 require (
 	github.com/alibabacloud-go/opensearch-util v1.0.1
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.0.5
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.6-0.20240717080533-34338ca8030d
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.6-0.20240807035329-fb3d6a13f75d
 	github.com/aliyun/credentials-go v1.1.2
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/google/uuid v1.3.0

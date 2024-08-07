@@ -912,7 +912,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				}
 			}()
 			taskId := controller.task.TrafficControlTaskId
-			var traffic, planTraffic, output, setValue float64
+			var traffic, taskTraffic, output, setValue float64
 			var binId = ""
 			var dict map[string]experiments.TrafficControlTargetTraffic
 			if controller.task.ControlType == "Percent" {
@@ -924,10 +924,10 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				}
 				if input, ok := dict[targetId]; ok {
 					traffic = input.TargetTraffic
-					planTraffic = input.PlanTraffic
+					taskTraffic = input.TaskTraffic
 				} else {
 					traffic = float64(0)
-					planTraffic = float64(1)
+					taskTraffic = float64(1)
 				}
 				if controller.IsAllocateExpWise() && traffic < controller.GetMinExpTraffic() {
 					// 用全局流量代替冷启动的实验流量
@@ -935,14 +935,14 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 					binId = ""
 					if input, ok := allTrafficDict[targetId]; ok {
 						traffic = input.TargetTraffic
-						planTraffic = input.PlanTraffic
+						taskTraffic = input.TaskTraffic
 					} else {
 						traffic = float64(0)
-						planTraffic = float64(1)
+						taskTraffic = float64(1)
 					}
 				}
 
-				trafficPercentage := traffic / planTraffic
+				trafficPercentage := traffic / taskTraffic
 				output, setValue = controller.DoWithId(trafficPercentage, binId)
 				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tplan <%s/%s>[%s]\ttraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, traffic, trafficPercentage, setValue, output, binId))
 				if traffic > 0 {
