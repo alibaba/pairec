@@ -199,9 +199,10 @@ func GetFiltersBySceneName(sceneName string) ([]IFilter, bool) {
 }
 
 func filterInfoLog(filterData *FilterData, module string, count int, start time.Time) {
+	ctx := filterData.Context
 	if filterData.PipelineName != "" {
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=%s\tpipeline=%s\tcount=%d\tcost=%d", filterData.Context.RecommendId, module, filterData.PipelineName, count, utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterData.PipelineName, count, utils.CostTime(start)))
 	} else {
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=%s\tcount=%d\tcost=%d", filterData.Context.RecommendId, module, count, utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=%s\tcount=%d\tcost=%d", module, count, utils.CostTime(start)))
 	}
 }
