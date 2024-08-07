@@ -279,7 +279,10 @@ func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 	if (candidateCnt > 0 || minScorePercent > 0) && len(items) > ctx.Size {
 		//sort.Sort(sort.Reverse(ItemScoreSlice(items)))  // suppose already sorted
 		if candidateCnt > 0 {
-			items = items[:utils.MaxInt(ctx.Size, candidateCnt)]
+			cnt := utils.MaxInt(ctx.Size, candidateCnt)
+			if cnt < len(items) {
+				items = items[:cnt]
+			}
 		}
 		if minScorePercent > 0 && len(items) > ctx.Size {
 			idx := ctx.Size
