@@ -772,6 +772,9 @@ type DPPSortConfig struct {
 	EmbeddingHookNames []string
 	NormalizeEmb       string
 	WindowSize         int
+	AbortRunCount      int
+	CandidateCount     int
+	MinScorePercent    float64
 	EmbMissedThreshold float64
 	FilterRetrieveIds  []string
 	EnsurePositiveSim  string

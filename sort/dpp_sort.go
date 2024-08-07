@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goburrow/cache"
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/abtest"
 	"github.com/alibaba/pairec/context"
 	"github.com/alibaba/pairec/log"
@@ -20,6 +18,8 @@ import (
 	"github.com/alibaba/pairec/persist/holo"
 	"github.com/alibaba/pairec/recconf"
 	"github.com/alibaba/pairec/utils"
+	"github.com/goburrow/cache"
+	"github.com/huandu/go-sqlbuilder"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
@@ -40,6 +40,9 @@ type DPPSort struct {
 	embeddingHookNames   []string
 	normalizeEmb         bool
 	windowSize           int
+	abortRunCnt          int
+	candidateCnt         int
+	minScorePercent      float64
 	embMissThreshold     float64
 	filterRetrieveIds    []string
 	ensurePosSimilarity  bool
@@ -75,6 +78,9 @@ func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 		embeddingHookNames:   config.EmbeddingHookNames,
 		normalizeEmb:         true,
 		windowSize:           config.WindowSize,
+		abortRunCnt:          config.AbortRunCount,
+		candidateCnt:         config.CandidateCount,
+		minScorePercent:      config.MinScorePercent,
 		embMissThreshold:     0.5,
 		filterRetrieveIds:    config.FilterRetrieveIds,
 		ensurePosSimilarity:  true,
@@ -106,9 +112,12 @@ func (s *DPPSort) Sort(sortData *SortData) error {
 	if len(candidates) == 0 {
 		return nil
 	}
+	if s.abortRunCnt > 0 && len(candidates) <= s.abortRunCnt {
+		return nil
+	}
 
 	ctx := sortData.Context
-	params := ctx.ExperimentResult.GetLayerParams("sort")
+	params := ctx.ExperimentResult.GetExperimentParams()
 	names := params.Get("dpp_filter_retrieve_ids", nil)
 	filterRetrieveIds := make([]string, 0)
 	if names != nil {
@@ -262,8 +271,29 @@ func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 	if len(items) == 0 {
 		return make([]*module.Item, 0)
 	}
-	params := ctx.ExperimentResult.GetLayerParams("sort")
+	params := ctx.ExperimentResult.GetExperimentParams()
 	windowSize := params.GetInt("dpp_window_size", s.windowSize)
+	candidateCnt := params.GetInt("dpp_candidate_count", s.candidateCnt)
+	minScorePercent := params.GetFloat("dpp_min_score_percent", s.minScorePercent)
+
+	if (candidateCnt > 0 || minScorePercent > 0) && len(items) > ctx.Size {
+		//sort.Sort(sort.Reverse(ItemScoreSlice(items)))  // suppose already sorted
+		if candidateCnt > 0 {
+			items = items[:utils.MaxInt(ctx.Size, candidateCnt)]
+		}
+		if minScorePercent > 0 && len(items) > ctx.Size {
+			idx := ctx.Size
+			maxScore := items[0].Score
+			for ; idx < len(items); idx++ {
+				percent := items[idx].Score / maxScore
+				if percent < minScorePercent {
+					break
+				}
+			}
+			items = items[:idx]
+		}
+		ctx.LogInfo(fmt.Sprintf("module=DPPSort\tcandidate count=%d", len(items)))
+	}
 
 	if len(s.tableName) > 0 {
 		lenEmb, err := s.loadEmbeddingCache(ctx, items)
@@ -335,7 +365,7 @@ func (s *DPPSort) GenerateEmbedding(context *context.RecommendContext, item *mod
 }
 
 func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*module.Item, lenEmb int, hasTable bool) (*mat.Dense, error) {
-	params := context.ExperimentResult.GetLayerParams("sort")
+	params := context.ExperimentResult.GetExperimentParams()
 	alpha := params.GetFloat("dpp_alpha", s.alpha)
 	context.LogDebug(fmt.Sprintf("dpp alpha: %f", alpha))
 
@@ -344,10 +374,13 @@ func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*modul
 	for i, item := range items {
 		relevanceScore[i] = item.Score
 	}
-	mean, variance := stat.PopMeanVariance(relevanceScore, nil)
-	std := math.Sqrt(variance)
-	for i, x := range relevanceScore {
-		relevanceScore[i] = utils.Sigmoid(stat.StdScore(x, mean, std))
+	doNorm := params.GetInt("dpp_norm_relevance_score", 0)
+	if doNorm != 0 {
+		mean, variance := stat.PopMeanVariance(relevanceScore, nil)
+		std := math.Sqrt(variance)
+		for i, x := range relevanceScore {
+			relevanceScore[i] = utils.Sigmoid(stat.StdScore(x, mean, std))
+		}
 	}
 
 	itemSize := len(items)

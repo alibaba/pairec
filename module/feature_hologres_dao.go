@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/huandu/go-sqlbuilder"
 	"math"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/context"
 	"github.com/alibaba/pairec/log"
 	"github.com/alibaba/pairec/persist/holo"
@@ -151,9 +151,10 @@ func (d *FeatureHologresDao) userFeatureFetch(user *User, context *context.Recom
 			properties := make(map[string]interface{}, len(values))
 			for i, column := range columns {
 				name := column.Name()
-
 				if value := sqlutil.ParseColumnValues(values[i]); value != nil {
 					properties[name] = value
+				} else {
+					user.DeleteProperty(name)
 				}
 			}
 			if d.cacheFeaturesName != "" {
