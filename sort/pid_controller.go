@@ -132,7 +132,7 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		syncStatus:       conf.SyncPIDStatus,
 	}
 	controller.GenerateItemConditions()
-	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\t%s, target:%s", expId, ToString(controller.task, "targets"), ToString(controller.target, "TargetTraffics", "PlanTraffic")))
+	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\t%s, target:%s", expId, ToString(*controller.task, "targets"), ToString(*controller.target, "TargetTraffics", "PlanTraffic")))
 	return &controller
 }
 
