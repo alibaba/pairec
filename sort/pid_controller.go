@@ -3,9 +3,7 @@ package sort
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/constants"
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/experiments"
 	"math"
 	"os"
 	"reflect"
@@ -27,7 +25,6 @@ var pidStatusCacheRedis cache.Cache // If the engine has multiple instances, it 
 var once sync.Once
 var targetMap map[string]model.TrafficControlTarget // key: targetId, value: target
 var serviceStartTimeStamp int64                     // engine start time stamp
-var ExperimentClient *experiments.ExperimentClient
 
 type PIDController struct {
 	task             *model.TrafficControlTask   // the meta info of current task
@@ -86,11 +83,6 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 				log.Error(fmt.Sprintf("module=PIDController\tnew redis cache failed. error=%v", err))
 				return
 			}
-		}
-		ExperimentClient = abtest.GetExperimentClient()
-		if ExperimentClient == nil {
-			log.Error("module=PIDControl\tGetExperimentClient failed.")
-			return
 		}
 		loadTrafficControlTargetData(task.SceneName, conf.TestTimestamp) // 第一次要执行完才能继续执行创建任务
 	})

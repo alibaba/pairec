@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"hash/crc32"
 	"math"
@@ -49,6 +50,7 @@ var positionWeight []float64
 var expTable []float64
 var tanhTable []float64
 var sigmoidTable []float64
+var ExperimentClient *experiments.ExperimentClient
 
 func init() {
 	positionWeight = make([]float64, 500)
@@ -70,6 +72,11 @@ func init() {
 	for i := 0; i < 10000; i++ {
 		x := float64(i)/1000.0 + 5.0 // 范围 [5, 15)
 		sigmoidTable[i] = 1.0 / (1.0 + math.Exp(10-x))
+	}
+	ExperimentClient = abtest.GetExperimentClient()
+	if ExperimentClient == nil {
+		log.Error("module=PIDControl\tGetExperimentClient failed.")
+		return
 	}
 }
 
