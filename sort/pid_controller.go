@@ -132,7 +132,7 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		syncStatus:       conf.SyncPIDStatus,
 	}
 	controller.GenerateItemConditions()
-	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\t%s, target:%s", expId, ToString(*controller.task, "targets"), ToString(*controller.target, "TargetTraffics", "PlanTraffic")))
+	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\ttask:%s\ttarget:%s", expId, ToString(*controller.task, "targets"), ToString(*controller.target, "TargetTraffics", "PlanTraffic")))
 	return &controller
 }
 
@@ -144,7 +144,7 @@ func loadTrafficControlTargetData(sceneName string, timePoint int64) {
 func (p *PIDController) SetOnline(online bool) {
 	if p.online != online {
 		p.online = online
-		log.Info(fmt.Sprintf("module=PIDController\tPIDController <%s/%s>[%s] set online=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.online))
+		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set online=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.online))
 	}
 }
 
@@ -176,7 +176,7 @@ func (p *PIDController) SetParameters(kp, ki, kd float32) {
 			value.(*PIDStatus).LastOutput = 0.0
 			return true
 		})
-		log.Info(fmt.Sprintf("module=PIDController\tThe parameters of PIDController <%s/%s>[%s] changed to: kp=%f, ki=%f, kd=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.kp, p.ki, p.kd))
+		log.Info(fmt.Sprintf("module=PIDController\tThe parameters of PIDController <taskId:%s/targetId:%s>[targetName:%s] changed to: kp=%f, ki=%f, kd=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.kp, p.ki, p.kd))
 	}
 }
 
@@ -195,7 +195,8 @@ func (p *PIDController) SetErrDiscount(decay float64) {
 func (p *PIDController) SetConditions(conditions []*Expression) {
 	p.conditions = conditions
 	if len(conditions) > 0 {
-		log.Info(fmt.Sprintf("module=PIDController\tPIDController <%s/%s>[%s] set conditions=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.conditions))
+		conditionsData, _ := json.Marshal(conditions)
+		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set conditions=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, string(conditionsData)))
 	}
 }
 
@@ -227,7 +228,7 @@ func (p *PIDController) DoWithId(targetValue float64, itemOrExpId string) (float
 		return 0, 0
 	}
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && targetValue > 1.0 {
-		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <%s/%s>[%s] value=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, targetValue))
+		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, targetValue))
 		return 0, 0
 	}
 	if targetValue == 0 && !p.runWithZeroInput {
@@ -435,7 +436,7 @@ func (p *PIDController) writeStatus(itemOrExpId string) {
 		pidStatus = status.(*PIDStatus)
 	}
 	if pidStatus == nil {
-		log.Error(fmt.Sprintf("no PID status to be written, <%s/%s>[%s] key=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey))
+		log.Error(fmt.Sprintf("no PID status to be written, <taksId:%s/targetId:%s>[targetName:%s] key=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey))
 		return
 	}
 	data, err := json.Marshal(*pidStatus)
@@ -445,9 +446,9 @@ func (p *PIDController) writeStatus(itemOrExpId string) {
 	}
 	err = p.cache.Put(cacheKey, data, p.cacheTime)
 	if err != nil {
-		log.Error(fmt.Sprintf("write PID status <%s/%s>[%s] key=%s failed. err=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
+		log.Error(fmt.Sprintf("write PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s failed. err=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
 	} else {
-		log.Info(fmt.Sprintf("write PID status <%s/%s>[%s] key=%s, value=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, string(data)))
+		log.Info(fmt.Sprintf("write PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s, value=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, string(data)))
 	}
 }
 
@@ -643,8 +644,7 @@ func (p *PIDController) SetFreezeMinutes(minutes int) {
 
 func (p *PIDController) SetRunWithZeroInput(run bool) {
 	if run != p.runWithZeroInput {
-		log.Info(fmt.Sprintf("PIDController <%s/%s>[%s] set runWithZeroInput=%v",
-			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, run))
+		log.Info(fmt.Sprintf("PIDController <taskId:%s/targetId:%s>[targetName:%s] set runWithZeroInput=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, run))
 		p.runWithZeroInput = run
 	}
 }
@@ -652,7 +652,8 @@ func (p *PIDController) SetRunWithZeroInput(run bool) {
 func (p *PIDController) SetMatchConditions(conditions []*Expression) {
 	p.matchConditions = conditions
 	if len(conditions) > 0 {
-		log.Info(fmt.Sprintf("PIDController <%s/%s>[%s] set match conditions=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.matchConditions))
+		conditionsData, _ := json.Marshal(conditions)
+		log.Info(fmt.Sprintf("PIDController <taskId:%s/targetId:%s>[targetName:%s] set match conditions=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, string(conditionsData)))
 	}
 }
 
