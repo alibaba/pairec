@@ -73,14 +73,14 @@ func init() {
 		x := float64(i)/1000.0 + 5.0 // 范围 [5, 15)
 		sigmoidTable[i] = 1.0 / (1.0 + math.Exp(10-x))
 	}
-	ExperimentClient = abtest.GetExperimentClient()
-	if ExperimentClient == nil {
-		log.Error("module=PIDControl\tGetExperimentClient failed.")
-		return
-	}
 }
 
 func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
+	ExperimentClient = abtest.GetExperimentClient()
+	if ExperimentClient == nil {
+		log.Error("module=TrafficControlSort\tGetExperimentClient failed.")
+		return nil
+	}
 	conf := config.PIDConf
 
 	var db *sql.DB = nil
