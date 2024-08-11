@@ -64,10 +64,8 @@ github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227 h1:NBH
 github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227/go.mod h1:k+nixj5x99h1pIn/7RyAxeMtig9PvnCFdDNzHduLqWU=
 github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8Ahwq4o+y5g=
 github.com/aliyun/aliyun-log-go-sdk v0.1.27/go.mod h1:aBG0R+MWRTgvlIODQkz+a3/RM9bQYKsmSbKdbIx4vpc=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.1.1 h1:klCHINHn22sOwPUAFCJ2gAfNNqiuwya62ccctSrQe5k=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.1.1/go.mod h1:VnEqAMkdbZu3LuyTG6rs6HvpH53pJW+vW6lWzLv/8H0=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.1.2 h1:CnmDGSYSVVxxvG86y4OKA+2BQdld2AG8nWvnQguboe0=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.1.2/go.mod h1:VnEqAMkdbZu3LuyTG6rs6HvpH53pJW+vW6lWzLv/8H0=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.1 h1:PX7frKFBDxTYl4DEX3mTj2cdy/oPkYo7bhSw0c2NO+8=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.1/go.mod h1:VnEqAMkdbZu3LuyTG6rs6HvpH53pJW+vW6lWzLv/8H0=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.5 h1:3SlYRn4rdOaaUKf9O4gk0XGEG7Naiqj3AgVhBtuChB0=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.5/go.mod h1:F/y5YlVVBz6ekmaTVdeX2+R+eLxJhIYjt8aj2z/06nI=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7 h1:+d/mcgaxx1jaWtFN2WrBHy4XeM9IK5gmZvbbpVkhqHE=
@@ -81,8 +79,6 @@ github.com/antihax/optional v1.0.0 h1:xK2lYat7ZLaVVcIuj82J8kIro4V6kDe0AUDFboUCwc
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
-github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
-github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
 github.com/apache/thrift v0.12.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
 github.com/apache/thrift v0.13.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
 github.com/apache/thrift v0.14.1 h1:Yh8v0hpCj63p5edXOLaqTJW0IJ1p+eMW6+YSOqw1d6s=
@@ -102,10 +98,6 @@ github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6r
 github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kBD4zp0CCIs=
 github.com/bkaradzic/go-lz4 v1.0.0 h1:RXc4wYsyz985CkXXeX04y4VnZFGG8Rd43pRaHsOXAKk=
 github.com/bkaradzic/go-lz4 v1.0.0/go.mod h1:0YdlkowM3VswSROI7qDxhRvJ3sLhlFrRRwjwegp5jy4=
-github.com/bruceding/go-antlr-valuate v0.0.1 h1:zjnwReAZwBFqiqbqrtGA5efBNKeXXaPLx3aBhSjV6Es=
-github.com/bruceding/go-antlr-valuate v0.0.1/go.mod h1:mTZJ45zQMHe3QBXlQ8DGO+V6eSf11MR8/WE/gF/NYS4=
-github.com/bruceding/go-antlr-valuate v0.0.2 h1:qNqd7EctErTI4IK54faV+uOv8fi4J2ZCsKrb+S6wdXs=
-github.com/bruceding/go-antlr-valuate v0.0.2/go.mod h1:mTZJ45zQMHe3QBXlQ8DGO+V6eSf11MR8/WE/gF/NYS4=
 github.com/bruceding/go-antlr-valuate v0.0.3 h1:Xv1c/MsAnkV0c0cBzkcIW9GK7d1ah+hKx0EsYgpMwlk=
 github.com/bruceding/go-antlr-valuate v0.0.3/go.mod h1:mTZJ45zQMHe3QBXlQ8DGO+V6eSf11MR8/WE/gF/NYS4=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
