@@ -138,7 +138,7 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 
 func loadTrafficControlTargetData(sceneName string, timePoint int64) {
 	runEnv := os.Getenv("PAIREC_ENVIRONMENT")
-	targetMap = ExperimentClient.GetTrafficControlTargetData(runEnv, sceneName, timePoint)
+	targetMap = experimentClient.GetTrafficControlTargetData(runEnv, sceneName, timePoint)
 }
 
 func (p *PIDController) SetOnline(online bool) {
