@@ -20,17 +20,27 @@ func GetFeatureStoreClient(name string) (*FSClient, error) {
 }
 
 type FSClient struct {
-	client  *featurestore.FeatureStoreClient
-	project *domain.Project
+	client      *featurestore.FeatureStoreClient
+	project     *domain.Project
+	projectName string
 }
 
 func (fs *FSClient) GetProject() *domain.Project {
 	return fs.project
 }
 
+func (fs *FSClient) ReloadProject() {
+	if p, err := fs.client.GetProject(fs.projectName); err == nil {
+		fs.project = p
+	} else {
+		log.Error(fmt.Sprintf("get project failed, projectName:%s, err:%v", fs.projectName, err))
+	}
+}
+
 func Load(config *recconf.RecommendConfig) {
 	for name, conf := range config.FeatureStoreConfs {
-		if _, ok := fsInstances[name]; ok {
+		if fs, ok := fsInstances[name]; ok {
+			fs.ReloadProject()
 			continue
 		}
 
@@ -57,8 +67,9 @@ func Load(config *recconf.RecommendConfig) {
 		}
 
 		m := &FSClient{
-			client:  client,
-			project: p,
+			client:      client,
+			project:     p,
+			projectName: conf.ProjectName,
 		}
 		fsInstances[name] = m
 	}
