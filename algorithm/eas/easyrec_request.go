@@ -1,7 +1,6 @@
 package eas
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -29,7 +28,7 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{}, 
 	if config.AppConfig.WarmUpData {
 		warmupFunc := func(data []byte) {
 			if file, err := os.OpenFile("warm_up.bin", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0664); err == nil {
-				file.WriteString(base64.StdEncoding.EncodeToString(data))
+				file.Write(data)
 				file.Close()
 			}
 		}
