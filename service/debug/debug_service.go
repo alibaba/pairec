@@ -3,6 +3,12 @@ package debug
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/datasource/datahub"
+	"github.com/alibaba/pairec/v2/datasource/kafka"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -12,13 +18,18 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/alibaba/pairec/v2/context"
-	"github.com/alibaba/pairec/v2/datasource/datahub"
-	plog "github.com/alibaba/pairec/v2/log"
-	"github.com/alibaba/pairec/v2/module"
-	"github.com/alibaba/pairec/v2/recconf"
 )
+
+type pairecLog struct {
+	requestId   string `json:"request_id"`
+	module      string `json:"module"`
+	sceneId     string `json:"scene_id"`
+	expId       string `json:"exp_id"`
+	requestTime int64  `json:"request_time"`
+	uid         string `json:"uid"`
+	retrievrid  string `json:"retrievrid"`
+	items       string `json:"items"`
+}
 
 type LogOutputer interface {
 	WriteLog(log map[string]interface{})
@@ -47,8 +58,30 @@ func NewDatahubOutput(config *recconf.DebugConfig) *DatahubOutput {
 
 	return &hub
 }
+
 func (t *DatahubOutput) WriteLog(log map[string]interface{}) {
 	t.datahub.SendMessage([]map[string]interface{}{log})
+}
+
+type KafkaOutput struct {
+	kafka *kafka.KafkaProducer
+}
+
+func NewKafkaOutput(config *recconf.DebugConfig) *KafkaOutput {
+	kafkaclient, err := kafka.GetKafkaProducer(config.KafKaName)
+	hub := KafkaOutput{}
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		hub.kafka = kafkaclient
+	}
+	return &hub
+}
+
+func (k *KafkaOutput) WriteLog(logs map[string]interface{}) {
+	module, _ := json.Marshal(logs["module"])
+	messages, _ := json.Marshal(logs)
+	k.kafka.SendMessages(module, messages)
 }
 
 var fileOutputMux sync.Mutex
@@ -253,6 +286,7 @@ func NewDebugService(user *module.User, context *context.RecommendContext) *Debu
 	}
 	return &service
 }
+
 func (d *DebugService) init(config *recconf.DebugConfig) {
 
 	switch config.OutputType {
@@ -265,10 +299,14 @@ func (d *DebugService) init(config *recconf.DebugConfig) {
 	case "file":
 		d.logOutputer = NewFileOutput(config)
 
+	case "kafka":
+		d.logOutputer = NewKafkaOutput(config)
+
 	default:
 		d.logOutputer = new(EmptyOutput)
 	}
 }
+
 func (d *DebugService) WriteRecallLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
 	if d.logFlag {
 		triggerMap := make(map[module.ItemId]string, len(items))
@@ -369,7 +407,7 @@ func (d *DebugService) doWriteGeneralLog(user *module.User, items []*module.Item
 	defer func() {
 		if err := recover(); err != nil {
 			stack := string(debug.Stack())
-			plog.Error(fmt.Sprintf("error=%v, stack=%s", err, strings.ReplaceAll(stack, "\n", "\t")))
+			log.Error(fmt.Sprintf("error=%v, stack=%s", err, strings.ReplaceAll(stack, "\n", "\t")))
 		}
 	}()
 	logItems := make([]*module.Item, len(items))

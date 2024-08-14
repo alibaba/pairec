@@ -17,3 +17,6 @@ setup:
 clean:
 	-rm -rf build
 	-rm -rf bin
+
+build:
+	go build -o /Users/admin/execFile/pairec-kafka main.go

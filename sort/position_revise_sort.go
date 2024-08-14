@@ -1459,6 +1459,7 @@ type ItemRankSlice []*module.Item
 func (us ItemRankSlice) Len() int {
 	return len(us)
 }
+
 func (us ItemRankSlice) Less(i, j int) bool {
 	iRank, _ := us[i].FloatProperty("_NEW_POSITION_")
 	jRank, _ := us[j].FloatProperty("_NEW_POSITION_")
@@ -1470,6 +1471,7 @@ func (us ItemRankSlice) Less(i, j int) bool {
 	jOriRank, _ := us[j].IntProperty("_ORIGIN_POSITION_")
 	return iOriRank < jOriRank
 }
+
 func (us ItemRankSlice) Swap(i, j int) {
 	tmp := us[i]
 	us[i] = us[j]

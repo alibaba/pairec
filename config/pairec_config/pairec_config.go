@@ -90,6 +90,7 @@ func (c *PairecConfigContainer) Int64(key string) (int64, error) {
 	}
 	return 0, errors.New("not int64 value")
 }
+
 func (c *PairecConfigContainer) Int(key string) (int, error) {
 	val, err := c.Get(key)
 	if err != nil {
@@ -100,6 +101,7 @@ func (c *PairecConfigContainer) Int(key string) (int, error) {
 	}
 	return 0, errors.New("not int value")
 }
+
 func (c *PairecConfigContainer) Float64(key string) (float64, error) {
 	val, err := c.Get(key)
 	if err != nil {

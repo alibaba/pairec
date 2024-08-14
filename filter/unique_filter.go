@@ -15,6 +15,7 @@ func NewUniqueFilter() *UniqueFilter {
 
 	return &filter
 }
+
 func (f *UniqueFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")

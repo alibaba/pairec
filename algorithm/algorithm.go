@@ -46,10 +46,11 @@ func NewAlgorithmFactory() *AlgorithmFactory {
 
 	return &factory
 }
+
 func (a *AlgorithmFactory) Init(algoConfs []recconf.AlgoConfig) {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
-
+ 
 	for _, conf := range algoConfs {
 		sign, _ := json.Marshal(conf)
 		if _, ok := a.algorithms[conf.Name]; ok {

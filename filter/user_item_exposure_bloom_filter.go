@@ -58,9 +58,11 @@ func NewUser2ItemExposureBloomFilter(bloom bloomfilter.BloomFilterInterface, fke
 
 	return &filter
 }
+
 func (f *User2ItemExposureBloomFilter) SetFilterActive(flag bool) {
 	f.filterActive = flag
 }
+
 func (f *User2ItemExposureBloomFilter) SetLogHistoryActive(flag bool) {
 	f.logHistoryActive = flag
 }
@@ -101,10 +103,12 @@ func (f *User2ItemExposureBloomFilter) doFilter(filterData *FilterData) error {
 	log.Info(fmt.Sprintf("requestId=%s\tevent=User2ItemExposureBloomFilter\tcost=%d", filterData.Context.RecommendId, utils.CostTime(start)))
 	return nil
 }
+
 func (f *User2ItemExposureBloomFilter) MatchTag(tag string) bool {
 	// default filter, so filter all tag
 	return true
 }
+
 func (f *User2ItemExposureBloomFilter) logHistory(user *module.User, items []*module.Item, context *context.RecommendContext) {
 	if !f.logHistoryActive {
 		return

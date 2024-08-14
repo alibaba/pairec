@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 /** create table ddl
@@ -121,6 +121,7 @@ func (d *User2ItemExposureHologresDao) LogHistory(user *User, items []*Item, con
 	log.Info(fmt.Sprintf("requestId=%s\tscene=%s\tuid=%s\tmsg=log history success", context.RecommendId, scene, user.Id))
 
 }
+
 func (d *User2ItemExposureHologresDao) FilterByHistory(uid UID, items []*Item) (ret []*Item) {
 	builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 	builder.Select("item")

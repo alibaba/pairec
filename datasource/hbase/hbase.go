@@ -24,6 +24,7 @@ func GetHBase(name string) (*HBase, error) {
 
 	return hbaseInstances[name], nil
 }
+
 func NewHBase(zkquorum string, timeout int) *HBase {
 	h := &HBase{
 		ZKQuorum: zkquorum,

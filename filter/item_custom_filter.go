@@ -20,6 +20,7 @@ func NewItemCustomFilter(config recconf.FilterConfig) *ItemCustomFilter {
 
 	return &filter
 }
+
 func (f *ItemCustomFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")

@@ -20,6 +20,7 @@ var experimentClient *experiments.ExperimentClient
 //	    AccessKey  aliyun accessKeyId
 //	    AccessSecret  aliyun accessKeySecret
 func LoadFromEnvironment() {
+	
 	env := os.Getenv("PAIREC_ENVIRONMENT")
 	if env == "" {
 		panic("env PAIREC_ENVIRONMENT empty")

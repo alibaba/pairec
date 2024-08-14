@@ -35,6 +35,7 @@ func GetSlsClient(name string) (*SlsClient, error) {
 	return client, nil
 
 }
+
 func NewSlsClient(accessKeyId, accessKeySecret, endpoint, projectName, logstoreName string) *SlsClient {
 	s := &SlsClient{
 		accessKeyId:     accessKeyId,
@@ -46,9 +47,10 @@ func NewSlsClient(accessKeyId, accessKeySecret, endpoint, projectName, logstoreN
 
 	return s
 }
+
 func (s *SlsClient) Init() {
 	s.Client = alisls.CreateNormalInterface(s.endPoint, s.accessKeyId, s.accessKeySecret, "")
-
+ 
 	producerConfig := producer.GetDefaultProducerConfig()
 	producerConfig.Endpoint = s.endPoint
 	producerConfig.AccessKeyID = s.accessKeyId

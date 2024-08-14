@@ -6,12 +6,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	alidatahub "github.com/aliyun/aliyun-datahub-sdk-go/datahub"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/hook"
+	alidatahub "github.com/aliyun/aliyun-datahub-sdk-go/datahub"
 )
 
 type Datahub struct {
@@ -44,6 +44,7 @@ func GetDatahub(name string) (*Datahub, error) {
 
 	return datahubInstances[name], nil
 }
+
 func RegisterDatahub(name string, dh *Datahub) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -104,6 +105,7 @@ func (d *Datahub) Init() error {
 
 	return nil
 }
+
 func (d *Datahub) createTopic() error {
 	getTopicResult, err := d.datahubApi.GetTopic(d.projectName, d.topicName)
 	if err != nil {
@@ -133,6 +135,7 @@ func (d *Datahub) createTopic() error {
 	}
 	return nil
 }
+
 func (d *Datahub) DataHubApi() alidatahub.DataHubApi {
 	return d.datahubApi
 }
@@ -196,15 +199,15 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 		log.Error("topic shards empty")
 		return
 	}
-	for _, messsage := range messages {
+
+	for _, m := range messages {
 		i := atomic.AddUint64(&d.index, 1)
 		shard := shards[(i)%uint64(len(shards))]
 		record := alidatahub.NewTupleRecord(d.recordSchema, 0)
 		record.ShardId = shard.ShardId
-		for k, v := range messsage {
+		for k, v := range m {
 			record.SetValueByName(k, v)
 		}
-
 		records = append(records, record)
 	}
 

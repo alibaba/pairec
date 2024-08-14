@@ -19,6 +19,7 @@ func NewItemStateFilter(config recconf.FilterConfig) *ItemStateFilter {
 
 	return &filter
 }
+
 func (f *ItemStateFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")

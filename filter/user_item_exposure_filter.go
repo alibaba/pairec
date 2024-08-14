@@ -20,6 +20,7 @@ func NewUser2ItemExposureFilter(config recconf.FilterConfig) *User2ItemExposureF
 
 	return &filter
 }
+
 func (f *User2ItemExposureFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")

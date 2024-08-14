@@ -51,6 +51,7 @@ func (f *BloomFilter) BitSetClear(name string) {
 		}()
 	}
 }
+
 func (f *BloomFilter) BitSetOnline(name string, online bool) {
 	if _, ok := f.bitSetMap[name]; ok {
 		f.bitSetMap[name].Online(online)
@@ -60,6 +61,7 @@ func (f *BloomFilter) BitSetOnline(name string, online bool) {
 func (f *BloomFilter) AddBitSetProvider(name string, bitSet BitSetProvider) {
 	f.bitSetMap[name] = bitSet
 }
+
 func (f *BloomFilter) SetHashFunc(hf HashFunc) {
 	f.hash = hf
 }

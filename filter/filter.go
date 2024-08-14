@@ -29,6 +29,7 @@ type FilterData struct {
 	Context      *context.RecommendContext
 	PipelineName string
 }
+
 type IFilter interface {
 	Filter(filterData *FilterData) error
 }
@@ -54,6 +55,7 @@ func (fs *FilterService) AddFilter(scene string, filter IFilter) {
 		fs.Filters[scene] = filters
 	}
 }
+
 func (fs *FilterService) AddFilters(scene string, filters []IFilter) {
 	fs.Filters[scene] = filters
 }

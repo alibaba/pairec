@@ -26,6 +26,7 @@ func NewUser2ItemExposureWithConditionFilter(config recconf.FilterConfig) *User2
 
 	return &filter
 }
+
 func (f *User2ItemExposureWithConditionFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")
@@ -57,6 +58,7 @@ func (f *User2ItemExposureWithConditionFilter) doFilter(filterData *FilterData) 
 	filterInfoLog(filterData, "User2ItemExposureWithConditionFilter", len(newItems), start)
 	return nil
 }
+
 func (f *User2ItemExposureWithConditionFilter) MatchTag(tag string) bool {
 	// default filter, so filter all tag
 	return true

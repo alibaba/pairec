@@ -3,6 +3,7 @@ package pairec
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/alibaba/pairec/v2/datasource/kafka"
 	"os"
 	"strings"
 	"time"
@@ -15,7 +16,6 @@ import (
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/config"
 	"github.com/alibaba/pairec/v2/config/pairec_config"
-	"github.com/alibaba/pairec/v2/datasource"
 	"github.com/alibaba/pairec/v2/datasource/beengine"
 	"github.com/alibaba/pairec/v2/datasource/datahub"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine"
@@ -90,7 +90,7 @@ func (l *ConfigLoader) reloadConfig(config *recconf.RecommendConfig) {
 	redisdb.Load(config)
 	tablestoredb.Load(config)
 	sls.Load(config)
-	datasource.Load(config)
+	kafka.Load(config)
 	datahub.Load(config)
 	beengine.Load(config)
 	graph.Load(config)

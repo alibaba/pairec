@@ -1,5 +1,4 @@
 package filter
-
 import (
 	"errors"
 	"sort"
@@ -21,6 +20,7 @@ func NewCompletelyFairCountFilter(config recconf.FilterConfig) *CompletelyFairCo
 
 	return &filter
 }
+
 func (f *CompletelyFairCountFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")

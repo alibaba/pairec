@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/alibaba/pairec/v2/datasource/kafka"
 	"math/rand"
 	"strings"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/alibaba/pairec/v2/algorithm/eas"
 	"github.com/alibaba/pairec/v2/algorithm/response"
 	"github.com/alibaba/pairec/v2/context"
-	"github.com/alibaba/pairec/v2/datasource"
 	"github.com/alibaba/pairec/v2/datasource/datahub"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
@@ -39,10 +39,12 @@ func NewCallBackService() *CallBackService {
 	}
 	return &services
 }
+
 func (r *CallBackService) LoadUserFeatures(context *context.RecommendContext) {
 	//user feature prefetch
 	r.userFeatureService.LoadUserFeaturesForCallback(r.User, context)
 }
+
 func (r *CallBackService) Recommend(context *context.RecommendContext) {
 	scene_name := context.GetParameter("scene").(string)
 	if _, ok := context.Config.SceneConfs[scene_name]; ok {
@@ -86,11 +88,11 @@ func (r *CallBackService) RecordLog(context *context.RecommendContext, msg strin
 }
 
 func (r *CallBackService) RecordToKafka(kafka_name string, msg string) error {
-	p, error := datasource.GetKafkaProducer(kafka_name)
+	p, error := kafka.GetKafkaProducer(kafka_name)
 	if error != nil {
 		return error
 	}
-	p.SendMessage(msg)
+	p.SendMessage([]byte(msg))
 	return nil
 }
 
@@ -119,13 +121,13 @@ func (r *CallBackService) RecordLogList(context *context.RecommendContext, messa
 }
 
 func (r *CallBackService) RecordToKafkaList(kafka_name string, messages []map[string]interface{}) error {
-	p, error := datasource.GetKafkaProducer(kafka_name)
+	p, error := kafka.GetKafkaProducer(kafka_name)
 	if error != nil {
 		return error
 	}
 	for _, msg := range messages {
 		j, _ := json.Marshal(msg)
-		p.SendMessage(string(j))
+		p.SendMessage([]byte(string(j)))
 	}
 	return nil
 }

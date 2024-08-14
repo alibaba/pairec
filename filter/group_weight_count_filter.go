@@ -106,6 +106,7 @@ func NewGroupWeightCountFilter(config recconf.FilterConfig) *GroupWeightCountFil
 
 	return &filter
 }
+
 func (f *GroupWeightCountFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")

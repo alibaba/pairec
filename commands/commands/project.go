@@ -9,7 +9,6 @@ import (
 )
 
 func Project(rootcfg *options.RootConfiguration, cfg *options.ProjectConfiguration) error {
-
 	// create project dir
 	if err := createDir(cfg.Name); err != nil {
 		return err

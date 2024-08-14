@@ -107,7 +107,6 @@ func (p *Prometheus) getMetrics() []byte {
 	for i := range metricFamilies {
 		expfmt.MetricFamilyToText(out, metricFamilies[i])
 	}
-
 	return out.Bytes()
 }
 

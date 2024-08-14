@@ -569,10 +569,8 @@ func (client *Client) _request(method *string, pathname *string, query map[strin
 						}
 					}()
 					rawMsg = util.ParseJSON(objStr)
-
 					return nil, nil
 				}()
-
 				if tryErr != nil {
 					var err = &tea.SDKError{}
 					if _t, ok := tryErr.(*tea.SDKError); ok {
@@ -720,7 +718,6 @@ func (client *Client) BuildHaSearchQuery(haquery *HaQuery) (_result *string, _er
 		if !tea.BoolValue(util.Empty(distinctClauseStr)) {
 			tempString = tea.String(tea.StringValue(tempString) + "&&distinct=" + tea.StringValue(distinctClauseStr))
 		}
-
 	}
 
 	kvpairs := client.BuildSearcKvPairClauseStr(haquery.Kvpairs)

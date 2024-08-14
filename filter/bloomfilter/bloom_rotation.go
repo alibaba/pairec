@@ -18,7 +18,7 @@ type BloomRotation struct {
 func (f *BloomRotation) SetBloomMetaStore(store BloomMetaStore) {
 	f.metaStore = store
 }
-func (f *BloomRotation) StartRotation(activeProviderName string, rotationList []string, rotationInterval int64, overwirte bool) {
+func (f *BloomRotation) StartRotation(activeProviderName string, rotationList []string, rotationInterval int64, overwrite bool) {
 	storeMeta, err := f.metaStore.Get()
 	if err != nil {
 		panic(fmt.Sprintf("bloom filter start rotation error ,err=%v", err))
@@ -28,7 +28,7 @@ func (f *BloomRotation) StartRotation(activeProviderName string, rotationList []
 		// first init
 		f.metaInfo.init(activeProviderName, rotationList, rotationInterval)
 		f.metaStore.Save(&f.metaInfo)
-	} else if overwirte == true {
+	} else if overwrite == true {
 		f.metaStore.Save(&f.metaInfo)
 	} else {
 		// load from metaStore
@@ -36,9 +36,9 @@ func (f *BloomRotation) StartRotation(activeProviderName string, rotationList []
 	}
 	go f.loopRotaion()
 }
+
 func (f *BloomRotation) loopRotaion() {
 	for {
-
 		if name, ret := f.metaInfo.rotaionDb(); ret == true {
 			rotationList := f.metaInfo.rotationList
 			var newRotationList []string

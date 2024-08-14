@@ -20,6 +20,7 @@ func NewDimensionFieldUniqueFilter(config recconf.FilterConfig) *DimensionFieldU
 
 	return &filter
 }
+
 func (f *DimensionFieldUniqueFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")

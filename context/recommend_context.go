@@ -32,6 +32,7 @@ func NewRecommendContext() *RecommendContext {
 	context := RecommendContext{Size: -1, Debug: false, Log: make([]string, 0, 16), contexParams: make(map[string]interface{})}
 	return &context
 }
+
 func (r *RecommendContext) GetParameter(name string) interface{} {
 	return r.Param.GetParameter(name)
 }

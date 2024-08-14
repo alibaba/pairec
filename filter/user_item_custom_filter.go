@@ -23,6 +23,7 @@ func NewUser2ItemCustomFilter(config recconf.FilterConfig) *User2ItemCustomFilte
 
 	return &filter
 }
+
 func (f *User2ItemCustomFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")
@@ -41,6 +42,7 @@ func (f *User2ItemCustomFilter) doFilter(filterData *FilterData) error {
 	log.Info(fmt.Sprintf("requestId=%s\tevent=User2ItemCustomFilter\tcost=%d", filterData.Context.RecommendId, utils.CostTime(start)))
 	return nil
 }
+
 func (f *User2ItemCustomFilter) MatchTag(tag string) bool {
 	// default filter, so filter all tag
 	return true

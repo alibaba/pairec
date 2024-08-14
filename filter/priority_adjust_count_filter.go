@@ -38,9 +38,9 @@ func NewPriorityAdjustCountFilter(config recconf.FilterConfig) *PriorityAdjustCo
 	if config.DiversityDaoConf.AdapterType != "" {
 		filter.diversityDao = module.NewDiversityDao(config)
 	}
-
 	return &filter
 }
+
 func (f *PriorityAdjustCountFilter) Filter(filterData *FilterData) error {
 	context := filterData.Context
 
@@ -189,7 +189,7 @@ func (f *PriorityAdjustCountFilter) doFilter(filterData *FilterData, ensureDiver
 				if len(recallItems) >= count {
 					newItems = append(newItems, recallItems[:count]...)
 					accumulator += count
-				} else {
+				} else { 
 					newItems = append(newItems, recallItems...)
 					accumulator += len(recallItems)
 				}

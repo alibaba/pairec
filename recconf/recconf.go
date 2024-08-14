@@ -82,10 +82,12 @@ type RecommendConfig struct {
 	PrometheusConfig          PrometheusConfig
 	UserDefineConfs           json.RawMessage
 }
+
 type ListenConfig struct {
 	HttpAddr string
 	HttpPort int
 }
+
 type PrometheusConfig struct {
 	Enable           bool
 	Subsystem        string
@@ -96,6 +98,7 @@ type PrometheusConfig struct {
 	ReqSizeBuckets   []float64
 	RespSizeBuckets  []float64
 }
+
 type DaoConfig struct {
 	Adapter             string
 	AdapterType         string
@@ -148,14 +151,17 @@ type DaoConfig struct {
 	LindormTableName string
 	LindormName      string
 }
+
 type SceneFeatureConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig
 	AsynLoadFeature  bool
 }
+
 type FeatureLoadConfig struct {
 	FeatureDaoConf FeatureDaoConfig
 	Features       []FeatureConfig
 }
+
 type BeRTCntFieldConfig struct {
 	FieldNames []string
 	// if not set, Delims is empty string by default
@@ -164,6 +170,7 @@ type BeRTCntFieldConfig struct {
 	// if not set, Alias is set to FieldNames[0] by default
 	Alias string
 }
+
 type FeatureDaoConfig struct {
 	DaoConfig
 	NoUsePlayTimeField      bool
@@ -224,6 +231,7 @@ type FeatureDaoConfig struct {
 	// Only valid when FeatureStore = user
 	LoadFromCacheFeaturesName string
 }
+
 type FeatureConfig struct {
 	FeatureType         string
 	FeatureName         string
@@ -280,6 +288,7 @@ type EasConfig struct {
 	Outputs          []string
 	ModelName        string
 }
+
 type TFservingConfig struct {
 	Url              string
 	SignatureName    string
@@ -288,18 +297,22 @@ type TFservingConfig struct {
 	ResponseFuncName string
 	Outputs          []string
 }
+
 type SeldonConfig struct {
 	Url              string
 	ResponseFuncName string
 }
+
 type VectorConfig struct {
 	ServerAddress string
 	Timeout       int64
 }
+
 type MilvusConfig struct {
 	ServerAddress string
 	Timeout       int64
 }
+
 type RecallConfig struct {
 	Name         string
 	RecallType   string
@@ -384,16 +397,19 @@ type BeRecallParam struct {
 	DiversityParam  string
 	CustomParams    map[string]interface{}
 }
+
 type UserTriggerRulesConfig struct {
 	DefaultValue  int
 	TriggerCounts []int
 }
+
 type UserVectorTriggerConfig struct {
 	CacheTime        int
 	CachePrefix      string
 	RecallAlgo       string
 	UserFeatureConfs []FeatureLoadConfig // get user features
 }
+
 type UserEmbeddingO2OTriggerConfig struct {
 	BizName             string
 	RecallName          string
@@ -402,6 +418,7 @@ type UserEmbeddingO2OTriggerConfig struct {
 	MultiValueDelimiter string              // multi value feature delimiter
 	UserFeatureConfs    []FeatureLoadConfig // get user features
 }
+
 type UserRealtimeEmbeddingTriggerConfig struct {
 	Debug              bool
 	DebugLogDatahub    string
@@ -416,10 +433,12 @@ type BeTriggerParam struct {
 	BizName   string
 	FieldName string
 }
+
 type ColdStartDaoConfig struct {
 	SqlDaoConfig
 	TimeInterval int // second
 }
+
 type SqlDaoConfig struct {
 	DaoConfig
 	Limit        int
@@ -427,10 +446,12 @@ type SqlDaoConfig struct {
 	PrimaryKey   string
 	SelectFields string
 }
+
 type RealTimeUser2ItemDaoConfig struct {
 	UserTriggerDaoConf UserTriggerDaoConfig
 	Item2ItemTable     string
 }
+
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig
 	NoUsePlayTimeField bool
@@ -448,10 +469,12 @@ type UserTriggerDaoConfig struct {
 	BeEventFeatureKeyName     string
 	BePlayTimeFeatureKeyName  string
 }
+
 type TriggerDiversityRuleConfig struct {
 	Dimensions []string
 	Size       int
 }
+
 type HologresVectorConfig struct {
 	HologresName         string
 	VectorTable          string // example: "item_emb_{partition}", '{partition}' will be replaced by partition info
@@ -460,11 +483,13 @@ type HologresVectorConfig struct {
 	WhereClause          string
 	TimeInterval         int
 }
+
 type BeVectorConfig struct {
 	BizName              string //
 	VectorKeyField       string
 	VectorEmbeddingField string
 }
+
 type MilvusVectorConfig struct {
 	VectorKeyField       string
 	VectorEmbeddingField string
@@ -472,6 +497,7 @@ type MilvusVectorConfig struct {
 	MetricType           string
 	SearchParams         map[string]interface{}
 }
+
 type UserCollaborativeDaoConfig struct {
 	DaoConfig
 	User2ItemTable string
@@ -479,15 +505,18 @@ type UserCollaborativeDaoConfig struct {
 
 	Normalization string // set "on" to enable it, otherwise set "off", enabled by default
 }
+
 type ItemCollaborativeDaoConfig struct {
 	DaoConfig
 	Item2ItemTable string
 }
+
 type User2ItemDaoConfig struct {
 	DaoConfig
 	User2ItemTable string
 	Item2ItemTable string
 }
+
 type UserTopicDaoConfig struct {
 	DaoConfig
 	UserTopicTable string
@@ -522,21 +551,26 @@ type RedisConfig struct {
 	ReadTimeout    int
 	WriteTimeout   int
 }
+
 type MysqlConfig struct {
 	DSN string
 }
+
 type ClickHouseConfig struct {
 	DSN string
 }
+
 type HologresConfig struct {
 	DSN string
 }
+
 type LindormConfig struct {
 	Url      string
 	User     string
 	Password string
 	Database string
 }
+
 type FeatureStoreConfig struct {
 	AccessId  string
 	AccessKey string
@@ -544,10 +578,12 @@ type FeatureStoreConfig struct {
 
 	ProjectName string
 }
+
 type KafkaConfig struct {
 	BootstrapServers string
 	Topic            string
 }
+
 type DatahubConfig struct {
 	AccessId    string
 	AccessKey   string
@@ -556,37 +592,44 @@ type DatahubConfig struct {
 	TopicName   string
 	Schemas     []DatahubTopicSchema
 }
+
 type BEConfig struct {
 	Username    string
 	Password    string
 	Endpoint    string
 	ReleaseType string // values: product or dev or prepub
 }
+
 type Ha3EngineConfig struct {
 	Username   string
 	Password   string
 	Endpoint   string
 	InstanceId string
 }
+
 type OpenSearchConfig struct {
 	EndPoint        string
 	AccessKeyId     string
 	AccessKeySecret string
 }
+
 type DatahubTopicSchema struct {
 	Field string
 
 	//Type is the type of the datahub tuple field,valid value is string, integer
 	Type string
 }
+
 type HBaseConfig struct {
 	ZKQuorum string
 }
+
 type HBaseThriftConfig struct {
 	Host     string
 	User     string
 	Password string
 }
+
 type TableStoreConfig struct {
 	EndPoint        string
 	InstanceName    string
@@ -594,6 +637,7 @@ type TableStoreConfig struct {
 	AccessKeySecret string
 	RoleArn         string
 }
+
 type SlsConfig struct {
 	EndPoint        string
 	AccessKeyId     string
@@ -601,12 +645,15 @@ type SlsConfig struct {
 	ProjectName     string
 	LogstoreName    string
 }
+
 type SceneConfig struct {
 	Categories []string
 }
+
 type CategoryConfig struct {
 	RecallNames []string
 }
+
 type RankConfig struct {
 	RankAlgoList    []string
 	RankScore       string
@@ -615,15 +662,18 @@ type RankConfig struct {
 	BatchCount      int
 	ScoreRewrite    map[string]string
 }
+
 type ActionConfig struct {
 	ActionType string
 	ActionName string
 }
+
 type OperatorValueConfig struct {
 	Type string // "property", "function"
 	Name string
 	From string // item or user
 }
+
 type LogConfig struct {
 	RetensionDays int
 	DiskSize      int    // unit : G, if value = 20, the true size is 20G
@@ -631,10 +681,12 @@ type LogConfig struct {
 	Output        string // valid value is file, console
 	SLSName       string
 }
+
 type ABTestConfig struct {
 	Host  string
 	Token string
 }
+
 type FilterConfig struct {
 	Name                      string
 	FilterType                string
@@ -663,13 +715,16 @@ type FilterConfig struct {
 	FilterVal                 FilterValue
 	Conditions                []FilterParamConfig
 }
+
 type BeFilterConfig struct {
 	FilterConfig
 }
+
 type FilterValue struct {
 	SelectCol   string
 	WhereClause string
 }
+
 type SortConfig struct {
 	Debug                         bool
 	RemainItem                    bool
@@ -707,12 +762,14 @@ type MixSortConfig struct {
 	RecallNames   []string
 	Conditions    []FilterParamConfig
 }
+
 type DiversityRuleConfig struct {
 	Dimensions    []string
 	IntervalSize  int
 	WindowSize    int
 	FrequencySize int
 }
+
 type FilterParamConfig struct {
 	Name     string
 	Domain   string
@@ -720,46 +777,55 @@ type FilterParamConfig struct {
 	Type     string // string, int, int64
 	Value    interface{}
 }
+
 type BoostScoreCondition struct {
 	Expression string
 	Conditions []FilterParamConfig
 }
+
 type DistinctIdCondition struct {
 	DistinctId int
 	Conditions []FilterParamConfig
 }
+
 type ItemStateDaoConfig struct {
 	DaoConfig
 	ItemFieldName string
 	WhereClause   string
 	SelectFields  string
 }
+
 type DiversityDaoConfig struct {
 	DaoConfig
 	ItemKeyField       string
 	DistinctFields     []string
 	CacheTimeInMinutes int
 }
+
 type AdjustCountConfig struct {
 	RecallName string
 	Count      int
 	Type       string
 }
+
 type CallBackConfig struct {
 	DataSource      DataSourceConfig
 	RankConf        RankConfig
 	RawFeatures     bool
 	RawFeaturesRate int
 }
+
 type GeneralRankConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig
 	RankConf         RankConfig
 	ActionConfs      []ActionConfig
 }
+
 type ColdStartGeneralRankConfig struct {
 	GeneralRankConfig
 	RecallNames []string
 }
+
 type ColdStartRankConfig struct {
 	RecallName           string
 	AlgoName             string
@@ -801,6 +867,7 @@ type DebugConfig struct {
 	// OutputType represent log write to console or datahub or file
 	OutputType  string
 	DatahubName string
+	KafKaName   string
 	FilePath    string
 	MaxFileNum  int
 }

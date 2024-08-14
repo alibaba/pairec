@@ -18,12 +18,11 @@ func DefaultAdjustNewItemsFunc(filterData *FilterData, retainNum int) []*module.
 	items := filterData.Data.([]*module.Item)
 	newItems := make([]*module.Item, retainNum)
 
-	rand.Shuffle(len(items), func(i, j int) {
+	rand.Shuffle(len(items), func(i, j int) {//打乱数组顺序
 		items[i], items[j] = items[j], items[i]
 	})
 
 	copy(newItems, items)
-
 	return newItems
 }
 

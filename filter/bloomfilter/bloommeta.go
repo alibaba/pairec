@@ -7,6 +7,7 @@ type BloomMetaStore interface {
 	Save(*BloomMeta) error
 	Lock() error
 }
+
 type BloomMeta struct {
 	currActiveDbName string
 	nextRotationTime int64 // next rotation time, uint second
