@@ -2,6 +2,7 @@ package recall
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,7 +35,16 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 		case []uint8:
 			itemIds := strings.Split(string(itemStr), ",")
 			for _, id := range itemIds {
-				item := module.NewItem(id)
+				var item *module.Item
+				if strings.Contains(id, ":") {
+					vars := strings.Split(id, ":")
+					item = module.NewItem(vars[0])
+					f, _ := strconv.ParseFloat(vars[2], 64)
+					item.AddAlgoScore("hot_score", f)
+					item.Score = f
+				} else {
+					item = module.NewItem(id)
+				}
 				item.ItemType = r.itemType
 				item.RetrieveId = r.modelName
 
@@ -43,7 +53,16 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 		case string:
 			itemIds := strings.Split(itemStr, ",")
 			for _, id := range itemIds {
-				item := module.NewItem(id)
+				var item *module.Item
+				if strings.Contains(id, ":") {
+					vars := strings.Split(id, ":")
+					item = module.NewItem(vars[0])
+					f, _ := strconv.ParseFloat(vars[2], 64)
+					item.AddAlgoScore("hot_score", f)
+					item.Score = f
+				} else {
+					item = module.NewItem(id)
+				}
 				item.ItemType = r.itemType
 				item.RetrieveId = r.modelName
 
@@ -63,7 +82,7 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 			key := r.cachePrefix + string(user.Id)
 			var itemIds string
 			for _, item := range ret {
-				itemIds += string(item.Id) + ","
+				itemIds += fmt.Sprintf("%s::%v", string(item.Id), item.Score) + ","
 			}
 			itemIds = itemIds[:len(itemIds)-1]
 

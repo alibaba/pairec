@@ -363,3 +363,121 @@ func easyrecUserRealtimeEmbeddingMindResponseFunc(data interface{}) (ret []respo
 
 	return
 }
+
+func torchrecMutValResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	outputs := resp.GetMapOutputs()
+	var response []map[string]float64
+	for i := range resp.ItemIds {
+		scores := make(map[string]float64)
+		for output, arrayProto := range outputs {
+			if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+				scores[output] = float64(arrayProto.FloatVal[i])
+			} else if arrayProto.Dtype == easyrec.ArrayDataType_DT_DOUBLE {
+				scores[output] = arrayProto.DoubleVal[i]
+			}
+		}
+		response = append(response, scores)
+	}
+
+	for _, v := range response {
+		ret = append(ret, &EasyrecResponse{scoreArr: v, multiValModule: true})
+	}
+
+	return
+}
+
+func torchrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	outputs := resp.GetMapOutputs()
+	var response []map[string]float64
+	var (
+		itemFeatures     []string
+		generateFeatures []*bytes.Buffer
+	)
+	for i, itemId := range resp.ItemIds {
+		scores := make(map[string]float64)
+		for output, arrayProto := range outputs {
+			if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+				scores[output] = float64(arrayProto.FloatVal[i])
+			} else if arrayProto.Dtype == easyrec.ArrayDataType_DT_DOUBLE {
+				scores[output] = arrayProto.DoubleVal[i]
+			}
+		}
+		response = append(response, scores)
+
+		if f, ok := resp.RawFeatures[itemId]; ok {
+			itemFeatures = append(itemFeatures, f)
+		} else {
+			itemFeatures = append(itemFeatures, "")
+		}
+
+		if g, ok := resp.GenerateFeatures[itemId]; ok {
+			generateFeatures = append(generateFeatures, bytes.NewBufferString(g))
+		} else {
+			generateFeatures = append(generateFeatures, new(bytes.Buffer))
+		}
+	}
+
+	for i, v := range response {
+		ret = append(ret, &EasyrecResponse{scoreArr: v, multiValModule: true, RawFeatures: itemFeatures[i], GenerateFeatures: generateFeatures[i]})
+	}
+
+	return
+}
+
+type TorchrecEmbeddingResponse struct {
+	embeddings []float32
+	dimSize    int
+}
+
+func (r *TorchrecEmbeddingResponse) GetScore() float64 {
+	return 0
+}
+
+func (r *TorchrecEmbeddingResponse) GetScoreMap() map[string]float64 {
+	return nil
+}
+
+func (r *TorchrecEmbeddingResponse) GetModuleType() bool {
+	return false
+}
+func (r *TorchrecEmbeddingResponse) GetEmbedding() []float32 {
+	return r.embeddings
+}
+func (r *TorchrecEmbeddingResponse) GetEmbeddingSize() int {
+	return r.dimSize
+}
+
+func torchrecEmbeddingResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	outputs := resp.GetMapOutputs()
+	var embeddings []float32
+	var dimSize int
+	for _, arrayProto := range outputs {
+
+		if len(arrayProto.ArrayShape.Dim) >= 2 {
+			dimSize = int(arrayProto.ArrayShape.Dim[1])
+		}
+		if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+			embeddings = append(embeddings, arrayProto.FloatVal...)
+		}
+		break
+	}
+
+	ret = append(ret, &TorchrecEmbeddingResponse{embeddings: embeddings, dimSize: dimSize})
+
+	return
+}

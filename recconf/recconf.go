@@ -73,6 +73,7 @@ type RecommendConfig struct {
 	LogConf                   LogConfig
 	ABTestConf                ABTestConfig
 	CallBackConfs             map[string]CallBackConfig
+	EmbeddingConfs            map[string]EmbeddingConfig
 	GeneralRankConfs          map[string]GeneralRankConfig
 	ColdStartGeneralRankConfs map[string]ColdStartGeneralRankConfig
 	ColdStartRankConfs        map[string]ColdStartRankConfig
@@ -116,6 +117,9 @@ type DaoConfig struct {
 	ColumnFamily        string
 	Qualifier           string
 
+	ItemIdField    string
+	ItemScoreField string
+
 	// hologres
 	HologresName      string
 	HologresTableName string
@@ -136,6 +140,7 @@ type DaoConfig struct {
 	FeatureStoreName       string
 	FeatureStoreModelName  string
 	FeatureStoreEntityName string
+	FeatureStoreViewName   string
 
 	// graph
 	GraphName  string
@@ -430,8 +435,10 @@ type SqlDaoConfig struct {
 	SelectFields string
 }
 type RealTimeUser2ItemDaoConfig struct {
-	UserTriggerDaoConf UserTriggerDaoConfig
-	Item2ItemTable     string
+	UserTriggerDaoConf    UserTriggerDaoConfig
+	Item2ItemTable        string
+	SimilarItemIdField    string
+	SimilarItemScoreField string
 }
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig
@@ -544,7 +551,10 @@ type FeatureStoreConfig struct {
 	AccessKey string
 	RegionId  string
 
-	ProjectName string
+	ProjectName       string
+	FeatureDBUsername string
+	FeatureDBPassword string
+	HologresPort      int
 }
 type KafkaConfig struct {
 	BootstrapServers string
@@ -616,6 +626,7 @@ type RankConfig struct {
 	ContextFeatures []string
 	BatchCount      int
 	ScoreRewrite    map[string]string
+	ASTType         string
 }
 type ActionConfig struct {
 	ActionType string
@@ -664,6 +675,14 @@ type FilterConfig struct {
 	EnsureDiversity           bool
 	FilterVal                 FilterValue
 	Conditions                []FilterParamConfig
+
+	ConditionFilterConfs struct {
+		FilterConfs []struct {
+			Conditions []FilterParamConfig
+			FilterName string
+		}
+		DefaultFilterName string
+	}
 }
 type BeFilterConfig struct {
 	FilterConfig
@@ -752,6 +771,10 @@ type CallBackConfig struct {
 	RankConf        RankConfig
 	RawFeatures     bool
 	RawFeaturesRate int
+}
+type EmbeddingConfig struct {
+	DataSource DataSourceConfig
+	RankConf   RankConfig
 }
 type GeneralRankConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig

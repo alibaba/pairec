@@ -31,8 +31,8 @@ var gomodS = `module ${BINNAME}
 go 1.19
 
 require (
-	github.com/alibaba/pairec/v2 v2.1.1
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.4
+	github.com/alibaba/pairec/v2 v2.2.4
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.5
 )
 `
 
@@ -151,6 +151,7 @@ import (
 
 type RecommendParam struct {
 ` + "    SceneId  string                 `json:\"scene_id\"`\n" +
+	"    RequestId string                 `json:\"request_id\"`\n" +
 	"    Category string                 `json:\"category\"`\n" +
 	"    Uid      string                 `json:\"uid\"`  // user id \n" +
 	"    Size     int                    `json:\"size\"` // get recommend items size \n" +
@@ -217,7 +218,11 @@ func (c *FeedController) Process(w http.ResponseWriter, r *http.Request) {
 		c.SendError(w, web.ERROR_PARAMETER_CODE, "request body empty")
 		return
 	}
-	c.RequestId = utils.UUID()
+	if err := c.decodeRequestBody(); err != nil {
+		c.SendError(w, web.ERROR_PARAMETER_CODE, err.Error())
+		return
+	}
+
 	c.LogRequestBegin(r)
 	if err := c.CheckParameter(); err != nil {
 		c.SendError(w, web.ERROR_PARAMETER_CODE, err.Error())
@@ -227,11 +232,18 @@ func (c *FeedController) Process(w http.ResponseWriter, r *http.Request) {
 	c.End = time.Now()
 	c.LogRequestEnd(r)
 }
-func (r *FeedController) CheckParameter() error {
+func (r *FeedController) decodeRequestBody() error {
 	if err := json.Unmarshal(r.RequestBody, &r.param); err != nil {
 		return err
 	}
-
+	if r.param.RequestId == "" {
+		r.RequestId = utils.UUID()
+	} else {
+		r.RequestId = r.param.RequestId
+	}
+	return nil
+}
+func (r *FeedController) CheckParameter() error {
 	if len(r.param.Uid) == 0 {
 		return errors.New("uid not empty")
 	}

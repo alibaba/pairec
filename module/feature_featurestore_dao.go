@@ -8,6 +8,7 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 )
 
 type FeatureFeatureStoreDao struct {
@@ -15,14 +16,11 @@ type FeatureFeatureStoreDao struct {
 	client             *fs.FSClient
 	fsModel            string
 	fsEntity           string
+	fsViewName         string
 	userFeatureKeyName string
 	itemFeatureKeyName string
-	//timestampFeatureKeyName string
-	//eventFeatureKeyName     string
-	//playTimeFeatureKeyName  string
-	//tsFeatureKeyName        string
-	userSelectFields string
-	itemSelectFields string
+	userSelectFields   string
+	itemSelectFields   string
 }
 
 func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureStoreDao {
@@ -30,6 +28,7 @@ func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureS
 		FeatureBaseDao:     NewFeatureBaseDao(&config),
 		fsModel:            config.FeatureStoreModelName,
 		fsEntity:           config.FeatureStoreEntityName,
+		fsViewName:         config.FeatureStoreViewName,
 		userFeatureKeyName: config.UserFeatureKeyName,
 		itemFeatureKeyName: config.ItemFeatureKeyName,
 		userSelectFields:   config.UserSelectFields,
@@ -74,12 +73,19 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 		return
 	}
 
+	if d.fsViewName != "" {
+		d.doUserFeatureFetchWithFeatureView(user, context, key)
+	} else {
+		d.doUserFeatureFetchWithEntity(user, context, key)
+	}
+
+}
+func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, context *context.RecommendContext, key string) {
 	model := d.client.GetProject().GetModel(d.fsModel)
 	if model == nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=model not found(%s)", context.RecommendId, d.fsModel))
 		return
 	}
-
 	entity := d.client.GetProject().GetFeatureEntity(d.fsEntity)
 	if entity == nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=feature entity not found(%s)", context.RecommendId, d.fsEntity))
@@ -87,6 +93,35 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 	}
 
 	features, err := model.GetOnlineFeaturesWithEntity(map[string][]interface{}{entity.FeatureEntityJoinid: {key}}, d.fsEntity)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features error(%s)", context.RecommendId, err))
+		return
+	}
+	if len(features) == 0 {
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features empty", context.RecommendId))
+		return
+	}
+
+	if d.cacheFeaturesName != "" {
+		user.AddCacheFeatures(d.cacheFeaturesName, features[0])
+	} else {
+		user.AddProperties(features[0])
+	}
+}
+func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithFeatureView(user *User, context *context.RecommendContext, key string) {
+	featureView := d.client.GetProject().GetFeatureView(d.fsViewName)
+	if featureView == nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=feature view not found(%s)", context.RecommendId, d.fsViewName))
+		return
+	}
+
+	var featuresNames []string
+	if d.userSelectFields == "" || d.userSelectFields == "*" {
+		featuresNames = []string{"*"}
+	} else {
+		featuresNames = strings.Split(d.userSelectFields, ",")
+	}
+	features, err := featureView.GetOnlineFeatures([]any{key}, featuresNames, nil)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features error(%s)", context.RecommendId, err))
 		return
@@ -135,7 +170,7 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 		} else {
 			key = item.StringProperty(fk)
 		}
-		//keys = append(keys, key)
+
 		keysMap[key] = true
 		key2Item[key] = append(key2Item[key], item)
 	}
@@ -143,27 +178,51 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 		keys = append(keys, k)
 	}
 
-	model := d.client.GetProject().GetModel(d.fsModel)
-	if model == nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=model not found(%s)", context.RecommendId, d.fsModel))
-		return
-	}
+	var (
+		entityJoinId string
+		features     []map[string]any
+		err          error
+	)
+	if d.fsViewName != "" {
+		featureView := d.client.GetProject().GetFeatureView(d.fsViewName)
+		if featureView == nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=feature view not found(%s)", context.RecommendId, d.fsViewName))
+			return
+		}
+		features, err = d.doItemsFeatureFetchWithFeatureView(featureView, keys)
+		if err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=%v", context.RecommendId, err))
+			return
+		}
 
-	entity := d.client.GetProject().GetFeatureEntity(d.fsEntity)
-	if entity == nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=feature entity not found(%s)", context.RecommendId, d.fsEntity))
-		return
-	}
+		entityName := featureView.GetFeatureEntityName()
+		entity := d.client.GetProject().GetFeatureEntity(entityName)
+		if entity == nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=feature entity not found(%s)", context.RecommendId, entityName))
+			return
+		}
 
-	features, err := model.GetOnlineFeaturesWithEntity(map[string][]interface{}{entity.FeatureEntityJoinid: keys}, d.fsEntity)
-	if err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features error(%s)", context.RecommendId, err))
-		return
+		entityJoinId = entity.FeatureEntityJoinid
+
+	} else {
+		entity := d.client.GetProject().GetFeatureEntity(d.fsEntity)
+		if entity == nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=feature entity not found(%s)", context.RecommendId, d.fsEntity))
+			return
+		}
+		features, err = d.doItemsFeatureFetchWithEntity(entity, keys)
+		if err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=%v", context.RecommendId, err))
+			return
+		}
+
+		entityJoinId = entity.FeatureEntityJoinid
+
 	}
 
 	for key, itemlist := range key2Item {
 		for i, featureMap := range features {
-			if key == featureMap[entity.FeatureEntityJoinid] {
+			if key == featureMap[entityJoinId] {
 				for _, item := range itemlist {
 					item.AddProperties(featureMap)
 				}
@@ -173,4 +232,34 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 		}
 	}
 
+}
+
+func (d *FeatureFeatureStoreDao) doItemsFeatureFetchWithEntity(entity *domain.FeatureEntity, keys []any) ([]map[string]any, error) {
+	model := d.client.GetProject().GetModel(d.fsModel)
+	if model == nil {
+		return nil, fmt.Errorf("model not found(%s)", d.fsModel)
+	}
+
+	features, err := model.GetOnlineFeaturesWithEntity(map[string][]interface{}{entity.FeatureEntityJoinid: keys}, d.fsEntity)
+	if err != nil {
+		return nil, err
+	}
+
+	return features, nil
+}
+
+func (d *FeatureFeatureStoreDao) doItemsFeatureFetchWithFeatureView(featureView domain.FeatureView, keys []any) ([]map[string]any, error) {
+	var featuresNames []string
+	if d.itemSelectFields == "" || d.itemSelectFields == "*" {
+		featuresNames = []string{"*"}
+	} else {
+		featuresNames = strings.Split(d.itemSelectFields, ",")
+	}
+
+	features, err := featureView.GetOnlineFeatures(keys, featuresNames, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return features, nil
 }

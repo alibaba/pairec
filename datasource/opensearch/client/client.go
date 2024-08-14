@@ -1,6 +1,9 @@
 package client
 
 import (
+	"encoding/json"
+	"io"
+
 	opensearchutil "github.com/alibabacloud-go/opensearch-util/service"
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
@@ -103,8 +106,21 @@ func (client *Client) Init(config *Config) (_err error) {
 	return nil
 }
 
-func (client *Client) Request(method *string, pathname *string, query map[string]interface{}, headers map[string]*string, body interface{}, runtime *util.RuntimeOptions) (_result map[string]interface{}, _err error) {
+type OpenSearchResult struct {
+	Status    string `json:"status"`
+	RequestId string `json:"request_id"`
+	Errors    []any  `json:"errors"`
+	Result    struct {
+		Items []struct {
+			Fields         map[string]string `json:"fields"`
+			SortExprValues []any             `json:"sortExprValues"`
+		} `json:"items"`
+	} `json:"result"`
+}
+
+func (client *Client) Request(method *string, pathname *string, query map[string]interface{}, headers map[string]*string, body interface{}, runtime *util.RuntimeOptions) (_result *OpenSearchResult, _err error) {
 	_err = tea.Validate(runtime)
+	_result = &OpenSearchResult{}
 	if _err != nil {
 		return _result, _err
 	}
@@ -127,7 +143,8 @@ func (client *Client) Request(method *string, pathname *string, query map[string
 		"ignoreSSL": tea.BoolValue(runtime.IgnoreSSL),
 	}
 
-	_resp := make(map[string]interface{})
+	//_resp := make(map[string]interface{})
+	_resp := &OpenSearchResult{}
 	for _retryTimes := 0; tea.BoolValue(tea.AllowRetry(_runtime["retry"], tea.Int(_retryTimes))); _retryTimes++ {
 		if _retryTimes > 0 {
 			_backoffTime := tea.GetBackoffTime(_runtime["backoff"], tea.Int(_retryTimes))
@@ -136,7 +153,7 @@ func (client *Client) Request(method *string, pathname *string, query map[string
 			}
 		}
 
-		_resp, _err = func() (map[string]interface{}, error) {
+		_resp, _err = func() (*OpenSearchResult, error) {
 			request_ := tea.NewRequest()
 			accesskeyId, _err := client.GetAccessKeyId()
 			if _err != nil {
@@ -173,27 +190,25 @@ func (client *Client) Request(method *string, pathname *string, query map[string
 			if _err != nil {
 				return _result, _err
 			}
-			objStr, _err := util.ReadAsString(response_.Body)
+			body, _err := io.ReadAll(response_.Body)
 			if _err != nil {
 				return _result, _err
 			}
+			defer response_.Body.Close()
 
 			if tea.BoolValue(util.Is4xx(response_.StatusCode)) || tea.BoolValue(util.Is5xx(response_.StatusCode)) {
 				_err = tea.NewSDKError(map[string]interface{}{
 					"message": tea.StringValue(response_.StatusMessage),
-					"data":    tea.StringValue(objStr),
+					"data":    string(body),
 					"code":    tea.IntValue(response_.StatusCode),
 				})
 				return _result, _err
 			}
+			_err = json.Unmarshal(body, _result)
+			if _err != nil {
+				return _result, _err
+			}
 
-			obj := util.ParseJSON(objStr)
-			res := util.AssertAsMap(obj)
-			_result = make(map[string]interface{})
-			_err = tea.Convert(map[string]interface{}{
-				"body":    res,
-				"headers": response_.Headers,
-			}, &_result)
 			return _result, _err
 		}()
 		if !tea.BoolValue(tea.Retryable(_err)) {

@@ -1,15 +1,15 @@
 package eas
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
-	proto "github.com/golang/protobuf/proto"
 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/config"
 	"github.com/alibaba/pairec/v2/pkg/eas"
+	proto "github.com/golang/protobuf/proto"
 )
 
 type EasyrecRequest struct {
@@ -28,7 +28,7 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{}, 
 	if config.AppConfig.WarmUpData {
 		warmupFunc := func(data []byte) {
 			if file, err := os.OpenFile("warm_up.bin", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0664); err == nil {
-				file.WriteString(base64.StdEncoding.EncodeToString(data))
+				file.Write(data)
 				file.Close()
 			}
 		}
@@ -38,6 +38,19 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{}, 
 	body, err := r.EasClient.BytesPredict(data)
 	if err != nil {
 		return
+	}
+	if r.responseFuncName != "" && strings.HasPrefix(r.responseFuncName, "torchrec") {
+		responseData := &easyrec.TorchRecPBResponse{}
+		err = proto.Unmarshal(body, responseData)
+		if err != nil {
+			err = fmt.Errorf("error:%s, body:%s", err.Error(), string(body))
+			return
+		}
+
+		responseData.ItemIds = request.ItemIds
+		response = responseData
+		return
+
 	}
 	responseData := &easyrec.PBResponse{}
 	err = proto.Unmarshal(body, responseData)

@@ -92,10 +92,12 @@ func (fs *FilterService) Filter(filterData *FilterData, tag string) {
 
 		}
 
-		if len(filters) == 0 {
-			log.Error(fmt.Sprintf("Filters:not find, scene:%s", scene))
-			return
-		}
+		/*
+			if len(filters) == 0 {
+				log.Error(fmt.Sprintf("Filters:not find, scene:%s", scene))
+				return
+			}
+		*/
 
 	}
 
@@ -135,6 +137,8 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			f = NewDimensionFieldUniqueFilter(conf)
 		} else if conf.FilterType == "User2ItemExposureWithConditionFilter" {
 			f = NewUser2ItemExposureWithConditionFilter(conf)
+		} else if conf.FilterType == "ConditionFilter" {
+			f = NewConditionFilter(conf)
 		}
 
 		if f == nil {

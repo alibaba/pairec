@@ -50,6 +50,13 @@ func (t *Item) GetAlgoScores() map[string]float64 {
 	defer t.mutex.RUnlock()
 	return t.algoScores
 }
+func (t *Item) GetAlgoScoreWithNames(names []string) map[string]float64 {
+	ret := make(map[string]float64, len(names))
+	for _, n := range names {
+		ret[n] = t.algoScores[n]
+	}
+	return ret
+}
 func (t *Item) GetAlgoScore(key string) float64 {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
@@ -201,6 +208,22 @@ func (t *Item) FloatExprData(name string) (float64, error) {
 
 	return float64(0), fmt.Errorf("not found,name:%s", name)
 }
+func (t *Item) ExprData() map[string]any {
+	ret := make(map[string]any, len(t.algoScores)+len(t.Properties))
+
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	for k, v := range t.algoScores {
+		ret[k] = v
+	}
+
+	for k, v := range t.Properties {
+		ret[k] = v
+	}
+
+	return ret
+}
+
 func (t *Item) GetFeatures() map[string]interface{} {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
