@@ -32,7 +32,7 @@ import (
 type TrafficControlSort struct {
 	name               string
 	config             *recconf.PIDControllerConfig
-	exp2controllers    map[string]map[string]*PIDController
+	exp2controllers    map[string]map[string]*PIDController // key1: expId; key2: targetId
 	controllerLock     sync.RWMutex
 	db                 *sql.DB
 	feaMu              sync.RWMutex
@@ -127,8 +127,6 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 
 	go func() {
 		for {
-			// check for new control tasks and new control targets
-			// trafficControlSort.loadTrafficControlTask("")
 			for expId := range trafficControlSort.exp2controllers {
 				trafficControlSort.loadTrafficControlTask(expId)
 			}
@@ -151,6 +149,8 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		return nil
 	}
 
+	user := sortData.User
+
 	start := time.Now()
 	ctx := sortData.Context
 
@@ -170,11 +170,14 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 
 	sort.Sort(sort.Reverse(ItemScoreSlice(items)))
 	for i, item := range items {
-		item.AddProperty("__flow_control_id__", i+1)
+		item.AddProperty("__traffic_control_id__", i+1)
 		item.AddProperty("_ORIGIN_POSITION_", i+1)
 	}
 
-	controllerMap := p.getPidControllers(ctx)
+	controllerInfo := p.getPidControllers(ctx)
+
+	controllerMap := isControlUser(user, controllerInfo)
+
 	wholeCtrls, singleCtrls := splitController(controllerMap, ctx)
 	if len(wholeCtrls) == 0 && len(singleCtrls) == 0 {
 		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcount=%d\tNo traffic control task", len(items)))
@@ -200,6 +203,8 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		go microControl(singleCtrls, items, ctx, &wgLoad, &wgCtrl)
 	}
 	if len(wholeCtrls) > 0 {
+		data, _ := json.Marshal(items)
+		ctx.LogDebug(fmt.Sprintf("start macro control,controls:%v,items:%s", wholeCtrls, string(data)))
 		wgCtrl.Add(1)
 		go macroControl(wholeCtrls, items, ctx, &wgLoad, &wgCtrl)
 	}
@@ -567,15 +572,9 @@ func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PI
 
 	controllerMap := make(map[string]*PIDController)
 	for _, task := range tasks {
-		// load task item express conditions
-		itemCondition := task.ItemConditionArray
-		var conditions []*Expression
-		if itemCondition != "" {
-			err := json.Unmarshal([]byte(itemCondition), &conditions)
-			if err != nil {
-				p.context.LogError(fmt.Sprintf("module=TrafficControlSort\tUnmarshal '%s' failed. err=%v", itemCondition, err))
-				continue
-			}
+		taskUserCondition, err := ParseExpression(task.UserConditionArray, task.UserConditionExpress)
+		if err != nil {
+			p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s", task.UserConditionArray, task.UserConditionExpress))
 		}
 		for _, target := range task.TrafficControlTargets {
 			if target.Status == "Closed" {
@@ -587,31 +586,30 @@ func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PI
 			runWithZeroInput := strings.ToLower(run) == "true"
 
 			if oldControllerMap != nil {
-				if c, ok := oldControllerMap[target.TrafficControlTargetId]; ok {
+				if pidController, ok := oldControllerMap[target.TrafficControlTargetId]; ok {
 					// update meta info
-					c.task = &task
-					c.target = &target
-					controllerMap[target.TrafficControlTargetId] = c
-					if conditions != nil {
-						c.SetConditions(conditions)
-					}
+					pidController.task = &task
+					pidController.target = &target
+					controllerMap[target.TrafficControlTargetId] = pidController
 
-					c.GenerateItemConditions()
-					c.SetFreezeMinutes(freeze)
-					c.SetRunWithZeroInput(runWithZeroInput)
+					if len(taskUserCondition) != 0 {
+						pidController.SetUserConditions(taskUserCondition)
+					}
+					pidController.GenerateItemConditions()
+					pidController.SetFreezeMinutes(freeze)
+					pidController.SetRunWithZeroInput(runWithZeroInput)
 					continue
 				}
 			}
 
-			c := NewPIDController(&task, &target, p.config, expId)
-			if c != nil {
-				if conditions != nil {
-					c.SetConditions(conditions)
+			controller := NewPIDController(&task, &target, p.config, expId)
+			if controller != nil {
+				if len(taskUserCondition) != 0 {
+					controller.SetUserConditions(taskUserCondition)
 				}
-
-				c.SetFreezeMinutes(freeze)
-				c.SetRunWithZeroInput(runWithZeroInput)
-				controllerMap[target.TrafficControlTargetId] = c
+				controller.SetFreezeMinutes(freeze)
+				controller.SetRunWithZeroInput(runWithZeroInput)
+				controllerMap[target.TrafficControlTargetId] = controller
 			}
 		}
 	}
@@ -715,14 +713,14 @@ func splitController(controllers map[string]*PIDController, ctx *context.Recomme
 	if nil == controllers || len(controllers) == 0 {
 		return wholeCtrls, singleCtrls
 	}
-	for t, c := range controllers {
-		if !c.IsControlledTraffic(ctx) {
+	for targetId, controller := range controllers {
+		if !controller.IsControlledTraffic(ctx) {
 			continue
 		}
-		if c.task.ControlGranularity == "Single" {
-			singleCtrls[t] = c
+		if controller.task.ControlGranularity == "Single" {
+			singleCtrls[targetId] = controller
 		} else {
-			wholeCtrls[t] = c
+			wholeCtrls[targetId] = controller
 		}
 	}
 	return wholeCtrls, singleCtrls
@@ -742,10 +740,10 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 	ctx.LogInfo(fmt.Sprintf("module=PID_macro_control_signal\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
 
 	begin = time.Now()
-	itemScores := make([]float64, 0, len(items))
+	itemScores := make([]float64, len(items))
 	// 计算各个目标的偏好分的全局占比
 	totalScore := 0.0
-	maxScore := 0.0
+	maxScore := 0.0 // item 列表中的最大分
 	targetScore := make(map[string]float64)
 	for i, item := range items {
 		score := item.Score
@@ -893,7 +891,9 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 	// 获取流量实时统计值
 	runEnv := os.Getenv("PAIREC_ENVIRONMENT")
 	expId := ctx.ExperimentResult.GetExpId()
+	ctx.LogDebug(fmt.Sprintf("expId:%s", expId))
 	traffics := experimentClient.GetTrafficControlTargetTraffic(runEnv, scene, expId, "ER_ALL")
+	ctx.LogDebug(fmt.Sprintf("tarffic:%v", traffics))
 	allTrafficDict := make(map[string]experiments.TrafficControlTargetTraffic)
 	expTrafficDict := make(map[string]experiments.TrafficControlTargetTraffic)
 	for _, traffic := range traffics {
@@ -922,7 +922,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				}
 			}()
 			taskId := controller.task.TrafficControlTaskId
-			var traffic, taskTraffic, output, setValue float64
+			var targetTraffic, taskTraffic, output, setValue float64
 			var binId = ""
 			var dict map[string]experiments.TrafficControlTargetTraffic
 			if controller.task.ControlType == "Percent" {
@@ -933,46 +933,47 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 					dict = allTrafficDict
 				}
 				if input, ok := dict[targetId]; ok {
-					traffic = input.TargetTraffic
+					targetTraffic = input.TargetTraffic
 					taskTraffic = input.TaskTraffic
 				} else {
-					traffic = float64(0)
+					targetTraffic = float64(0)
 					taskTraffic = float64(1)
 				}
-				if controller.IsAllocateExpWise() && traffic < controller.GetMinExpTraffic() {
+				if controller.IsAllocateExpWise() && targetTraffic < controller.GetMinExpTraffic() {
 					// 用全局流量代替冷启动的实验流量
-					ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\texp=%s\ttraffic=%f change to global traffic", taskId, targetId, controller.target.Name, expId, traffic))
+					ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\texp=%s\ttargetTraffic=%f change to global targetTraffic", taskId, targetId, controller.target.Name, expId, targetTraffic))
 					binId = ""
 					if input, ok := allTrafficDict[targetId]; ok {
-						traffic = input.TargetTraffic
+						targetTraffic = input.TargetTraffic
 						taskTraffic = input.TaskTraffic
 					} else {
-						traffic = float64(0)
+						targetTraffic = float64(0)
 						taskTraffic = float64(1)
 					}
 				}
 
-				trafficPercentage := traffic / taskTraffic
+				trafficPercentage := targetTraffic / taskTraffic
 				output, setValue = controller.DoWithId(trafficPercentage, binId)
-				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, traffic, trafficPercentage, setValue, output, binId))
-				if traffic > 0 {
+				ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue, output, binId))
+				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue, output, binId))
+				if targetTraffic > 0 {
 					hasTraffic = true
 				}
 			} else {
 				if input, ok := allTrafficDict[targetId]; ok {
-					traffic = input.TargetTraffic
+					targetTraffic = input.TargetTraffic
 				} else {
-					traffic = float64(0)
+					targetTraffic = float64(0)
 				}
-				output, setValue = controller.Do(traffic)
-				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId%s>[targetName:%s]\ttraffic=%f,setValue=%f,output=%f", taskId, targetId, controller.target.Name, traffic, setValue, output))
-				if traffic > 0 {
+				output, setValue = controller.Do(targetTraffic)
+				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId%s>[targetName:%s]\ttargetTraffic=%f,setValue=%f,output=%f", taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
+				if targetTraffic > 0 {
 					hasTraffic = true
 				}
 			}
 			select {
 			case <-gCtx.Done():
-				ctx.LogWarning(fmt.Sprintf("traffic controller timeout in goruntine: <taskId:%s/targetId:%s>[targetName:%s]", taskId, targetId, controller.target.Name))
+				ctx.LogWarning(fmt.Sprintf("targetTraffic controller timeout in goruntine: <taskId:%s/targetId:%s>[targetName:%s]", taskId, targetId, controller.target.Name))
 				return
 			case retCh <- struct {
 				string
@@ -1106,12 +1107,12 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 					delta *= expTable[idx]
 				}
 				if pos > ctx.Size {
-					item.AddProperty("__flow_control_id__", 0)
+					item.AddProperty("__traffic_control_id__", 0)
 					ctrlId = 0
 				}
 			}
 			deltaRank += delta // 多个目标调控方向不一致时，需要扳手腕看谁力气大
-			ctx.LogDebug(fmt.Sprintf("item %s [%s/%s], origin pos=%d, traffic=%f, setValue=%f, percentage=%f,alpha=%f, delta rank=%f, ctrl_id=%d", item.Id, targetId, controller.target.Name, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
+			ctx.LogDebug(fmt.Sprintf("itemId:%s, [targetId:%s/targetName:%s], origin pos=%d, traffic=%f, setValue=%f, percentage=%f,alpha=%f, delta rank=%f, traffic_control_id=%d", item.Id, targetId, controller.target.Name, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
 		}
 
 		if deltaRank != 0.0 {
@@ -1147,27 +1148,98 @@ func computeDeltaRank(c *PIDController, item *module.Item, rank int, alpha float
 		ctx.LogDebug(fmt.Sprintf("item %s [%s/%s], score proportion=%.3f, rho=%.3f, origin pos=%d, delta rank=%f", item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, rho, rank+1, deltaRank))
 	} else { // uplift
 		deltaRank *= itemScore // item.Score 越大，提权越多；用来在不同提取目标间竞争
-
 		distinctStartPos := ctx.Size
 		if scoreWeight > args.keepCtrlIdScore && args.pageNo > 1 {
 			multiple := (scoreWeight - 0.3) * 10
 			distinctStartPos += int(multiple * float64(ctx.Size))
 		}
 		if rank > distinctStartPos {
-			needNewCtrlId := args.needNewCtrlId[c.target.TrafficControlTargetId] || c.target.SplitParts.SetValues[0] > int64(args.newCtrlIdThreshold)
+			needNewCtrlId := args.needNewCtrlId[c.target.TrafficControlTargetId] || c.target.SplitParts.SetValues[0]/100 > int64(args.newCtrlIdThreshold)
 			if c.task.ControlType == "Percent" && needNewCtrlId {
-				item.AddProperty("__flow_control_id__", c.target.TrafficControlTargetId)
+				item.AddProperty("__traffic_control_id__", c.target.TrafficControlTargetId) //改成负的
 			} else {
-				ctrlId, _ := item.IntProperty("__flow_control_id__")
-				if ctrlId > 0 { // 已经被别的controller置为负数时不再更新为0
-					item.AddProperty("__flow_control_id__", 0)
+				controlId, _ := item.IntProperty("__traffic_control_id__")
+				if controlId > 0 { // 已经被别的controller置为负数时不再更新为0
+					item.AddProperty("__traffic_control_id__", 0)
 				}
 			}
 		}
-		ctrlId, _ := item.IntProperty("__flow_control_id__")
-		ctx.LogDebug(fmt.Sprintf("item:%s\t[targetId:%s/targetName:%s], score proportion=%.3f,norm_score=%.3f, origin pos=%d, delta rank=%f, ctrl_id=%d", item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, itemScore, rank+1, deltaRank, ctrlId))
+		controlId, _ := item.IntProperty("__traffic_control_id__")
+		ctx.LogDebug(fmt.Sprintf("item:%s\t[targetId:%s/targetName:%s], score proportion=%.3f,norm_score=%.3f, origin pos=%d, delta rank=%f, traffic_control_id=%d", item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, itemScore, rank+1, deltaRank, controlId))
 	}
 	return deltaRank
+}
+
+func isControlUser(user *module.User, controllerMap map[string]*PIDController) map[string]*PIDController {
+	controllerNewMap := make(map[string]*PIDController)
+
+	for targetId, controller := range controllerMap {
+		userCondition := controller.userConditions
+
+		if len(userCondition) == 0 {
+			controllerNewMap[targetId] = controller
+			continue
+		}
+
+		isMatch := true
+		for _, condition := range userCondition {
+			field := condition.Field
+			op := condition.Option
+			value := condition.Value
+			v := user.GetProperty(field)
+			if v == nil {
+				isMatch = false
+				break
+			}
+			switch op {
+			case "=":
+				if utils.NotEqual(v, value) {
+					isMatch = false
+					break
+				}
+			case "==":
+				if utils.NotEqual(v, value) {
+					isMatch = false
+					break
+				}
+			case "!=":
+				if utils.Equal(v, value) {
+					isMatch = false
+					break
+				}
+			case ">":
+				if utils.LessEqual(v, value) {
+					isMatch = false
+					break
+				}
+			case ">=":
+				if utils.Less(v, value) {
+					isMatch = false
+					break
+				}
+			case "<":
+				if utils.GreaterEqual(v, value) {
+					isMatch = false
+					break
+				}
+			case "<=":
+				if utils.Greater(v, value) {
+					isMatch = false
+					break
+				}
+			case "in":
+				if !utils.In(v, value) {
+					isMatch = false
+					break
+				}
+			}
+		}
+
+		if isMatch {
+			controllerNewMap[targetId] = controller
+		}
+	}
+	return controllerNewMap
 }
 
 type ItemRankSlice []*module.Item

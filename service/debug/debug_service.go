@@ -304,6 +304,18 @@ func (d *DebugService) WriteRankLog(user *module.User, items []*module.Item, con
 	}
 }
 
+func (d *DebugService) WriteSortLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
+	if d.logFlag {
+		go d.doWriteSortLog(user, items, context)
+	}
+}
+
+func (d *DebugService) WriteRecommendLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
+	if d.logFlag {
+		go d.doWriteRecommendLog(user, items, context)
+	}
+}
+
 func (d *DebugService) doWriteRecallLog(user *module.User, items []*module.Item, context *context.RecommendContext, triggerMap map[module.ItemId]string) {
 	log := make(map[string]interface{})
 
@@ -441,4 +453,68 @@ func (d *DebugService) doWriteRankLog(user *module.User, items []*module.Item, c
 		itemLogInfos = itemLogInfos[:0]
 	}
 
+}
+
+func (d *DebugService) doWriteSortLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
+	log := make(map[string]interface{})
+
+	log["request_id"] = context.RecommendId
+	log["module"] = "sort"
+	log["scene_id"] = context.GetParameter("scene")
+	if context.ExperimentResult != nil {
+		log["exp_id"] = context.ExperimentResult.GetExpId()
+	}
+	log["request_time"] = d.requestTime
+	log["uid"] = string(user.Id)
+	var itemLogInfos []string
+	itemsMap := make(map[string][]*module.Item)
+	for _, item := range items {
+		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
+	}
+
+	for name, itemList := range itemsMap {
+		log["retrieveid"] = name
+		for _, item := range itemList {
+			if b, err := json.Marshal(item.CloneAlgoScores()); err == nil {
+				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f:%s", item.Id, item.Score, string(b)))
+			} else {
+				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f", item.Id, item.Score))
+			}
+		}
+		log["items"] = strings.Join(itemLogInfos, ",")
+		d.logOutputer.WriteLog(log)
+		itemLogInfos = itemLogInfos[:0]
+	}
+}
+
+func (d *DebugService) doWriteRecommendLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
+	log := make(map[string]interface{})
+
+	log["request_id"] = context.RecommendId
+	log["module"] = "recommend"
+	log["scene_id"] = context.GetParameter("scene")
+	if context.ExperimentResult != nil {
+		log["exp_id"] = context.ExperimentResult.GetExpId()
+	}
+	log["request_time"] = d.requestTime
+	log["uid"] = string(user.Id)
+	var itemLogInfos []string
+	itemsMap := make(map[string][]*module.Item)
+	for _, item := range items {
+		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
+	}
+
+	for name, itemList := range itemsMap {
+		log["retrieveid"] = name
+		for _, item := range itemList {
+			if b, err := json.Marshal(item.CloneAlgoScores()); err == nil {
+				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f:%s", item.Id, item.Score, string(b)))
+			} else {
+				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f", item.Id, item.Score))
+			}
+		}
+		log["items"] = strings.Join(itemLogInfos, ",")
+		d.logOutputer.WriteLog(log)
+		itemLogInfos = itemLogInfos[:0]
+	}
 }

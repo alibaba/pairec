@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/alibaba/pairec/v2/constants"
+	"github.com/expr-lang/expr/ast"
 	"math"
 	"os"
 	"reflect"
@@ -18,6 +19,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
+	"github.com/expr-lang/expr"
 )
 
 var itemStatusMap sync.Map          // for single granularity or experiment wisely task // key 是 itemId or exp id, value: pidStatus
@@ -41,8 +43,7 @@ type PIDController struct {
 	testTimestamp    int64         // set timestamp to this value to get task meta info of that time
 	allocateExpWise  bool          // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
 	minExpTraffic    float64       // the minimum traffic to activate the experimental control
-	conditions       []*Expression // the conditions of traffic to be allocated
-	matchConditions  []*Expression // the match conditions of context and item pair
+	userConditions   []*Expression // the conditions of user
 	itemConditions   []*Expression // the conditions of candidate items
 	startPageNum     int           // turn off pid controller when current pageNum < startPageNum
 	online           bool
@@ -131,8 +132,19 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		runWithZeroInput: true,
 		syncStatus:       conf.SyncPIDStatus,
 	}
+	if conf.DefaultKi == 0 {
+		controller.ki = 1.0
+	}
+
+	if conf.DefaultKd == 0 {
+		controller.kd = 1.0
+	}
+
+	if conf.DefaultKp == 0 {
+		controller.kp = 2.0
+	}
 	controller.GenerateItemConditions()
-	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\ttask:%s\ttarget:%s", expId, ToString(*controller.task, "targets"), ToString(*controller.target, "TargetTraffics", "PlanTraffic")))
+	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\ttask:%s\ttarget:%s", expId, ToString(*controller.task), ToString(*controller.target)))
 	return &controller
 }
 
@@ -192,11 +204,11 @@ func (p *PIDController) SetErrDiscount(decay float64) {
 	}
 }
 
-func (p *PIDController) SetConditions(conditions []*Expression) {
-	p.conditions = conditions
+func (p *PIDController) SetUserConditions(conditions []*Expression) {
+	p.userConditions = conditions
 	if len(conditions) > 0 {
 		conditionsData, _ := json.Marshal(conditions)
-		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set conditions=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, string(conditionsData)))
+		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set userConditions=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, string(conditionsData)))
 	}
 }
 
@@ -234,11 +246,11 @@ func (p *PIDController) DoWithId(targetValue float64, itemOrExpId string) (float
 	if targetValue == 0 && !p.runWithZeroInput {
 		return 0, 0
 	}
-	setValue, enabled := p.getSetValue()
+	setValue, enabled := p.getTargetSetValue()
 	if !enabled {
 		return 0, setValue
 	}
-	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed && targetValue >= setValue {
+	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed && targetValue >= (setValue/100) {
 		// 调控类型为"保量"，并且当前时刻目标已达成的情况下，直接返回0
 		return 0, setValue
 	}
@@ -246,10 +258,9 @@ func (p *PIDController) DoWithId(targetValue float64, itemOrExpId string) (float
 		// when current input is between `setValue` and `setValue+SetPointRange`, turn off controller
 		return 0, setValue
 	}
-
 	now := time.Now()
 	curTime := now.Unix()
-	var status = p.readStatus(itemOrExpId, curTime)
+	var status = p.readPIDStatus(itemOrExpId, curTime)
 	timeDiff := curTime - status.LastTime
 	// 时间差还在一个时间窗口内
 	if timeDiff < int64(p.timeWindow) && status.LastOutput != 0 {
@@ -264,7 +275,6 @@ func (p *PIDController) DoWithId(targetValue float64, itemOrExpId string) (float
 			return float64(status.LastOutput), setValue
 		}
 	}
-
 	if timeDiff < 1 {
 		timeDiff = 1
 	}
@@ -291,20 +301,27 @@ func (p *PIDController) DoWithId(targetValue float64, itemOrExpId string) (float
 	status.LastError = err
 	status.LastTime = curTime
 	if p.syncStatus {
-		go p.writeStatus(itemOrExpId) // 通过外部存储同步中间状态
+		go p.writePIDStatus(itemOrExpId) // 通过外部存储同步中间状态
 	}
 	return float64(output), setValue
 }
 
 // 获取被拆解的目标值
-func (p *PIDController) getSetValue() (float64, bool) {
-	endTime, _ := time.Parse("2006-01-02T15:04:05.00+08:00", p.target.EndTime)
-	startTime, _ := time.Parse("2006-01-02T15:04:05.00+08:00", p.target.StartTime)
+func (p *PIDController) getTargetSetValue() (float64, bool) {
+	endTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.EndTime)
+	startTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.StartTime)
 	if !endTime.After(startTime) {
+		log.Warning(fmt.Sprintf("module=PIDController\tinvalid target end time and start time, targetId:%s\tstartTime:%v\tendTime:%v", p.target.TrafficControlTargetId, startTime, endTime))
 		return 0, false
 	}
-	now := time.Now()
+	nowFormat := time.Now().UTC().Format("2006-01-02T15:04:05")
+	now, _ := time.Parse("2006-01-02T15:04:05", nowFormat)
 	if !now.After(startTime) {
+		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is before target start time, targetId:%s\tcurrentTime:%v\tstartTime:%v", p.target.TrafficControlTargetId, now, startTime))
+		return 0, false
+	}
+	if !now.Before(endTime) {
+		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is after target end time, targetId:%s\tcurrentTime:%v\tendTime:%v", p.target.TrafficControlTargetId, now, endTime))
 		return 0, false
 	}
 	loadTrafficControlTargetData(p.task.SceneName, p.testTimestamp)
@@ -315,11 +332,11 @@ func (p *PIDController) getSetValue() (float64, bool) {
 	}
 	n := len(p.target.SplitParts.SetValues)
 	if n == 0 {
-		log.Error(fmt.Sprintf("module=PIDController\tthe size of target set values array is 0: %v", p.target))
+		log.Error(fmt.Sprintf("module=PIDController\tthe size of target set values array is 0, targetId:%s", p.target.TrafficControlTargetId))
 		return p.target.Value, false
 	}
 	if len(p.target.SplitParts.TimePoints) != n {
-		log.Error(fmt.Sprintf("module=PIDController\tthe size of target time points array is not equal to the size of target set values array: %v", p.target))
+		log.Error(fmt.Sprintf("module=PIDController\tthe size of target time points array is not equal to the size of target set values array, targetId:%s", p.target.TrafficControlTargetId))
 		return p.target.Value, false
 	}
 	if p.task.ControlType == "Percent" {
@@ -377,7 +394,7 @@ func (p *PIDController) getSetValue() (float64, bool) {
 	}
 }
 
-func (p *PIDController) readStatus(itemOrExpId string, timestamp int64) *PIDStatus {
+func (p *PIDController) readPIDStatus(itemOrExpId string, timestamp int64) *PIDStatus {
 	var pidStatus *PIDStatus
 	if itemOrExpId == "" {
 		pidStatus = p.status
@@ -414,7 +431,7 @@ func (p *PIDController) readStatus(itemOrExpId string, timestamp int64) *PIDStat
 		status := value.([]byte)
 		pid := PIDStatus{}
 		if err := json.Unmarshal(status, &pid); err != nil {
-			log.Error(fmt.Sprintf("read PID status <%s/%s>[%s] key=%s failed. err=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
+			log.Error(fmt.Sprintf("module=PIDController\tread PID status <taskId:%s/targetId%s>[targetName:%s] key=%s failed. err=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
 		} else {
 			if pid.LastTime > pidStatus.LastTime {
 				pidStatus.LastTime = pid.LastTime
@@ -427,7 +444,7 @@ func (p *PIDController) readStatus(itemOrExpId string, timestamp int64) *PIDStat
 	return pidStatus
 }
 
-func (p *PIDController) writeStatus(itemOrExpId string) {
+func (p *PIDController) writePIDStatus(itemOrExpId string) {
 	cacheKey := p.cachePrefix + p.target.TrafficControlTargetId + "_" + itemOrExpId
 	var pidStatus *PIDStatus
 	if itemOrExpId == "" {
@@ -436,50 +453,60 @@ func (p *PIDController) writeStatus(itemOrExpId string) {
 		pidStatus = status.(*PIDStatus)
 	}
 	if pidStatus == nil {
-		log.Error(fmt.Sprintf("no PID status to be written, <taksId:%s/targetId:%s>[targetName:%s] key=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey))
+		log.Error(fmt.Sprintf("module=PIDController\tno PID status to be written, <taksId:%s/targetId:%s>[targetName:%s] key=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey))
 		return
 	}
 	data, err := json.Marshal(*pidStatus)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDControl\tMsg=PID status convert to string failed. err=%v", err))
+		log.Error(fmt.Sprintf("module=PIDControl\tPID status convert to string failed. err=%v", err))
 		return
 	}
 	err = p.cache.Put(cacheKey, data, p.cacheTime)
 	if err != nil {
-		log.Error(fmt.Sprintf("write PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s failed. err=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
+		log.Error(fmt.Sprintf("module=PIDController\twrite PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s failed. err=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
 	} else {
-		log.Info(fmt.Sprintf("write PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s, value=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, string(data)))
+		log.Info(fmt.Sprintf("module=PIDController\twrite PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s, value=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, string(data)))
 	}
 }
 
 func (p *PIDController) GenerateItemConditions() {
-	var targetExpressions []*Expression
-	err := json.Unmarshal([]byte(p.target.ItemConditionArray), &targetExpressions)
+	targetExpressions, err := ParseExpression(p.target.ItemConditionArray, p.target.ItemConditionExpress)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tUnmarshal ItemConditionArray '%s' failed. err=%v", p.target.ItemConditionArray, err))
+		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v", p.target.ItemConditionArray, p.target.ItemConditionExpress, err))
 		return
 	}
-	var taskExpressions []*Expression
-	err = json.Unmarshal([]byte(p.task.ItemConditionArray), &taskExpressions)
+	taskExpressions, err := ParseExpression(p.task.ItemConditionArray, p.target.ItemConditionExpress)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tUnmarshal ItemConditionArray '%s' failed. err=%v", p.task.UserConditionArray, err))
+		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v", p.task.UserConditionArray, p.task.UserConditionExpress, err))
 		return
 	}
-	targetExpressions = append(targetExpressions, taskExpressions...)
-	p.itemConditions = targetExpressions
+	if len(targetExpressions) != 0 {
+		p.itemConditions = append(p.itemConditions, targetExpressions...)
+	}
+	if len(taskExpressions) != 0 {
+		p.itemConditions = append(p.itemConditions, taskExpressions...)
+	}
+}
+
+func (p *PIDController) GetMinExpTraffic() float64 {
+	return p.minExpTraffic
 }
 
 func (p *PIDController) IsControlledItem(ctx *context.RecommendContext, item *module.Item) bool {
-	for _, expr := range p.itemConditions {
-		field := expr.Field
-		op := expr.Option
-		value := expr.Value
+	for _, condition := range p.itemConditions {
+		field := condition.Field
+		op := condition.Option
+		value := condition.Value
 		v := item.GetProperty(field)
 		if v == nil {
 			return false
 		}
 		switch op {
 		case "=":
+			if utils.NotEqual(v, value) {
+				return false
+			}
+		case "==":
 			if utils.NotEqual(v, value) {
 				return false
 			}
@@ -509,54 +536,6 @@ func (p *PIDController) IsControlledItem(ctx *context.RecommendContext, item *mo
 			}
 		}
 	}
-	return p.IsContextMatch(ctx, item)
-}
-
-func (p *PIDController) IsContextMatch(ctx *context.RecommendContext, item *module.Item) bool {
-	if p.matchConditions == nil || len(p.matchConditions) == 0 {
-		return true
-	}
-	for _, expr := range p.matchConditions {
-		value := ctx.GetParameterByPath(expr.Field)
-		if value == nil {
-			return true
-		}
-		itemField := expr.Value.(string)
-		v := item.GetProperty(itemField)
-		if v == nil {
-			return true
-		}
-		switch expr.Option {
-		case "=":
-			if utils.NotEqual(value, v) {
-				return false
-			}
-		case "!=":
-			if utils.Equal(value, v) {
-				return false
-			}
-		case ">":
-			if utils.LessEqual(value, v) {
-				return false
-			}
-		case ">=":
-			if utils.Less(value, v) {
-				return false
-			}
-		case "<":
-			if utils.GreaterEqual(value, v) {
-				return false
-			}
-		case "<=":
-			if utils.Greater(value, v) {
-				return false
-			}
-		case "in":
-			if !utils.In(value, v) {
-				return false
-			}
-		}
-	}
 	return true
 }
 
@@ -574,19 +553,19 @@ func (p *PIDController) IsControlledTraffic(ctx *context.RecommendContext) bool 
 	if pageNo < p.startPageNum {
 		return false
 	}
-	if p.conditions == nil || len(p.conditions) == 0 {
+	if p.userConditions == nil || len(p.userConditions) == 0 {
 		return true
 	}
 
-	for _, expr := range p.conditions {
-		value := ctx.GetParameterByPath(expr.Field)
+	for _, condition := range p.userConditions {
+		value := ctx.GetParameterByPath(condition.Field)
 		if value == nil {
-			if expr.Option == "!=" {
+			if condition.Option == "!=" {
 				return true
 			}
 			return false
 		}
-		targetValue := utils.ToString(expr.Value, "")
+		targetValue := utils.ToString(condition.Value, "")
 		if targetValue[0] == uint8('$') && utils.IsDateExpression(targetValue) {
 			if date, ok := utils.EvalDate(targetValue); ok {
 				targetValue = date
@@ -594,7 +573,7 @@ func (p *PIDController) IsControlledTraffic(ctx *context.RecommendContext) bool 
 				ctx.LogError("parse date failed: " + targetValue)
 			}
 		}
-		switch expr.Option {
+		switch condition.Option {
 		case "=":
 			if utils.NotEqual(value, targetValue) {
 				return false
@@ -620,7 +599,7 @@ func (p *PIDController) IsControlledTraffic(ctx *context.RecommendContext) bool 
 				return false
 			}
 		case "in":
-			if !utils.In(value, expr.Value) {
+			if !utils.In(value, condition.Value) {
 				return false
 			}
 		}
@@ -632,10 +611,6 @@ func (p *PIDController) SetMinExpTraffic(traffic float64) {
 	p.minExpTraffic = traffic
 }
 
-func (p *PIDController) GetMinExpTraffic() float64 {
-	return p.minExpTraffic
-}
-
 func (p *PIDController) SetFreezeMinutes(minutes int) {
 	if 0 < minutes && minutes < 1440 {
 		p.freezeMinutes = minutes
@@ -644,16 +619,8 @@ func (p *PIDController) SetFreezeMinutes(minutes int) {
 
 func (p *PIDController) SetRunWithZeroInput(run bool) {
 	if run != p.runWithZeroInput {
-		log.Info(fmt.Sprintf("PIDController <taskId:%s/targetId:%s>[targetName:%s] set runWithZeroInput=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, run))
+		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set runWithZeroInput=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, run))
 		p.runWithZeroInput = run
-	}
-}
-
-func (p *PIDController) SetMatchConditions(conditions []*Expression) {
-	p.matchConditions = conditions
-	if len(conditions) > 0 {
-		conditionsData, _ := json.Marshal(conditions)
-		log.Info(fmt.Sprintf("PIDController <taskId:%s/targetId:%s>[targetName:%s] set match conditions=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, string(conditionsData)))
 	}
 }
 
@@ -674,4 +641,47 @@ func ToString(task interface{}, excludes ...string) string {
 		return string(jsonStr)
 	}
 	return fmt.Sprintf("%v", fields)
+}
+
+func ParseExpression(conditionArray, conditionExpress string) ([]*Expression, error) {
+	expressions := make([]*Expression, 0)
+	if conditionArray != "" {
+		var conditions []*Expression
+		err := json.Unmarshal([]byte(conditionArray), &conditions)
+		if err != nil {
+			return expressions, err
+		}
+		expressions = append(expressions, conditions...)
+	}
+	if conditionExpress != "" {
+		program, err := expr.Compile(conditionExpress)
+		if err != nil {
+			return expressions, err
+		}
+		node := program.Node()
+
+		v := &visitor{variables: make(map[string]interface{}), Expression: make([]*Expression, 0)}
+
+		ast.Walk(&node, v)
+
+		expressions = append(expressions, v.Expression...)
+	}
+	return expressions, nil
+}
+
+type visitor struct {
+	variables  map[string]interface{}
+	Expression []*Expression
+}
+
+func (v *visitor) Visit(node *ast.Node) {
+	if bNode, ok := (*node).(*ast.BinaryNode); ok {
+		if bNode.Operator != "&&" && bNode.Operator != "||" {
+			expression := &Expression{}
+			expression.Option = bNode.Operator
+			expression.Field = bNode.Left.String()
+			expression.Value = bNode.Right.String()
+			v.Expression = append(v.Expression, expression)
+		}
+	}
 }
