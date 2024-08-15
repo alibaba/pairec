@@ -824,6 +824,7 @@ type DebugConfig struct {
 	// OutputType represent log write to console or datahub or file
 	OutputType  string
 	DatahubName string
+	KafKaName   string
 	FilePath    string
 	MaxFileNum  int
 }
