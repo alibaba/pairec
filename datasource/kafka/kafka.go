@@ -1,17 +1,17 @@
-package datasource
+package kafka
 
 import (
 	"context"
 	"fmt"
-	"strings"
-
-	kafka "github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/compress"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	kafka "github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/compress"
+	"strings"
 )
 
-type KafkaLog struct{}
+type KafkaLog struct {
+}
 
 func (l *KafkaLog) Errorf(msg string, args ...interface{}) {
 
@@ -33,6 +33,7 @@ func GetKafkaProducer(name string) (*KafkaProducer, error) {
 
 	return kafkaProducerInstances[name], nil
 }
+
 func NewKafkaProducer(bootstrapServers, topic string) *KafkaProducer {
 	p := &KafkaProducer{
 		BootstrapServers: bootstrapServers,
@@ -40,36 +41,53 @@ func NewKafkaProducer(bootstrapServers, topic string) *KafkaProducer {
 	}
 	return p
 }
+
 func (k *KafkaProducer) Init() error {
 	l := &KafkaLog{}
-	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:          strings.Split(k.BootstrapServers, ","),
-		Topic:            k.Topic,
-		Balancer:         kafka.CRC32Balancer{},
-		MaxAttempts:      3,
-		Async:            true,
-		BatchBytes:       1048576 * 4,
-		ErrorLogger:      kafka.LoggerFunc(l.Errorf),
-		CompressionCodec: compress.Snappy.Codec(),
-	})
-	k.Producer = w
+	w := kafka.Writer{
+		Addr:        kafka.TCP(strings.Split(k.BootstrapServers, ",")...),
+		Topic:       k.Topic,
+		Balancer:    kafka.CRC32Balancer{},
+		MaxAttempts: 3,
+		Async:       true,
+		BatchBytes:  1048576 * 4,
+		ErrorLogger: kafka.LoggerFunc(l.Errorf),
+		Compression: compress.Snappy,
+	}
+
+	k.Producer = &w
 	return nil
 }
 
-func (k *KafkaProducer) SendMessage(message string) {
+func (k *KafkaProducer) SendMessage(message []byte) {
 	err := k.Producer.WriteMessages(context.Background(),
 		kafka.Message{
-			Value: []byte(message),
+			Value: message,
 		})
+
 	if err != nil {
 		log.Error(fmt.Sprintf("error=kafka write message(%v)", err))
 	}
 }
+
+func (k *KafkaProducer) SendMessages(module []byte, message []byte) {
+	err := k.Producer.WriteMessages(context.Background(),
+		kafka.Message{
+			Key:   module,
+			Value: message,
+		})
+
+	if err != nil {
+		log.Error(fmt.Sprintf("error=kafka write message(%v)", err))
+	}
+}
+
 func (k *KafkaProducer) Close() {
 	if k.Producer != nil {
 		k.Producer.Close()
 	}
 }
+
 func Load(config *recconf.RecommendConfig) {
 	for name, conf := range config.KafkaConfs {
 		if _, ok := kafkaProducerInstances[name]; ok {
