@@ -485,3 +485,196 @@ func TestNotInFilterOp(t *testing.T) {
 	}
 
 }
+
+func TestNotEqualFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "not_equal",
+					Type:     "string",
+					Value:    "",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "not_equal",
+					Type:     "string",
+					Value:    "",
+				},
+			},
+			ItemProperties: map[string]interface{}{},
+			Expect:         true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "not_equal",
+					Type:     "string",
+					Value:    "42",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "not_equal",
+					Type:     "string",
+					Value:    "43",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
+		}
+
+	}
+
+}
+
+func TestIsNullFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "is_null",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "is_null",
+				},
+			},
+			ItemProperties: map[string]interface{}{},
+			Expect:         true,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
+		}
+
+	}
+
+}
+
+func TestIsNotNullFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "is_not_null",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "is_not_null",
+				},
+			},
+			ItemProperties: map[string]interface{}{},
+			Expect:         false,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
+		}
+
+	}
+
+}
