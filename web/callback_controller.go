@@ -11,7 +11,6 @@ import (
 
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
-	"github.com/alibaba/pairec/v2/log"
 	plog "github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -21,13 +20,14 @@ import (
 )
 
 type CallBackParam struct {
-	SceneId     string                   `json:"scene_id"`
-	RequestId   string                   `json:"request_id"`
-	Uid         string                   `json:"uid"`
-	Features    map[string]interface{}   `json:"features"`
-	ItemList    []map[string]interface{} `json:"item_list"`
-	RequestInfo map[string]interface{}   `json:"request_info"`
-	Debug       bool                     `json:"debug"`
+	SceneId             string                   `json:"scene_id"`
+	RequestId           string                   `json:"request_id"`
+	Uid                 string                   `json:"uid"`
+	Features            map[string]interface{}   `json:"features"`
+	ComplexTypeFeatures ComplexTypeFeatures      `json:"complex_type_features"`
+	ItemList            []map[string]interface{} `json:"item_list"`
+	RequestInfo         map[string]interface{}   `json:"request_info"`
+	Debug               bool                     `json:"debug"`
 }
 
 func (r *CallBackParam) GetParameter(name string) interface{} {
@@ -107,6 +107,15 @@ func (r *CallBackController) CheckParameter() error {
 
 	if len(r.param.ItemList) == 0 {
 		return errors.New("recommend item list not empty")
+	}
+
+	if len(r.param.ComplexTypeFeatures.FeaturesMap) > 0 {
+		if r.param.Features == nil {
+			r.param.Features = make(map[string]interface{})
+		}
+		for k, v := range r.param.ComplexTypeFeatures.FeaturesMap {
+			r.param.Features[k] = v
+		}
 	}
 	return nil
 }
@@ -275,6 +284,6 @@ func (c *CallBackController) makeCallBackContext() {
 	sceneId := c.param.SceneId + "_callback"
 	if abtest.GetExperimentClient() != nil {
 		c.context.ExperimentResult = abtest.GetExperimentClient().MatchExperiment(sceneId, &abcontext)
-		log.Info(c.context.ExperimentResult.Info())
+		plog.Info(c.context.ExperimentResult.Info())
 	}
 }
