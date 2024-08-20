@@ -9,12 +9,12 @@ import (
 
 	"github.com/alibaba/pairec/v2/datasource/graph"
 	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
+	"github.com/alibaba/pairec/v2/datasource/kafka"
 	"github.com/alibaba/pairec/v2/datasource/opensearch"
 
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/config"
-	"github.com/alibaba/pairec/v2/datasource"
 	"github.com/alibaba/pairec/v2/datasource/beengine"
 	"github.com/alibaba/pairec/v2/datasource/datahub"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine"
@@ -88,7 +88,7 @@ func runBeforeStart() {
 	redisdb.Load(recconf.Config)
 	tablestoredb.Load(recconf.Config)
 	sls.Load(recconf.Config)
-	datasource.Load(recconf.Config)
+	kafka.Load(recconf.Config)
 	datahub.Load(recconf.Config)
 	beengine.Load(recconf.Config)
 	graph.Load(recconf.Config)

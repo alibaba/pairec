@@ -238,6 +238,10 @@ func NewFilterParamWithConfig(configs []recconf.FilterParamConfig) *FilterParam 
 			p.operators = append(p.operators, NewContainsFilterOp(config))
 		} else if config.Operator == "not_contains" {
 			p.operators = append(p.operators, NewNotContainsFilterOp(config))
+		} else if config.Operator == "is_null" {
+			p.operators = append(p.operators, NewIsNullFilterOp(config))
+		} else if config.Operator == "is_not_null" {
+			p.operators = append(p.operators, NewIsNotNullFilterOp(config))
 		}
 	}
 
@@ -923,5 +927,71 @@ func (p *NotInFilterOp) NotInEvaluate(properties map[string]interface{}, userPro
 }
 
 func (p *NotInFilterOp) OpDomain() string {
+	return p.Domain
+}
+
+type IsNullFilterOp struct {
+	Name   string
+	Domain string
+}
+
+func NewIsNullFilterOp(config recconf.FilterParamConfig) *IsNullFilterOp {
+
+	isNullFilterOp := &IsNullFilterOp{
+		Name: config.Name,
+	}
+	if config.Domain == "" {
+		isNullFilterOp.Domain = ITEM
+	} else {
+		isNullFilterOp.Domain = config.Domain
+	}
+
+	return isNullFilterOp
+}
+
+func (p *IsNullFilterOp) Evaluate(properties map[string]interface{}) (bool, error) {
+
+	_, ok := properties[p.Name]
+	if !ok {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (p *IsNullFilterOp) OpDomain() string {
+	return p.Domain
+}
+
+type IsNotNullFilterOp struct {
+	Name   string
+	Domain string
+}
+
+func NewIsNotNullFilterOp(config recconf.FilterParamConfig) *IsNotNullFilterOp {
+
+	isNotNullFilterOp := &IsNotNullFilterOp{
+		Name: config.Name,
+	}
+	if config.Domain == "" {
+		isNotNullFilterOp.Domain = ITEM
+	} else {
+		isNotNullFilterOp.Domain = config.Domain
+	}
+
+	return isNotNullFilterOp
+}
+
+func (p *IsNotNullFilterOp) Evaluate(properties map[string]interface{}) (bool, error) {
+
+	_, ok := properties[p.Name]
+	if !ok {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (p *IsNotNullFilterOp) OpDomain() string {
 	return p.Domain
 }
