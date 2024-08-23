@@ -252,12 +252,7 @@ type AlgoConfig struct {
 }
 
 type PIDControllerConfig struct {
-	HologresName           string
-	HologresTableName      string
-	PrimaryKey             string
 	SyncPIDStatus          bool
-	LoadItemFeature        bool
-	PreloadItemFeature     bool
 	AllocateExperimentWise bool
 	MaxItemCacheSize       int
 	MaxItemCacheTime       int
@@ -267,7 +262,7 @@ type PIDControllerConfig struct {
 	DefaultKp              float32
 	DefaultKi              float32
 	DefaultKd              float32
-	TestTimestamp          int64
+	Timestamp              int64
 	BoostScoreConditions   []BoostScoreCondition
 }
 

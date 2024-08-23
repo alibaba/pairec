@@ -2,13 +2,11 @@ package sort
 
 import (
 	gocontext "context"
-	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/abtest"
-	"github.com/alibaba/pairec/v2/persist/holo"
-	"hash/crc32"
+	"github.com/alibaba/pairec/v2/constants"
 	"math"
 	"os"
 	"sort"
@@ -21,31 +19,21 @@ import (
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
-	"github.com/alibaba/pairec/v2/utils/sqlutil"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/experiments"
 	"github.com/goburrow/cache"
-	"github.com/huandu/go-sqlbuilder"
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/stat/sampleuv"
 )
 
 type TrafficControlSort struct {
-	name               string
-	config             *recconf.PIDControllerConfig
-	exp2controllers    map[string]map[string]*PIDController // key1: expId; key2: targetId
-	controllerLock     sync.RWMutex
-	db                 *sql.DB
-	feaMu              sync.RWMutex
-	feaStmtMap         map[string]map[int]*sql.Stmt
-	itemCache          cache.Cache
-	loadItemFeature    bool
-	preloadItemFeature bool
-	cloneInstances     map[string]*TrafficControlSort
-	boostScoreSort     *BoostScoreSort
-	hologresTableName  string
-	primaryKey         string
-
-	context *context.RecommendContext
+	name            string
+	config          *recconf.PIDControllerConfig
+	exp2controllers map[string]map[string]*PIDController // key1: expId; key2: targetId
+	controllerLock  sync.RWMutex
+	itemCache       cache.Cache
+	cloneInstances  map[string]*TrafficControlSort
+	boostScoreSort  *BoostScoreSort
+	context         *context.RecommendContext
 }
 
 var positionWeight []float64
@@ -85,16 +73,6 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 	}
 	conf := config.PIDConf
 
-	var db *sql.DB = nil
-	if conf.LoadItemFeature {
-		hologres, err := holo.GetPostgres(conf.HologresName)
-		if err != nil {
-			log.Error(fmt.Sprintf("module=TrafficControlSort\tget hologres error=%v, name=%s", err, conf.HologresName))
-			return nil
-		}
-		db = hologres.DB
-	}
-
 	maxCacheSize := 100000
 	if conf.MaxItemCacheSize > 0 {
 		maxCacheSize = conf.MaxItemCacheSize
@@ -104,17 +82,11 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 		minCacheTime = conf.MaxItemCacheTime
 	}
 	trafficControlSort := TrafficControlSort{
-		config:             &conf,
-		exp2controllers:    make(map[string]map[string]*PIDController),
-		db:                 db,
-		loadItemFeature:    conf.LoadItemFeature,
-		preloadItemFeature: conf.PreloadItemFeature,
-		feaStmtMap:         make(map[string]map[int]*sql.Stmt),
-		itemCache:          cache.New(cache.WithMaximumSize(maxCacheSize), cache.WithExpireAfterWrite(time.Duration(minCacheTime)*time.Second)),
-		name:               config.Name,
-		cloneInstances:     make(map[string]*TrafficControlSort),
-		hologresTableName:  conf.HologresTableName,
-		primaryKey:         conf.PrimaryKey,
+		config:          &conf,
+		exp2controllers: make(map[string]map[string]*PIDController),
+		itemCache:       cache.New(cache.WithMaximumSize(maxCacheSize), cache.WithExpireAfterWrite(time.Duration(minCacheTime)*time.Second)),
+		name:            config.Name,
+		cloneInstances:  make(map[string]*TrafficControlSort),
 	}
 
 	if len(conf.BoostScoreConditions) > 0 {
@@ -129,9 +101,6 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 		for {
 			for expId := range trafficControlSort.exp2controllers {
 				trafficControlSort.loadTrafficControlTask(expId)
-			}
-			if trafficControlSort.preloadItemFeature {
-				trafficControlSort.loadAllItemFeature()
 			}
 			time.Sleep(time.Minute) // 这里需要更新频繁一点，不然web页面上meta信息的修改不能及时反应出来
 		}
@@ -165,7 +134,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		if err != nil {
 			ctx.LogError(fmt.Sprintf("module=TrafficControlSort\terror=%v", err))
 		}
-		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\\BoostScoreSort\tcount=%d\tcost=%d", len(items), utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tBoostScoreSort\tcount=%d\tcost=%d", len(items), utils.CostTime(start)))
 	}
 
 	sort.Sort(sort.Reverse(ItemScoreSlice(items)))
@@ -191,22 +160,14 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		return nil
 	}
 
-	wgLoad := sync.WaitGroup{}
-	if p.loadItemFeature { // 如果需要，从holo加载item特征
-		wgLoad.Add(1)
-		go p.loadItemFeatures(items, ctx, &wgLoad)
-	}
-
 	wgCtrl := sync.WaitGroup{}
 	if len(singleCtrls) > 0 {
 		wgCtrl.Add(1)
-		go microControl(singleCtrls, items, ctx, &wgLoad, &wgCtrl)
+		go microControl(singleCtrls, items, ctx, &wgCtrl)
 	}
 	if len(wholeCtrls) > 0 {
-		data, _ := json.Marshal(items)
-		ctx.LogDebug(fmt.Sprintf("start macro control,controls:%v,items:%s", wholeCtrls, string(data)))
 		wgCtrl.Add(1)
-		go macroControl(wholeCtrls, items, ctx, &wgLoad, &wgCtrl)
+		go macroControl(wholeCtrls, items, ctx, &wgCtrl)
 	}
 	wgCtrl.Wait()
 
@@ -242,325 +203,13 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 	return nil
 }
 
-func (p *TrafficControlSort) loadAllItemFeature() {
-	fields := make([]string, 0)
-	for _, controllerMap := range p.exp2controllers {
-		for _, controller := range controllerMap {
-			itemTableMeta := controller.task.ItemTableMeta
-			for _, field := range itemTableMeta.Fields {
-				fields = append(fields, field.Name)
-			}
-
-			itemFields := getFilterFields(controller.task.ItemConditionArray)
-			fields = append(fields, itemFields...)
-
-			itemFields = getFilterFields(controller.target.ItemConditionArray)
-			fields = append(fields, itemFields...)
-		}
-	}
-	p.loadAllItemFeatureFromHolo(p.hologresTableName, p.primaryKey, fields)
-}
-
-func (p *TrafficControlSort) loadAllItemFeatureFromHolo(table string, idField string, fields []string) {
-	selectFields := utils.UniqueStrings(fields)
-	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
-	sb.Select(selectFields...)
-	sb.From(table)
-	sqlQuery, args := sb.Build()
-	p.context.LogDebug("module=TrafficControlSort\tfn=loadAllItemFeatureFromHolo\tquery:" + sqlQuery)
-
-	sort.Strings(selectFields)
-	cols := strings.Join(selectFields, ",")
-	hash := crc32.ChecksumIEEE([]byte(cols))
-	tableKey := fmt.Sprintf("%s_%d_%d", table, len(selectFields), hash)
-	numItems := 0
-
-	p.feaMu.RLock()
-	feaStmtMap := p.feaStmtMap[tableKey]
-	feaStmt := feaStmtMap[numItems]
-	p.feaMu.RUnlock()
-
-	if feaStmt == nil {
-		p.feaMu.Lock()
-		if feaStmtMap == nil {
-			feaStmtMap = p.feaStmtMap[tableKey]
-			if feaStmtMap == nil {
-				feaStmtMap = make(map[int]*sql.Stmt)
-				p.feaStmtMap[tableKey] = feaStmtMap
-			}
-		}
-		feaStmt = feaStmtMap[numItems]
-		if feaStmt == nil {
-			if stmt, err := p.db.Prepare(sqlQuery); err != nil {
-				p.context.LogError(fmt.Sprintf("model=TrafficControlSort\tenent=loadAllItemFeatureFromHolo\terr=%v", err))
-				p.feaMu.Unlock()
-				return
-			} else {
-				feaStmt = stmt
-				feaStmtMap[numItems] = stmt
-			}
-		}
-		p.feaMu.Unlock()
-	}
-
-	cntx, cancel := gocontext.WithTimeout(gocontext.Background(), 300*time.Millisecond)
-	defer cancel()
-	rows, err := feaStmt.QueryContext(cntx, args...)
-	if err != nil {
-		if errors.Is(err, gocontext.DeadlineExceeded) {
-			p.context.LogWarning("module=TrafficControlSort\tevent=loadAllItemFeatureFromHolo\ttimeout=200")
-			return
-		}
-		p.context.LogError(fmt.Sprintf("module=TrafficControlSort\terror=hologres error(%v)", err))
-		return
-	}
-	defer rows.Close()
-
-	columns, err := rows.ColumnTypes()
-	if err != nil {
-		p.context.LogError(fmt.Sprintf("module=TrafficControlSort\terror=hologres error(%v)", err))
-		return
-	}
-	values := sqlutil.ColumnValues(columns)
-
-	count := 0
-	for rows.Next() {
-		if err = rows.Scan(values...); err == nil {
-			features := make(map[string]interface{})
-			for i, column := range columns {
-				name := column.Name()
-				val := values[i]
-				switch v := val.(type) {
-				case *sql.NullString:
-					if v.Valid {
-						features[name] = v.String
-					}
-				case *sql.NullInt32:
-					if v.Valid {
-						features[name] = v.Int32
-					}
-				case *sql.NullInt64:
-					if v.Valid {
-						features[name] = v.Int64
-					}
-				case *sql.NullFloat64:
-					if v.Valid {
-						features[name] = v.Float64
-					}
-				case *sql.NullBool:
-					if v.Valid {
-						features[name] = v.Bool
-					}
-				case *sql.NullTime:
-					if v.Valid {
-						features[name] = v.Time
-					}
-				default:
-				}
-			}
-			if id, ok := features[idField]; ok {
-				delete(features, idField)
-				itemId := utils.ToString(id, "")
-				cacheKey := table + "_" + itemId
-				p.itemCache.Put(cacheKey, features)
-				count++
-			} else {
-				p.context.LogError(fmt.Sprintf("module=TrafficControlSort\tevent=loadAllItemFeatureFromHolo\tNo item id found"))
-			}
-		} else {
-			p.context.LogError(fmt.Sprintf("module=TrafficControlSort\terror=hologres error(%v)", err))
-		}
-	}
-	p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tevent=loadAllItemFeatureFromHolo\tload %d item feature from table %s", count, table))
-}
-
-func (p *TrafficControlSort) loadItemFeatures(items []*module.Item, ctx *context.RecommendContext, wg *sync.WaitGroup) {
-	defer wg.Done()
-	begin := time.Now()
-	defer func() {
-		p.context.LogInfo(fmt.Sprintf("module=PID_loadItemFeature\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
-	}()
-	if len(items) == 0 {
-		return
-	}
-	controllerMap := p.getPidControllers(ctx)
-	if controllerMap == nil || len(controllerMap) == 0 {
-		return
-	}
-
-	fields := make([]string, 0)
-	for _, controller := range controllerMap {
-
-		itemFields := getFilterFields(controller.task.ItemConditionArray)
-		fields = append(fields, itemFields...)
-
-		itemFields = getFilterFields(controller.target.ItemConditionArray)
-		fields = append(fields, itemFields...)
-	}
-	p.loadItemFeatureFromHolo(p.hologresTableName, p.primaryKey, fields, items, ctx)
-}
-
-func (p *TrafficControlSort) loadItemFeatureFromHolo(table string, idField string, fields []string, items []*module.Item, ctx *context.RecommendContext) {
-	itemIds := make([]interface{}, 0, len(items))
-	itemMap := make(map[string]*module.Item, len(items))
-	count := 0
-	for _, item := range items {
-		cacheKey := table + "_" + string(item.Id)
-		if attr, exist := p.itemCache.GetIfPresent(cacheKey); exist {
-			value := attr.(map[string]interface{})
-			if value != nil {
-				item.AddProperties(value)
-			}
-			count++
-		} else {
-			itemIds = append(itemIds, item.Id)
-			itemMap[string(item.Id)] = item
-		}
-	}
-	p.context.LogDebug(fmt.Sprintf("module=TrafficControlSort\tevent=loadItemFeatureFromHolo\tcache hit=%d", count))
-	if len(itemIds) == 0 || p.preloadItemFeature {
-		return
-	}
-
-	padNum := getPaddingSize(len(itemIds))
-	for i := 0; i < padNum; i++ {
-		itemIds = append(itemIds, "-1")
-	}
-
-	selectFields := utils.UniqueStrings(fields)
-	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
-	sb.Select(selectFields...)
-	sb.From(table)
-	sb.Where(sb.In(idField, itemIds...))
-	sqlQuery, args := sb.Build()
-	p.context.LogDebug(fmt.Sprintf("module=TrafficControlSort\tevnet=loadItemFeatureFromHolo\tquery:%s\targs:%v", sqlQuery, args))
-
-	sort.Strings(selectFields)
-	cols := strings.Join(selectFields, ",")
-	hash := crc32.ChecksumIEEE([]byte(cols))
-	tableKey := fmt.Sprintf("%s_%d_%d", table, len(selectFields), hash)
-	numItems := len(itemIds)
-
-	p.feaMu.RLock()
-	feaStmtMap := p.feaStmtMap[tableKey]
-	feaStmt := feaStmtMap[numItems]
-	p.feaMu.RUnlock()
-
-	if feaStmt == nil {
-		p.feaMu.Lock()
-		if feaStmtMap == nil {
-			feaStmtMap = p.feaStmtMap[tableKey]
-			if feaStmtMap == nil {
-				feaStmtMap = make(map[int]*sql.Stmt)
-				p.feaStmtMap[tableKey] = feaStmtMap
-			}
-		}
-		feaStmt = feaStmtMap[numItems]
-		if feaStmt == nil {
-			if stmt, err := p.db.Prepare(sqlQuery); err != nil {
-				p.context.LogError(fmt.Sprintf("model=TrafficControlSort\tevent=loadItemFeatureFromHolo\terr=%v", err))
-				p.feaMu.Unlock()
-				return
-			} else {
-				feaStmt = stmt
-				feaStmtMap[numItems] = stmt
-			}
-		}
-		p.feaMu.Unlock()
-	}
-
-	cntx, cancel := gocontext.WithTimeout(gocontext.Background(), 200*time.Millisecond)
-	defer cancel()
-	rows, err := feaStmt.QueryContext(cntx, args...)
-	if err != nil {
-		if errors.Is(err, gocontext.DeadlineExceeded) {
-			p.context.LogWarning("module=TrafficControlSort\tevent=loadItemFeatureFromHolo\ttimeout=200")
-			return
-		}
-		p.context.LogError(fmt.Sprintf("module=TrafficControlSort\terror=hologres error(%v)", err))
-		return
-	}
-	defer rows.Close()
-
-	columns, err := rows.ColumnTypes()
-	if err != nil {
-		p.context.LogError(fmt.Sprintf("module=TrafficControlSort\terror=hologres error(%v)", err))
-		return
-	}
-	values := sqlutil.ColumnValues(columns)
-
-	selected := make(map[string]bool, 0)
-	for rows.Next() {
-		if err = rows.Scan(values...); err == nil {
-			features := make(map[string]interface{})
-			for i, column := range columns {
-				name := column.Name()
-				val := values[i]
-				switch v := val.(type) {
-				case *sql.NullString:
-					if v.Valid {
-						features[name] = v.String
-					}
-				case *sql.NullInt32:
-					if v.Valid {
-						features[name] = v.Int32
-					}
-				case *sql.NullInt64:
-					if v.Valid {
-						features[name] = v.Int64
-					}
-				case *sql.NullFloat64:
-					if v.Valid {
-						features[name] = v.Float64
-					}
-				case *sql.NullBool:
-					if v.Valid {
-						features[name] = v.Bool
-					}
-				case *sql.NullTime:
-					if v.Valid {
-						features[name] = v.Time
-					}
-				default:
-				}
-			}
-			if id, ok := features[idField]; ok {
-				delete(features, idField)
-				itemId := utils.ToString(id, "")
-				cacheKey := table + "_" + itemId
-				p.itemCache.Put(cacheKey, features)
-				if item, okay := itemMap[itemId]; okay {
-					item.AddProperties(features)
-					selected[itemId] = true
-				} else {
-					p.context.LogError(fmt.Sprintf("module=TrafficControlSort\tInvalid item id: %s", itemId))
-				}
-			} else {
-				p.context.LogError(fmt.Sprintf("module=TrafficControlSort\tevent=loadItemFeatureFromHolo\tNo item id found"))
-			}
-		} else {
-			p.context.LogError(fmt.Sprintf("module=TrafficControlSort\terror=hologres error(%v)", err))
-		}
-	}
-
-	// add nil to cache, prevent to loading from holo again and again
-	var emptyMap map[string]interface{}
-	for id := range itemMap {
-		if _, ok := selected[id]; !ok {
-			cacheKey := table + "_" + id
-			p.itemCache.Put(cacheKey, emptyMap)
-		}
-	}
-	p.context.LogDebug(fmt.Sprintf("module=TrafficControlSort\tevent=loadItemFeatureFromHolo\tload %d item features", len(selected)))
-}
-
 func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PIDController {
 	// 调用 SDK 获取调控计划的元信息, 创建 FlowControllers
 	runEnv := os.Getenv("PAIREC_ENVIRONMENT")
-	timePoint := p.config.TestTimestamp
-	tasks := experimentClient.GetTrafficControlTaskMetaData(runEnv, timePoint)
+	timestamp := p.config.Timestamp
+	tasks := experimentClient.GetTrafficControlTaskMetaData(runEnv, timestamp)
 	if len(tasks) == 0 {
-		p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tNo Traffic Control Task.", timePoint))
+		p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tNo Traffic Control Task.", timestamp))
 		return nil
 	}
 	var oldControllerMap map[string]*PIDController
@@ -570,13 +219,14 @@ func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PI
 	}
 	p.controllerLock.RUnlock()
 
-	controllerMap := make(map[string]*PIDController)
-	for _, task := range tasks {
-		taskUserCondition, err := ParseExpression(task.UserConditionArray, task.UserConditionExpress)
+	controllerMap := make(map[string]*PIDController, 0)
+	for i, task := range tasks {
+		taskUserExpress, err := ParseExpression(task.UserConditionArray, task.UserConditionExpress)
 		if err != nil {
-			p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s", task.UserConditionArray, task.UserConditionExpress))
+			p.context.LogError(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s", task.UserConditionArray, task.UserConditionExpress))
 		}
-		for _, target := range task.TrafficControlTargets {
+		for _, value := range task.TrafficControlTargets {
+			target := value
 			if target.Status == "Closed" {
 				continue
 			}
@@ -586,26 +236,25 @@ func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PI
 			runWithZeroInput := strings.ToLower(run) == "true"
 
 			if oldControllerMap != nil {
-				if pidController, ok := oldControllerMap[target.TrafficControlTargetId]; ok {
+				pidController, ok := oldControllerMap[target.TrafficControlTargetId]
+				if ok {
 					// update meta info
-					pidController.task = &task
+					pidController.task = &tasks[i]
 					pidController.target = &target
 					controllerMap[target.TrafficControlTargetId] = pidController
-
-					if len(taskUserCondition) != 0 {
-						pidController.SetUserConditions(taskUserCondition)
+					if (taskUserExpress) != "" {
+						pidController.SetUserExpress(taskUserExpress)
 					}
-					pidController.GenerateItemConditions()
+					pidController.GenerateItemExpress()
 					pidController.SetFreezeMinutes(freeze)
 					pidController.SetRunWithZeroInput(runWithZeroInput)
 					continue
 				}
 			}
-
 			controller := NewPIDController(&task, &target, p.config, expId)
 			if controller != nil {
-				if len(taskUserCondition) != 0 {
-					controller.SetUserConditions(taskUserCondition)
+				if taskUserExpress != "" {
+					controller.SetUserExpress(taskUserExpress)
 				}
 				controller.SetFreezeMinutes(freeze)
 				controller.SetRunWithZeroInput(runWithZeroInput)
@@ -617,7 +266,7 @@ func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PI
 	p.controllerLock.Lock()
 	p.exp2controllers[expId] = controllerMap
 	p.controllerLock.Unlock()
-	p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tload %d Traffic Control Task for exp=%s.", timePoint, len(controllerMap), expId))
+	p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tload %d Traffic Control Task for exp=%s.", timestamp, len(controllerMap), expId))
 	return controllerMap
 }
 
@@ -630,7 +279,7 @@ func loadTargetItemTraffic(ctx *context.RecommendContext, items []*module.Item, 
 		return nil
 	}
 
-	itemIds := make([]string, 0, len(items))
+	itemIds := make([]string, len(items), len(items))
 	for i, item := range items {
 		itemIds[i] = string(item.Id)
 	}
@@ -717,7 +366,7 @@ func splitController(controllers map[string]*PIDController, ctx *context.Recomme
 		if !controller.IsControlledTraffic(ctx) {
 			continue
 		}
-		if controller.task.ControlGranularity == "Single" {
+		if controller.task.ControlGranularity == constants.TrafficControlTaskControlGranularitySingle {
 			singleCtrls[targetId] = controller
 		} else {
 			wholeCtrls[targetId] = controller
@@ -727,7 +376,7 @@ func splitController(controllers map[string]*PIDController, ctx *context.Recomme
 }
 
 // 宏观调控，针对目标整体
-func macroControl(controllerMap map[string]*PIDController, items []*module.Item, ctx *context.RecommendContext, wgLoad, wgCtrl *sync.WaitGroup) {
+func macroControl(controllerMap map[string]*PIDController, items []*module.Item, ctx *context.RecommendContext, wgCtrl *sync.WaitGroup) {
 	defer wgCtrl.Done()
 	begin := time.Now()
 	var planOutput map[string]float64
@@ -771,7 +420,7 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 		score *= posWeight
 		totalScore += score
 		for targetId, controller := range controllerMap {
-			if alpha, ok := planOutput[targetId]; ok && alpha != 0 && controller.IsControlledItem(ctx, item) {
+			if alpha, ok := planOutput[targetId]; ok && alpha != 0 && controller.IsControlledItem(item) {
 				targetScore[targetId] += score
 			}
 		}
@@ -799,8 +448,6 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 		}
 	}
 	ctx.LogInfo(fmt.Sprintf("module=PID_compute_uplift_score\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
-
-	wgLoad.Wait()
 
 	// compute delta rank
 	begin = time.Now()
@@ -853,7 +500,7 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 				i := b + idx
 				finalDeltaRank := 0.0
 				for t, c := range controllerMap {
-					if !c.IsControlledItem(ctx, item) {
+					if !c.IsControlledItem(item) {
 						continue
 					}
 					if alpha, ok := planOutput[t]; ok && alpha != 0 {
@@ -903,7 +550,6 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 			expTrafficDict[traffic.TrafficControlTargetId] = traffic
 		}
 	}
-
 	hasTraffic := false
 	retCh := make(chan struct {
 		string
@@ -925,7 +571,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 			var targetTraffic, taskTraffic, output, setValue float64
 			var binId = ""
 			var dict map[string]experiments.TrafficControlTargetTraffic
-			if controller.task.ControlType == "Percent" {
+			if controller.task.ControlType == constants.TrafficControlTaskControlTypePercent {
 				if controller.IsAllocateExpWise() {
 					dict = expTrafficDict
 					binId = expId
@@ -966,7 +612,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 					targetTraffic = float64(0)
 				}
 				output, setValue = controller.Do(targetTraffic)
-				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId%s>[targetName:%s]\ttargetTraffic=%f,setValue=%f,output=%f", taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
+				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,setValue=%f,output=%f", taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
 				if targetTraffic > 0 {
 					hasTraffic = true
 				}
@@ -1055,7 +701,7 @@ func SampleControlTargetsByScore(maxUpliftTargetCnt int, targetScore, alpha map[
 }
 
 // 微观调控，针对单个item
-func microControl(controllerMap map[string]*PIDController, items []*module.Item, ctx *context.RecommendContext, wgLoad, wgCtrl *sync.WaitGroup) {
+func microControl(controllerMap map[string]*PIDController, items []*module.Item, ctx *context.RecommendContext, wgCtrl *sync.WaitGroup) {
 	defer wgCtrl.Done()
 	begin := time.Now()
 	itemTargetTraffic := loadTargetItemTraffic(ctx, items, controllerMap) // key1: targetId, key2: itemId, value: traffic
@@ -1065,7 +711,6 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 	maxUpliftCnt := params.GetInt("pid_max_uplift_item_cnt", 5)
 	upliftCnt := 0
 
-	wgLoad.Wait()
 	begin = time.Now()
 	maxScore := 0.0
 	for i, item := range items {
@@ -1078,7 +723,7 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 		}
 		deltaRank := 0.0
 		for targetId, controller := range controllerMap {
-			if !controller.IsControlledItem(ctx, item) {
+			if !controller.IsControlledItem(item) {
 				continue
 			}
 
@@ -1174,68 +819,27 @@ func isControlUser(user *module.User, controllerMap map[string]*PIDController) m
 	controllerNewMap := make(map[string]*PIDController)
 
 	for targetId, controller := range controllerMap {
-		userCondition := controller.userConditions
+		userExpression := controller.userExpression
 
-		if len(userCondition) == 0 {
+		if userExpression == "" {
 			controllerNewMap[targetId] = controller
 			continue
 		}
 
-		isMatch := true
-		for _, condition := range userCondition {
-			field := condition.Field
-			op := condition.Option
-			value := condition.Value
-			v := user.GetProperty(field)
-			if v == nil {
-				isMatch = false
-				break
-			}
-			switch op {
-			case "=":
-				if utils.NotEqual(v, value) {
-					isMatch = false
-					break
-				}
-			case "==":
-				if utils.NotEqual(v, value) {
-					isMatch = false
-					break
-				}
-			case "!=":
-				if utils.Equal(v, value) {
-					isMatch = false
-					break
-				}
-			case ">":
-				if utils.LessEqual(v, value) {
-					isMatch = false
-					break
-				}
-			case ">=":
-				if utils.Less(v, value) {
-					isMatch = false
-					break
-				}
-			case "<":
-				if utils.GreaterEqual(v, value) {
-					isMatch = false
-					break
-				}
-			case "<=":
-				if utils.Greater(v, value) {
-					isMatch = false
-					break
-				}
-			case "in":
-				if !utils.In(v, value) {
-					isMatch = false
-					break
-				}
-			}
+		expression, err := govaluate.NewEvaluableExpression(userExpression)
+		if err != nil {
+			log.Error(fmt.Sprintf("module=PIDController\tgenerate user expression field, expression:%s, err:%v", userExpression, err))
+			return controllerNewMap
 		}
+		properties := user.Properties
 
-		if isMatch {
+		result, err := expression.Evaluate(properties)
+		if err != nil {
+			log.Error(fmt.Sprintf("module=PIDController\tcompute user expression field, err:%v", err))
+			return controllerNewMap
+		}
+		ok := ToBool(result, false)
+		if ok {
 			controllerNewMap[targetId] = controller
 		}
 	}
@@ -1264,35 +868,6 @@ func (us ItemRankSlice) Swap(i, j int) {
 	tmp := us[i]
 	us[i] = us[j]
 	us[j] = tmp
-}
-
-func getPaddingSize(n int) int {
-	var t = 32
-	for i := 5; i < n; i++ {
-		t = 1 << i
-		if t >= n {
-			break
-		}
-	}
-	return t - n
-}
-
-func getFilterFields(express string) []string {
-	fields := make([]string, 0)
-	if express == "" {
-		return fields
-	}
-	var conditions []*Expression
-	err := json.Unmarshal([]byte(express), &conditions)
-	if err != nil {
-		log.Error(fmt.Sprintf("module=TrafficControlSort\tUnmarshal '%s' failed. err=%v", express, err))
-		return nil
-	}
-
-	for _, expr := range conditions {
-		fields = append(fields, expr.Field)
-	}
-	return fields
 }
 
 func tanh(x float64) float64 {
