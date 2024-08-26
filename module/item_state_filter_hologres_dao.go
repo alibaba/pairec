@@ -9,12 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/alibaba/pairec/v2/utils/sqlutil"
+	"github.com/goburrow/cache"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 var (
@@ -30,6 +31,7 @@ type ItemStateFilterHologresDao struct {
 	filterParam   *FilterParam
 	mu            sync.RWMutex
 	stmtMap       map[int]*sql.Stmt
+	itmCache      cache.Cache
 }
 
 func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilterHologresDao {
@@ -46,10 +48,17 @@ func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilter
 		selectFields:  config.ItemStateDaoConf.SelectFields,
 		stmtMap:       make(map[int]*sql.Stmt),
 	}
+	if config.ItemStateCacheSize > 0 {
+		cacheTime := 3600
+		if config.ItemStateCacheTime > 0 {
+			cacheTime = config.ItemStateCacheTime
+		}
+		dao.itmCache = cache.New(cache.WithMaximumSize(config.ItemStateCacheSize),
+			cache.WithExpireAfterAccess(time.Second*time.Duration(cacheTime)))
+	}
 	if len(config.FilterParams) > 0 {
 		dao.filterParam = NewFilterParamWithConfig(config.FilterParams)
 	}
-
 	return dao
 }
 
@@ -64,10 +73,25 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)
 	requestCh := make(chan []interface{}, cpuCount)
 	maps := make(map[int][]interface{}, cpuCount)
-
+	itemMap := make(map[ItemId]*Item, len(items))
 	index := 0
 	for i, item := range items {
-		maps[index%cpuCount] = append(maps[index%cpuCount], string(item.Id))
+		itemId := string(item.Id)
+		if attrs, ok := d.itmCache.GetIfPresent(itemId); ok {
+			properties := attrs.(map[string]interface{})
+			item.AddProperties(properties)
+			if d.filterParam != nil {
+				result, err := d.filterParam.Evaluate(properties)
+				if err == nil && result {
+					fields[itemId] = true
+				}
+			} else {
+				fields[itemId] = true
+			}
+			continue
+		}
+		itemMap[item.Id] = item
+		maps[index%cpuCount] = append(maps[index%cpuCount], itemId)
 		if (i+1)%requestCount == 0 {
 			index++
 		}
@@ -247,7 +271,10 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 								}
 							}
 						}
-
+						d.itmCache.Put(id, properties)
+						if item, ok := itemMap[ItemId(id)]; ok {
+							item.AddProperties(properties)
+						}
 						if d.filterParam != nil {
 							result, err := d.filterParam.Evaluate(properties)
 							if err == nil && result == true {

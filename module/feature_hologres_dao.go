@@ -154,6 +154,8 @@ func (d *FeatureHologresDao) userFeatureFetch(user *User, context *context.Recom
 
 				if value := sqlutil.ParseColumnValues(values[i]); value != nil {
 					properties[name] = value
+				} else {
+					user.DeleteProperty(name)
 				}
 			}
 			if d.cacheFeaturesName != "" {
