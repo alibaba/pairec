@@ -12,7 +12,7 @@ import (
 func TestMultibizRecall(t *testing.T) {
 	config := recconf.BeConfig{
 		BeName:       "be",
-		BizName:      "common",
+		BizName:      "shihuo_common",
 		BeRecallType: "multi_merge_recall",
 		BeRecallParams: []recconf.BeRecallParam{
 			{
