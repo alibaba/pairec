@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 var filterMapping = make(map[string]IFilter)
@@ -92,10 +92,12 @@ func (fs *FilterService) Filter(filterData *FilterData, tag string) {
 
 		}
 
-		if len(filters) == 0 {
-			log.Error(fmt.Sprintf("Filters:not find, scene:%s", scene))
-			return
-		}
+		/*
+			if len(filters) == 0 {
+				log.Error(fmt.Sprintf("Filters:not find, scene:%s", scene))
+				return
+			}
+		*/
 
 	}
 
@@ -133,6 +135,10 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			f = NewGroupWeightCountFilter(conf)
 		} else if conf.FilterType == "DimensionFieldUniqueFilter" {
 			f = NewDimensionFieldUniqueFilter(conf)
+		} else if conf.FilterType == "User2ItemExposureWithConditionFilter" {
+			f = NewUser2ItemExposureWithConditionFilter(conf)
+		} else if conf.FilterType == "ConditionFilter" {
+			f = NewConditionFilter(conf)
 		}
 
 		if f == nil {
@@ -199,9 +205,10 @@ func GetFiltersBySceneName(sceneName string) ([]IFilter, bool) {
 }
 
 func filterInfoLog(filterData *FilterData, module string, count int, start time.Time) {
+	ctx := filterData.Context
 	if filterData.PipelineName != "" {
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=%s\tpipeline=%s\tcount=%d\tcost=%d", filterData.Context.RecommendId, module, filterData.PipelineName, count, utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterData.PipelineName, count, utils.CostTime(start)))
 	} else {
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=%s\tcount=%d\tcost=%d", filterData.Context.RecommendId, module, count, utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=%s\tcount=%d\tcost=%d", module, count, utils.CostTime(start)))
 	}
 }

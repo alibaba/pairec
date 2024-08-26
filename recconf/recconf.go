@@ -6,7 +6,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/alibaba/pairec/config"
+	"github.com/alibaba/pairec/v2/config"
 )
 
 var (
@@ -64,6 +64,7 @@ type RecommendConfig struct {
 	DatahubConfs              map[string]DatahubConfig
 	BEConfs                   map[string]BEConfig
 	Ha3EngineConfs            map[string]Ha3EngineConfig
+	OpenSearchConfs           map[string]OpenSearchConfig
 	HBaseConfs                map[string]HBaseConfig
 	HBaseThriftConfs          map[string]HBaseThriftConfig
 	TableStoreConfs           map[string]TableStoreConfig
@@ -72,6 +73,7 @@ type RecommendConfig struct {
 	LogConf                   LogConfig
 	ABTestConf                ABTestConfig
 	CallBackConfs             map[string]CallBackConfig
+	EmbeddingConfs            map[string]EmbeddingConfig
 	GeneralRankConfs          map[string]GeneralRankConfig
 	ColdStartGeneralRankConfs map[string]ColdStartGeneralRankConfig
 	ColdStartRankConfs        map[string]ColdStartRankConfig
@@ -115,6 +117,9 @@ type DaoConfig struct {
 	ColumnFamily        string
 	Qualifier           string
 
+	ItemIdField    string
+	ItemScoreField string
+
 	// hologres
 	HologresName      string
 	HologresTableName string
@@ -135,6 +140,7 @@ type DaoConfig struct {
 	FeatureStoreName       string
 	FeatureStoreModelName  string
 	FeatureStoreEntityName string
+	FeatureStoreViewName   string
 
 	// graph
 	GraphName  string
@@ -325,8 +331,9 @@ type RecallConfig struct {
 	UserFeatureConfs         []FeatureLoadConfig // get user features
 
 	// be recall config
-	BeConf    BeConfig
-	GraphConf GraphConf
+	BeConf         BeConfig
+	GraphConf      GraphConf
+	OpenSearchConf OpenSearchConf
 }
 
 type GraphConf struct {
@@ -334,6 +341,14 @@ type GraphConf struct {
 	ItemId      string
 	QueryString string
 	Params      []string
+}
+
+type OpenSearchConf struct {
+	OpenSearchName string
+	AppName        string
+	ItemId         string
+	RequestParams  map[string]any
+	Params         []string
 }
 
 type BeConfig struct {
@@ -418,8 +433,10 @@ type SqlDaoConfig struct {
 	SelectFields string
 }
 type RealTimeUser2ItemDaoConfig struct {
-	UserTriggerDaoConf UserTriggerDaoConfig
-	Item2ItemTable     string
+	UserTriggerDaoConf    UserTriggerDaoConfig
+	Item2ItemTable        string
+	SimilarItemIdField    string
+	SimilarItemScoreField string
 }
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig
@@ -528,9 +545,14 @@ type LindormConfig struct {
 	Database string
 }
 type FeatureStoreConfig struct {
-	Host        string
-	Token       string
-	ProjectName string
+	AccessId  string
+	AccessKey string
+	RegionId  string
+
+	ProjectName       string
+	FeatureDBUsername string
+	FeatureDBPassword string
+	HologresPort      int
 }
 type KafkaConfig struct {
 	BootstrapServers string
@@ -555,6 +577,11 @@ type Ha3EngineConfig struct {
 	Password   string
 	Endpoint   string
 	InstanceId string
+}
+type OpenSearchConfig struct {
+	EndPoint        string
+	AccessKeyId     string
+	AccessKeySecret string
 }
 type DatahubTopicSchema struct {
 	Field string
@@ -597,6 +624,7 @@ type RankConfig struct {
 	ContextFeatures []string
 	BatchCount      int
 	ScoreRewrite    map[string]string
+	ASTType         string
 }
 type ActionConfig struct {
 	ActionType string
@@ -644,6 +672,15 @@ type FilterConfig struct {
 	DiversityMinCount         int
 	EnsureDiversity           bool
 	FilterVal                 FilterValue
+	Conditions                []FilterParamConfig
+
+	ConditionFilterConfs struct {
+		FilterConfs []struct {
+			Conditions []FilterParamConfig
+			FilterName string
+		}
+		DefaultFilterName string
+	}
 }
 type BeFilterConfig struct {
 	FilterConfig
@@ -662,6 +699,7 @@ type SortConfig struct {
 	DiversitySize                 int
 	Size                          int
 	DPPConf                       DPPSortConfig
+	SSDConf                       SSDSortConfig
 	PIDConf                       PIDControllerConfig
 	MixSortRules                  []MixSortConfig
 	BoostScoreConditionsFilterAll bool
@@ -733,6 +771,10 @@ type CallBackConfig struct {
 	RawFeatures     bool
 	RawFeaturesRate int
 }
+type EmbeddingConfig struct {
+	DataSource DataSourceConfig
+	RankConf   RankConfig
+}
 type GeneralRankConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig
 	RankConf         RankConfig
@@ -772,11 +814,34 @@ type DPPSortConfig struct {
 	EmbeddingHookNames []string
 	NormalizeEmb       string
 	WindowSize         int
+	AbortRunCount	   int
+	CandidateCount     int
+	MinScorePercent    float64
 	EmbMissedThreshold float64
 	FilterRetrieveIds  []string
 	EnsurePositiveSim  string
 }
-
+type SSDSortConfig struct {
+	Name               string
+	DaoConf            DaoConfig
+	TableName          string
+	TableSuffixParam   string
+	TablePKey          string
+	EmbeddingColumn    string
+	EmbeddingSeparator string
+	Gamma              float64
+	UseSSDStar         bool
+	CacheTimeInMinutes int
+	NormalizeEmb       string
+	WindowSize         int
+	AbortRunCount	   int
+	CandidateCount     int
+	MinScorePercent    float64
+	EmbMissedThreshold float64
+	FilterRetrieveIds  []string
+	EnsurePositiveSim  string
+	Condition          *BoostScoreCondition
+}
 type DebugConfig struct {
 	Rate       int
 	DebugUsers []string
