@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/log"
 	"github.com/alibaba/pairec/persist/holo"
 	"github.com/alibaba/pairec/recconf"
 	"github.com/alibaba/pairec/utils"
 	"github.com/alibaba/pairec/utils/sqlutil"
-	"github.com/huandu/go-sqlbuilder"
 )
 
 var (
