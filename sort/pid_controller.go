@@ -173,6 +173,9 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string) (floa
 	if !enabled {
 		return 0, setValue
 	}
+	if setValue == 0 {
+		setValue = 0.5
+	}
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回0
 		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
