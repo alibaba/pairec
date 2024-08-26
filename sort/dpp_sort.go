@@ -10,16 +10,17 @@ import (
 	"strings"
 	"sync"
 	"time"
+	gosort "sort"
 
-	"github.com/alibaba/pairec/abtest"
-	"github.com/alibaba/pairec/context"
-	"github.com/alibaba/pairec/log"
-	"github.com/alibaba/pairec/module"
-	"github.com/alibaba/pairec/persist/holo"
-	"github.com/alibaba/pairec/recconf"
-	"github.com/alibaba/pairec/utils"
 	"github.com/goburrow/cache"
 	"github.com/huandu/go-sqlbuilder"
+	"github.com/alibaba/pairec/v2/abtest"
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/persist/holo"
+	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
@@ -112,11 +113,12 @@ func (s *DPPSort) Sort(sortData *SortData) error {
 	if len(candidates) == 0 {
 		return nil
 	}
+	ctx := sortData.Context
 	if s.abortRunCnt > 0 && len(candidates) <= s.abortRunCnt {
+		ctx.LogInfo(fmt.Sprintf("candidate cnt=%d, abort run cnt=%d", len(candidates), s.abortRunCnt))
 		return nil
 	}
-
-	ctx := sortData.Context
+	
 	params := ctx.ExperimentResult.GetExperimentParams()
 	names := params.Get("dpp_filter_retrieve_ids", nil)
 	filterRetrieveIds := make([]string, 0)
@@ -177,7 +179,7 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 	}
 
 	absentItemIds := make([]string, 0)
-	lenEmb := 0
+	embedSize := 0
 	lenAbsentItems := 0
 	itemMap := make(map[string]*module.Item)
 	for _, item := range items {
@@ -186,11 +188,13 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			itemMap[string(item.Id)] = item
 		} else {
 			item.Embedding = embI.([]float64)
-			lenEmb = len(embI.([]float64))
+			if embedSize == 0 {
+				embedSize = len(item.Embedding)
+			}
 		}
 	}
 	if len(absentItemIds) > 0 {
-		triggerItemIds := make([]interface{}, 0, len(items))
+		triggerItemIds := make([]interface{}, 0, len(absentItemIds))
 		for _, itemId := range absentItemIds {
 			triggerItemIds = append(triggerItemIds, interface{}(itemId))
 		}
@@ -202,9 +206,7 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 		builder.Where(builder.In(s.keyField, triggerItemIds...))
 
 		sqlQuery, args := builder.Build()
-		if ctx.Debug {
-			ctx.LogDebug("module=DPPSort\tsqlquery=" + sqlQuery)
-		}
+		ctx.LogDebug("module=DPPSort\tsqlquery=" + sqlQuery)
 		rows, err := s.db.Query(sqlQuery, args...)
 		if err != nil {
 			ctx.LogError(fmt.Sprintf("module=DPPSort\terror=%v", err))
@@ -221,7 +223,7 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 				continue
 			}
 			elements := strings.Split(strings.Trim(itemEmb.String, "{}"), s.embSeparator)
-			lenEmb = len(elements)
+			embedSize = len(elements)
 			vector := make([]float64, len(elements), len(elements)+1)
 			for i, e := range elements {
 				if val, err := strconv.ParseFloat(e, 64); err != nil {
@@ -250,8 +252,8 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			for id, item := range itemMap {
 				if len(item.Embedding) == 0 {
 					ctx.LogWarning(fmt.Sprintf("not find embedding of item id:%s", id))
-					item.Embedding = make([]float64, 0, lenEmb+1)
-					for i := 0; i < lenEmb; i++ {
+					item.Embedding = make([]float64, 0, embedSize+1)
+					for i := 0; i < embedSize; i++ {
 						item.Embedding = append(item.Embedding, rand.NormFloat64())
 					}
 					normV := floats.Norm(item.Embedding, 2)
@@ -262,9 +264,9 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 	}
 	if ctx.Debug {
 		ctx.LogDebug(fmt.Sprintf("ctx_size=%d \tlen_items=%d \tlen_absent_items=%d \tlen_emb=%d",
-			ctx.Size, len(items), lenAbsentItems, lenEmb))
+			ctx.Size, len(items), lenAbsentItems, embedSize))
 	}
-	return lenEmb, nil
+	return embedSize, nil
 }
 
 func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []*module.Item {
@@ -277,7 +279,7 @@ func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 	minScorePercent := params.GetFloat("dpp_min_score_percent", s.minScorePercent)
 
 	if (candidateCnt > 0 || minScorePercent > 0) && len(items) > ctx.Size {
-		//sort.Sort(sort.Reverse(ItemScoreSlice(items)))  // suppose already sorted
+		gosort.Sort(gosort.Reverse(ItemScoreSlice(items)))
 		if candidateCnt > 0 {
 			cnt := utils.MaxInt(ctx.Size, candidateCnt)
 			if cnt < len(items) {
@@ -319,7 +321,8 @@ func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 		}
 		slice := DPPWithWindow(kernelMatrix, ctx.Size, windowSize)
 		if ctx.Debug {
-			ctx.LogDebug(fmt.Sprintf("the length of dpp-return items is %d and the ctx.size is %d", len(slice), ctx.Size))
+			ctx.LogDebug(fmt.Sprintf("the length of dpp-return items is %d and the ctx.size is %d, window=%d",
+				len(slice), ctx.Size, windowSize))
 		}
 		retItems := make([]*module.Item, 0, ctx.Size)
 		for _, i := range slice {
@@ -378,11 +381,19 @@ func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*modul
 		relevanceScore[i] = item.Score
 	}
 	doNorm := params.GetInt("dpp_norm_relevance_score", 0)
-	if doNorm != 0 {
+	if doNorm == 1 {
 		mean, variance := stat.PopMeanVariance(relevanceScore, nil)
 		std := math.Sqrt(variance)
 		for i, x := range relevanceScore {
-			relevanceScore[i] = utils.Sigmoid(stat.StdScore(x, mean, std))
+			relevanceScore[i] = stat.StdScore(x, mean, std)
+		}
+	} else if doNorm == 2 {
+		maxScore := relevanceScore[0]
+		minScore := relevanceScore[len(items) - 1]
+		scoreSpan := maxScore - minScore
+		epsilon := 1e-6
+		for i, x := range relevanceScore {
+			relevanceScore[i] = ((x - minScore) / scoreSpan) * (1 - epsilon) + epsilon
 		}
 	}
 
