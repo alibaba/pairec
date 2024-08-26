@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	gosort "sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	gosort "sort"
 
-	"github.com/goburrow/cache"
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -21,6 +19,8 @@ import (
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/goburrow/cache"
+	"github.com/huandu/go-sqlbuilder"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
@@ -116,10 +116,12 @@ func (s *DPPSort) Sort(sortData *SortData) error {
 
 	ctx := sortData.Context
 	if s.abortRunCnt > 0 && len(candidates) <= s.abortRunCnt {
-		ctx.LogInfo(fmt.Sprintf("candidate cnt=%d, abort run cnt=%d", len(candidates), s.abortRunCnt))
+		gosort.Sort(gosort.Reverse(ItemScoreSlice(candidates)))
+		sortData.Data = candidates
+		ctx.LogInfo(fmt.Sprintf("module=DPPSort\tcandidate cnt=%d, abort run cnt=%d", len(candidates), s.abortRunCnt))
 		return nil
 	}
-	
+
 	params := ctx.ExperimentResult.GetExperimentParams()
 	names := params.Get("dpp_filter_retrieve_ids", nil)
 	filterRetrieveIds := make([]string, 0)
@@ -390,11 +392,11 @@ func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*modul
 		}
 	} else if doNorm == 2 {
 		maxScore := relevanceScore[0]
-		minScore := relevanceScore[len(items) - 1]
+		minScore := relevanceScore[len(items)-1]
 		scoreSpan := maxScore - minScore
 		epsilon := 1e-6
 		for i, x := range relevanceScore {
-			relevanceScore[i] = ((x - minScore) / scoreSpan) * (1 - epsilon) + epsilon
+			relevanceScore[i] = ((x-minScore)/scoreSpan)*(1-epsilon) + epsilon
 		}
 	}
 

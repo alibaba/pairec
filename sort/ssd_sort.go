@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
-	"github.com/alibaba/pairec/v2/log"
 	"github.com/goburrow/cache"
 	"github.com/huandu/go-sqlbuilder"
 	"gonum.org/v1/gonum/floats"
@@ -46,7 +46,7 @@ type SSDSort struct {
 	embMissThreshold     float64
 	filterRetrieveIds    []string
 	ensurePosSimilarity  bool
-	condition     		 *BoostScoreCondition
+	condition            *BoostScoreCondition
 }
 
 func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
@@ -66,7 +66,7 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 		embeddingField:       config.EmbeddingColumn,
 		embSeparator:         config.EmbeddingSeparator,
 		gamma:                0.25,
-		useSSDStar: 		  config.UseSSDStar,
+		useSSDStar:           config.UseSSDStar,
 		embCache:             cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(cacheTime*time.Minute)),
 		lastTableSuffixParam: "",
 		normalizeEmb:         true,
@@ -104,7 +104,6 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 			ssd.condition = condition
 		}
 	}
-	log.Info(fmt.Sprintln("NewSSDSort %v", ssd))
 	return &ssd
 }
 
