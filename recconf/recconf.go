@@ -325,8 +325,8 @@ type RecallConfig struct {
 	UserFeatureConfs         []FeatureLoadConfig // get user features
 
 	// be recall config
-	BeConf         BeConfig
-	GraphConf      GraphConf
+	BeConf    BeConfig
+	GraphConf GraphConf
 }
 
 type GraphConf struct {
@@ -418,8 +418,8 @@ type SqlDaoConfig struct {
 	SelectFields string
 }
 type RealTimeUser2ItemDaoConfig struct {
-	UserTriggerDaoConf    UserTriggerDaoConfig
-	Item2ItemTable        string
+	UserTriggerDaoConf UserTriggerDaoConfig
+	Item2ItemTable     string
 }
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig
