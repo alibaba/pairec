@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	gosort "sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/goburrow/cache"
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -20,6 +19,8 @@ import (
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/goburrow/cache"
+	"github.com/huandu/go-sqlbuilder"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
@@ -40,6 +41,9 @@ type DPPSort struct {
 	embeddingHookNames   []string
 	normalizeEmb         bool
 	windowSize           int
+	abortRunCnt          int
+	candidateCnt         int
+	minScorePercent      float64
 	embMissThreshold     float64
 	filterRetrieveIds    []string
 	ensurePosSimilarity  bool
@@ -75,6 +79,9 @@ func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 		embeddingHookNames:   config.EmbeddingHookNames,
 		normalizeEmb:         true,
 		windowSize:           config.WindowSize,
+		abortRunCnt:          config.AbortRunCount,
+		candidateCnt:         config.CandidateCount,
+		minScorePercent:      config.MinScorePercent,
 		embMissThreshold:     0.5,
 		filterRetrieveIds:    config.FilterRetrieveIds,
 		ensurePosSimilarity:  true,
@@ -108,7 +115,14 @@ func (s *DPPSort) Sort(sortData *SortData) error {
 	}
 
 	ctx := sortData.Context
-	params := ctx.ExperimentResult.GetLayerParams("sort")
+	if s.abortRunCnt > 0 && len(candidates) <= s.abortRunCnt {
+		gosort.Sort(gosort.Reverse(ItemScoreSlice(candidates)))
+		sortData.Data = candidates
+		ctx.LogInfo(fmt.Sprintf("module=DPPSort\tcandidate cnt=%d, abort run cnt=%d", len(candidates), s.abortRunCnt))
+		return nil
+	}
+
+	params := ctx.ExperimentResult.GetExperimentParams()
 	names := params.Get("dpp_filter_retrieve_ids", nil)
 	filterRetrieveIds := make([]string, 0)
 	if names != nil {
@@ -156,7 +170,8 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 	client := abtest.GetExperimentClient()
 	tableSuffix := ""
 	if s.suffixParam != "" && client != nil {
-		tableSuffix = client.GetSceneParams("pairec").GetString(s.suffixParam, "")
+		scene, _ := ctx.GetParameter("scene").(string)
+		tableSuffix = client.GetSceneParams(scene).GetString(s.suffixParam, "")
 	}
 	if tableSuffix != s.lastTableSuffixParam {
 		s.mu.Lock()
@@ -167,8 +182,8 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 		s.mu.Unlock()
 	}
 
-	absentItemIds := make([]string, 0)
-	lenEmb := 0
+	absentItemIds := make([]interface{}, 0)
+	embedSize := 0
 	lenAbsentItems := 0
 	itemMap := make(map[string]*module.Item)
 	for _, item := range items {
@@ -177,25 +192,20 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			itemMap[string(item.Id)] = item
 		} else {
 			item.Embedding = embI.([]float64)
-			lenEmb = len(embI.([]float64))
+			if embedSize == 0 {
+				embedSize = len(item.Embedding)
+			}
 		}
 	}
 	if len(absentItemIds) > 0 {
-		triggerItemIds := make([]interface{}, 0, len(items))
-		for _, itemId := range absentItemIds {
-			triggerItemIds = append(triggerItemIds, interface{}(itemId))
-		}
-
 		table := s.tableName + tableSuffix
 		builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 		builder.Select(s.keyField, s.embeddingField)
 		builder.From(table)
-		builder.Where(builder.In(s.keyField, triggerItemIds...))
+		builder.Where(builder.In(s.keyField, absentItemIds...))
 
 		sqlQuery, args := builder.Build()
-		if ctx.Debug {
-			ctx.LogDebug("module=DPPSort\tsqlquery=" + sqlQuery)
-		}
+		ctx.LogDebug("module=DPPSort\tsqlquery=" + sqlQuery)
 		rows, err := s.db.Query(sqlQuery, args...)
 		if err != nil {
 			ctx.LogError(fmt.Sprintf("module=DPPSort\terror=%v", err))
@@ -212,7 +222,7 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 				continue
 			}
 			elements := strings.Split(strings.Trim(itemEmb.String, "{}"), s.embSeparator)
-			lenEmb = len(elements)
+			embedSize = len(elements)
 			vector := make([]float64, len(elements), len(elements)+1)
 			for i, e := range elements {
 				if val, err := strconv.ParseFloat(e, 64); err != nil {
@@ -241,8 +251,8 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			for id, item := range itemMap {
 				if len(item.Embedding) == 0 {
 					ctx.LogWarning(fmt.Sprintf("not find embedding of item id:%s", id))
-					item.Embedding = make([]float64, 0, lenEmb+1)
-					for i := 0; i < lenEmb; i++ {
+					item.Embedding = make([]float64, 0, embedSize+1)
+					for i := 0; i < embedSize; i++ {
 						item.Embedding = append(item.Embedding, rand.NormFloat64())
 					}
 					normV := floats.Norm(item.Embedding, 2)
@@ -253,17 +263,41 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 	}
 	if ctx.Debug {
 		ctx.LogDebug(fmt.Sprintf("ctx_size=%d \tlen_items=%d \tlen_absent_items=%d \tlen_emb=%d",
-			ctx.Size, len(items), lenAbsentItems, lenEmb))
+			ctx.Size, len(items), lenAbsentItems, embedSize))
 	}
-	return lenEmb, nil
+	return embedSize, nil
 }
 
 func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []*module.Item {
 	if len(items) == 0 {
 		return make([]*module.Item, 0)
 	}
-	params := ctx.ExperimentResult.GetLayerParams("sort")
+	params := ctx.ExperimentResult.GetExperimentParams()
 	windowSize := params.GetInt("dpp_window_size", s.windowSize)
+	candidateCnt := params.GetInt("dpp_candidate_count", s.candidateCnt)
+	minScorePercent := params.GetFloat("dpp_min_score_percent", s.minScorePercent)
+
+	if (candidateCnt > 0 || minScorePercent > 0) && len(items) > ctx.Size {
+		gosort.Sort(gosort.Reverse(ItemScoreSlice(items)))
+		if candidateCnt > 0 {
+			cnt := utils.MaxInt(ctx.Size, candidateCnt)
+			if cnt < len(items) {
+				items = items[:cnt]
+			}
+		}
+		if minScorePercent > 0 && len(items) > ctx.Size {
+			idx := ctx.Size
+			maxScore := items[0].Score
+			for ; idx < len(items); idx++ {
+				percent := items[idx].Score / maxScore
+				if percent < minScorePercent {
+					break
+				}
+			}
+			items = items[:idx]
+		}
+		ctx.LogInfo(fmt.Sprintf("module=DPPSort\tcandidate count=%d", len(items)))
+	}
 
 	if len(s.tableName) > 0 {
 		lenEmb, err := s.loadEmbeddingCache(ctx, items)
@@ -286,7 +320,8 @@ func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 		}
 		slice := DPPWithWindow(kernelMatrix, ctx.Size, windowSize)
 		if ctx.Debug {
-			ctx.LogDebug(fmt.Sprintf("the length of dpp-return items is %d and the ctx.size is %d", len(slice), ctx.Size))
+			ctx.LogDebug(fmt.Sprintf("the length of dpp-return items is %d and the ctx.size is %d, window=%d",
+				len(slice), ctx.Size, windowSize))
 		}
 		retItems := make([]*module.Item, 0, ctx.Size)
 		for _, i := range slice {
@@ -335,7 +370,7 @@ func (s *DPPSort) GenerateEmbedding(context *context.RecommendContext, item *mod
 }
 
 func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*module.Item, lenEmb int, hasTable bool) (*mat.Dense, error) {
-	params := context.ExperimentResult.GetLayerParams("sort")
+	params := context.ExperimentResult.GetExperimentParams()
 	alpha := params.GetFloat("dpp_alpha", s.alpha)
 	context.LogDebug(fmt.Sprintf("dpp alpha: %f", alpha))
 
@@ -344,10 +379,21 @@ func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*modul
 	for i, item := range items {
 		relevanceScore[i] = item.Score
 	}
-	mean, variance := stat.PopMeanVariance(relevanceScore, nil)
-	std := math.Sqrt(variance)
-	for i, x := range relevanceScore {
-		relevanceScore[i] = utils.Sigmoid(stat.StdScore(x, mean, std))
+	doNorm := params.GetInt("dpp_norm_relevance_score", 0)
+	if doNorm == 1 {
+		mean, variance := stat.PopMeanVariance(relevanceScore, nil)
+		std := math.Sqrt(variance)
+		for i, x := range relevanceScore {
+			relevanceScore[i] = stat.StdScore(x, mean, std)
+		}
+	} else if doNorm == 2 {
+		maxScore := relevanceScore[0]
+		minScore := relevanceScore[len(items)-1]
+		scoreSpan := maxScore - minScore
+		epsilon := 1e-6
+		for i, x := range relevanceScore {
+			relevanceScore[i] = ((x-minScore)/scoreSpan)*(1-epsilon) + epsilon
+		}
 	}
 
 	itemSize := len(items)

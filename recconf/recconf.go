@@ -672,6 +672,8 @@ type FilterConfig struct {
 	DiversityMinCount         int
 	EnsureDiversity           bool
 	FilterVal                 FilterValue
+	ItemStateCacheSize        int
+	ItemStateCacheTime        int
 	Conditions                []FilterParamConfig
 
 	ConditionFilterConfs struct {
@@ -699,6 +701,7 @@ type SortConfig struct {
 	DiversitySize                 int
 	Size                          int
 	DPPConf                       DPPSortConfig
+	SSDConf                       SSDSortConfig
 	PIDConf                       PIDControllerConfig
 	MixSortRules                  []MixSortConfig
 	BoostScoreConditionsFilterAll bool
@@ -813,11 +816,34 @@ type DPPSortConfig struct {
 	EmbeddingHookNames []string
 	NormalizeEmb       string
 	WindowSize         int
+	AbortRunCount      int
+	CandidateCount     int
+	MinScorePercent    float64
 	EmbMissedThreshold float64
 	FilterRetrieveIds  []string
 	EnsurePositiveSim  string
 }
-
+type SSDSortConfig struct {
+	Name               string
+	DaoConf            DaoConfig
+	TableName          string
+	TableSuffixParam   string
+	TablePKey          string
+	EmbeddingColumn    string
+	EmbeddingSeparator string
+	Gamma              float64
+	UseSSDStar         bool
+	CacheTimeInMinutes int
+	NormalizeEmb       string
+	WindowSize         int
+	AbortRunCount      int
+	CandidateCount     int
+	MinScorePercent    float64
+	EmbMissedThreshold float64
+	FilterRetrieveIds  []string
+	EnsurePositiveSim  string
+	Condition          *BoostScoreCondition
+}
 type DebugConfig struct {
 	Rate       int
 	DebugUsers []string

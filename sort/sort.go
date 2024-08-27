@@ -171,6 +171,8 @@ func RegisterSortWithConfig(config *recconf.RecommendConfig) {
 		var s ISort
 		if conf.SortType == "DPPSort" {
 			s = NewDPPSort(conf.DPPConf)
+		} else if conf.SortType == "SSDSort" {
+			s = NewSSDSort(conf.SSDConf)
 		} else if conf.SortType == "MultiRecallMixSort" {
 			s = NewMultiRecallMixSort(conf)
 		} else if conf.SortType == "BoostScoreSort" {
