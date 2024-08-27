@@ -144,6 +144,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	if metrics.Enabled() {
 		metrics.SortDurSecs.WithLabelValues(scene, expId).Observe(time.Since(sortStart).Seconds())
 	}
+	debugService.WriteSortLog(user, items, context)
 
 	size := context.Size
 	if size > len(items) {
@@ -156,7 +157,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	}
 
 	items = items[:size]
-
+	debugService.WriteRecommendLog(user, items, context)
 	// asynchronous clean hook func
 	for _, hf := range hook.RecommendCleanHooks {
 		go hf(context, user, items)

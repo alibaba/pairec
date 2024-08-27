@@ -42,10 +42,11 @@ require (
 require (
 	github.com/alibabacloud-go/opensearch-util v1.0.1
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.1
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.5
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.6-0.20240807035329-fb3d6a13f75d
 	github.com/aliyun/credentials-go v1.3.1
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
+	github.com/expr-lang/expr v1.16.9
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
 )
@@ -58,7 +59,7 @@ require (
 	github.com/alibabacloud-go/paifeaturestore-20230621/v3 v3.1.4 // indirect
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.5 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
-	github.com/aliyun/alibaba-cloud-sdk-go v1.62.698 // indirect
+	github.com/aliyun/alibaba-cloud-sdk-go v1.62.787 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
@@ -78,7 +79,7 @@ require (
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/xinsnake/go-http-digest-auth-client v0.6.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
-	gopkg.in/ini.v1 v1.66.2 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
 )
