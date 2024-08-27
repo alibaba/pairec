@@ -181,7 +181,8 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 	client := abtest.GetExperimentClient()
 	tableSuffix := ""
 	if s.suffixParam != "" && client != nil {
-		tableSuffix = client.GetSceneParams("pairec").GetString(s.suffixParam, "")
+		scene, _ := ctx.GetParameter("scene").(string)
+		tableSuffix = client.GetSceneParams(scene).GetString(s.suffixParam, "")
 	}
 	if tableSuffix != s.lastTableSuffixParam {
 		s.mu.Lock()
@@ -192,7 +193,7 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 		s.mu.Unlock()
 	}
 
-	absentItemIds := make([]string, 0)
+	absentItemIds := make([]interface{}, 0)
 	embedSize := 0
 	lenAbsentItems := 0
 	itemMap := make(map[string]*module.Item)
@@ -208,16 +209,11 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 		}
 	}
 	if len(absentItemIds) > 0 {
-		triggerItemIds := make([]interface{}, 0, len(absentItemIds))
-		for _, itemId := range absentItemIds {
-			triggerItemIds = append(triggerItemIds, interface{}(itemId))
-		}
-
 		table := s.tableName + tableSuffix
 		builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 		builder.Select(s.keyField, s.embeddingField)
 		builder.From(table)
-		builder.Where(builder.In(s.keyField, triggerItemIds...))
+		builder.Where(builder.In(s.keyField, absentItemIds...))
 
 		sqlQuery, args := builder.Build()
 		ctx.LogDebug("module=SSDSort\tsqlquery=" + sqlQuery)

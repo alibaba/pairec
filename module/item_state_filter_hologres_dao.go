@@ -77,18 +77,20 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 	index := 0
 	for i, item := range items {
 		itemId := string(item.Id)
-		if attrs, ok := d.itmCache.GetIfPresent(itemId); ok {
-			properties := attrs.(map[string]interface{})
-			item.AddProperties(properties)
-			if d.filterParam != nil {
-				result, err := d.filterParam.Evaluate(properties)
-				if err == nil && result {
+		if d.itmCache != nil {
+			if attrs, ok := d.itmCache.GetIfPresent(itemId); ok {
+				properties := attrs.(map[string]interface{})
+				item.AddProperties(properties)
+				if d.filterParam != nil {
+					result, err := d.filterParam.Evaluate(properties)
+					if err == nil && result {
+						fields[itemId] = true
+					}
+				} else {
 					fields[itemId] = true
 				}
-			} else {
-				fields[itemId] = true
+				continue
 			}
-			continue
 		}
 		itemMap[item.Id] = item
 		maps[index%cpuCount] = append(maps[index%cpuCount], itemId)
@@ -271,7 +273,9 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 								}
 							}
 						}
-						d.itmCache.Put(id, properties)
+						if d.itmCache != nil {
+							d.itmCache.Put(id, properties)
+						}
 						if item, ok := itemMap[ItemId(id)]; ok {
 							item.AddProperties(properties)
 						}
