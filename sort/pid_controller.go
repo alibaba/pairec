@@ -255,7 +255,7 @@ func (p *PIDController) getTargetSetValue() (float64, bool) {
 		log.Warning(fmt.Sprintf("module=PIDController\tinvalid target end time and start time, targetId:%s\tstartTime:%v\tendTime:%v", p.target.TrafficControlTargetId, startTime, endTime))
 		return 0, false
 	}
-	now := time.Now()
+	now := time.Now().UTC().Add(time.Hour * 8)
 	if now.Unix() < startTime.Unix() {
 		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is before target start time, targetId:%s\tcurrentTime:%v\tstartTime:%v", p.target.TrafficControlTargetId, now, startTime))
 		return 0, false

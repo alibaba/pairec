@@ -99,7 +99,15 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 
 	go func() {
 		for {
-			for expId := range trafficControlSort.exp2controllers {
+			tmpExpControllers := make(map[string]map[string]*PIDController)
+
+			trafficControlSort.controllerLock.RLock()
+			for expId, controllers := range trafficControlSort.exp2controllers {
+				tmpExpControllers[expId] = controllers
+			}
+			trafficControlSort.controllerLock.RUnlock()
+
+			for expId := range tmpExpControllers {
 				trafficControlSort.loadTrafficControlTask(expId)
 			}
 			time.Sleep(time.Minute) // 这里需要更新频繁一点，不然web页面上meta信息的修改不能及时反应出来
@@ -285,7 +293,7 @@ func loadTargetItemTraffic(ctx *context.RecommendContext, items []*module.Item, 
 	}
 
 	targetIdMap := make(map[string]bool)
-	for targetId, _ := range controllerMap {
+	for targetId := range controllerMap {
 		targetIdMap[targetId] = true
 	}
 
@@ -468,7 +476,7 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 		newCtrlIdThreshold: params.GetFloat("pid_new_id_target_threshold", 1.0),
 		needNewCtrlId:      make(map[string]bool),
 	}
-	for targetId, _ := range controllerMap {
+	for targetId := range controllerMap {
 		newCtrlId := utils.GetExperimentParamByPath(params, fmt.Sprintf("pid_params.%s.new_ctrl_id", targetId), false)
 		ctrlParams.needNewCtrlId[targetId] = newCtrlId.(bool)
 	}
