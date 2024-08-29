@@ -1,7 +1,7 @@
 # pairec
 A Go web framework for quickly building recommendation online services based on JSON configuration.
 
-[中文技术文档](http://pai-vision-data-hz.oss-cn-zhangjiakou.aliyuncs.com/pairec/docs/pairec/html/index.html)
+[中文技术文档](https://help.aliyun.com/zh/airec/basic-introduction-1?spm=a2c4g.11186623.0.0.3a8c3672NtpB9B)
 
 ## Install
 ```bash
@@ -10,9 +10,9 @@ go get github.com/alibaba/pairec/v2
 
 ## Quick Start
 
-You can use [pairecmd](http://pai-vision-data-hz.oss-cn-zhangjiakou.aliyuncs.com/pairec/docs/pairec/html/intro/quickstart.html) to quickly create project and start service .
+You can use [pairecmd](https://help.aliyun.com/zh/airec/quickly-create-projects?spm=a2c4g.11186623.0.0.4aca340cgsOHu4) to quickly create project and start service .
 
-From [here](http://pai-vision-data-hz.oss-cn-zhangjiakou.aliyuncs.com/pairec/docs/pairec/html/config/overview.html), you can find a lot of useful configuration information.
+From [here](https://help.aliyun.com/zh/airec/engine-configuration-doc/?spm=a2c4g.11186623.0.0.5d353672En0nlQ), you can find a lot of useful configuration information.
 
 PAIREC  comes with a variety of built-in model functionalities, making it easy and fast to build recommendation services.
 
