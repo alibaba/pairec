@@ -55,6 +55,8 @@ func (s *FeatureConsistencyJobService) checkFeatureConsistencyJobForRunning(job 
 			name := urls[1]
 			if name == job.EasModelServiceName {
 				easModelAlgoNames = append(easModelAlgoNames, algoConfig.Name)
+				user.AddProperty("_algo_", algoConfig.Name)
+				break
 			}
 		}
 
