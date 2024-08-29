@@ -205,6 +205,10 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			item.Embedding = embI.([]float64)
 			if embedSize == 0 {
 				embedSize = len(item.Embedding)
+			} else if embedSize != len(item.Embedding) {
+				ctx.LogError(fmt.Sprintf("module=SSDSort\titem %s embedding size do not match, got %d, expect %d",
+					item.Id, len(item.Embedding), embedSize))
+				return errors.New("item embedding size do not match")
 			}
 		}
 	}
@@ -233,7 +237,6 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 				continue
 			}
 			elements := strings.Split(strings.Trim(itemEmb.String, "{}"), s.embSeparator)
-			embedSize = len(elements)
 			vector := make([]float64, len(elements), len(elements)+1)
 			for i, e := range elements {
 				if val, err := strconv.ParseFloat(e, 64); err != nil {
@@ -249,6 +252,13 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			if s.ensurePosSimilarity {
 				vector = append(vector, 1)
 			}
+			if embedSize == 0 {
+				embedSize = len(vector)
+			} else if embedSize != len(vector) {
+				ctx.LogError(fmt.Sprintf("module=SSDSort\titem %s embedding size do not match, got %d, expect %d",
+					itemID.String, len(vector), embedSize))
+				return errors.New("item embedding size do not match")
+			}
 			s.embCache.Put(itemID.String, vector)
 			if item, ok := itemMap[itemID.String]; ok {
 				item.Embedding = vector
@@ -262,18 +272,18 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			return errors.New("the number of items missing embedding is above threshold")
 		}
 		if lenAbsentItems > 0 {
+			if embedSize == 0 {
+				return errors.New("no embedding detected")
+			}
 			for id, item := range itemMap {
 				if len(item.Embedding) == 0 {
 					ctx.LogWarning(fmt.Sprintf("not find embedding of item id:%s", id))
-					item.Embedding = make([]float64, 0, embedSize+1)
+					item.Embedding = make([]float64, 0, embedSize)
 					for i := 0; i < embedSize; i++ {
 						item.Embedding = append(item.Embedding, rand.NormFloat64())
 					}
 					normV := floats.Norm(item.Embedding, 2)
 					floats.Scale(1/normV, item.Embedding)
-					if s.ensurePosSimilarity {
-						item.Embedding = append(item.Embedding, 1)
-					}
 				}
 			}
 		}
@@ -289,10 +299,10 @@ func (s *SSDSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 	if len(items) == 0 {
 		return items
 	}
+	gosort.Sort(gosort.Reverse(ItemScoreSlice(items)))
 	params := ctx.ExperimentResult.GetExperimentParams()
 	gamma := params.GetFloat("ssd_gamma", s.gamma)
 	if gamma == 0 {
-		gosort.Sort(gosort.Reverse(ItemScoreSlice(items)))
 		ctx.LogDebug("ssd gamma=0, skip")
 		return items
 	}
@@ -300,7 +310,6 @@ func (s *SSDSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 	minScorePercent := params.GetFloat("ssd_min_score_percent", s.minScorePercent)
 
 	if (candidateCnt > 0 || minScorePercent > 0) && len(items) > ctx.Size {
-		gosort.Sort(gosort.Reverse(ItemScoreSlice(items)))
 		if candidateCnt > 0 {
 			cnt := utils.MaxInt(ctx.Size, candidateCnt)
 			if cnt < len(items) {
@@ -335,6 +344,12 @@ func (s *SSDSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 
 // SSDWithSlidingWindow paper: https://arxiv.org/pdf/2107.05204
 func (s *SSDSort) SSDWithSlidingWindow(items []*module.Item, ctx *context.RecommendContext) []*module.Item {
+	defer func() {
+		if r := recover(); r != nil {
+			ctx.LogError(fmt.Sprintf("Recovered from panic in SSDWithSlidingWindow: %v", r))
+		}
+	}()
+
 	params := ctx.ExperimentResult.GetExperimentParams()
 	gamma := params.GetFloat("ssd_gamma", s.gamma)
 	windowSize := params.GetInt("ssd_window_size", s.windowSize)
