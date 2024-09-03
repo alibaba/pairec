@@ -43,6 +43,8 @@ github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8
 github.com/aliyun/aliyun-log-go-sdk v0.1.27/go.mod h1:aBG0R+MWRTgvlIODQkz+a3/RM9bQYKsmSbKdbIx4vpc=
 github.com/aliyun/aliyun-pai-featurestore-go-sdk v1.0.1 h1:ixjLzFx370vfo4xlx5uc/7Dqdp5cWXs2gYcJhQpkAIY=
 github.com/aliyun/aliyun-pai-featurestore-go-sdk v1.0.1/go.mod h1:iBkKRJXR9SOZ8r90iJ9RSrWDvs/DzSBp6RMsnHgIK3s=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk v1.0.2 h1:DNkNh+/DKgKl0VVFkuXRbrjlRJ7GC9QuEC9bkELqgZc=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk v1.0.2/go.mod h1:iBkKRJXR9SOZ8r90iJ9RSrWDvs/DzSBp6RMsnHgIK3s=
 github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.0 h1:XSZezgBx7Bi5tQV20HV0Vlx66QalKik9FG/zYPrVgig=
 github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.0/go.mod h1:32h+JXvT4lpPvkNACNzDFD7mwma348mUMPHLzQMolII=
 github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.2 h1:zZXFxsvRfz8xhA9oigo7bHCrua4YFM/aIDr4+xGTJvE=

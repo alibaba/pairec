@@ -68,7 +68,7 @@ require (
 
 require (
 	github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68 // indirect
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk v1.0.1
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk v1.0.2
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antihax/optional v1.0.0 // indirect
 	github.com/apache/thrift v0.14.1
