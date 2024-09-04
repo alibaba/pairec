@@ -366,6 +366,10 @@ func (s *SSDSort) SSDWithSlidingWindow(items []*module.Item, ctx *context.Recomm
 	doNorm := params.GetInt("ssd_norm_quality_score", 0)
 	if doNorm == 1 {
 		mean, variance := stat.PopMeanVariance(relevanceScore, nil)
+		if mean == 0 || variance == 0 { // 模型出错时分数都是0
+			ctx.LogError("module=SSDSort\tall item score are zeros")
+			return items
+		}
 		std := math.Sqrt(variance)
 		for i, x := range relevanceScore {
 			relevanceScore[i] = stat.StdScore(x, mean, std)
@@ -375,6 +379,10 @@ func (s *SSDSort) SSDWithSlidingWindow(items []*module.Item, ctx *context.Recomm
 		maxScore := relevanceScore[0]
 		minScore := relevanceScore[len(items)-1]
 		scoreSpan := maxScore - minScore
+		if scoreSpan == 0 { // 模型出错时分数都是0
+			ctx.LogError("module=SSDSort\tall item score are zeros")
+			return items
+		}
 		epsilon := 1e-6
 		for i, x := range relevanceScore {
 			relevanceScore[i] = ((x-minScore)/scoreSpan)*(1-epsilon) + epsilon
