@@ -382,6 +382,10 @@ func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*modul
 	doNorm := params.GetInt("dpp_norm_relevance_score", 0)
 	if doNorm == 1 {
 		mean, variance := stat.PopMeanVariance(relevanceScore, nil)
+		if mean == 0 || variance == 0 { // 模型出错时分数都是0
+			context.LogError("module=DDPSort\tall item score is zero")
+			return nil, errors.New("all item score is zero")
+		}
 		std := math.Sqrt(variance)
 		for i, x := range relevanceScore {
 			relevanceScore[i] = stat.StdScore(x, mean, std)
@@ -390,6 +394,10 @@ func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*modul
 		maxScore := relevanceScore[0]
 		minScore := relevanceScore[len(items)-1]
 		scoreSpan := maxScore - minScore
+		if scoreSpan == 0 { // 模型出错时分数都是0
+			context.LogError("module=DDPSort\tall item score is zero")
+			return nil, errors.New("all item score is zero")
+		}
 		epsilon := 1e-6
 		for i, x := range relevanceScore {
 			relevanceScore[i] = ((x-minScore)/scoreSpan)*(1-epsilon) + epsilon
