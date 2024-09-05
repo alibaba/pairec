@@ -3,6 +3,7 @@ package module
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/alibaba/pairec/context"
 	"github.com/alibaba/pairec/log"
@@ -125,14 +126,42 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 
 		fk = comms[1]
 	}
+
+	var wg sync.WaitGroup
+
+	batchSize := 200
+	for start := 0; start < len(items); start += batchSize {
+		wg.Add(1)
+		if start+batchSize >= len(items) {
+			go func(start, end int) {
+				defer wg.Done()
+				d.doItemsFeatureFetch(fk, items[start:end], context)
+
+			}(start, len(items))
+		} else {
+			go func(start, end int) {
+				defer wg.Done()
+				d.doItemsFeatureFetch(fk, items[start:end], context)
+
+			}(start, start+batchSize)
+		}
+
+	}
+	wg.Wait()
+}
+
+func (d *FeatureFeatureStoreDao) doItemsFeatureFetch(featureKey string, items []*Item, context *context.RecommendContext) {
+	if len(items) == 0 {
+		return
+	}
 	var keys []interface{}
 	key2Item := make(map[string]*Item, len(items))
 	for _, item := range items {
 		var key string
-		if fk == "item:id" {
+		if featureKey == "item:id" {
 			key = string(item.Id)
 		} else {
-			key = item.StringProperty(fk)
+			key = item.StringProperty(featureKey)
 		}
 		keys = append(keys, key)
 		key2Item[key] = item
@@ -164,5 +193,4 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 			}
 		}
 	}
-
 }
