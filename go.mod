@@ -41,12 +41,11 @@ require (
 
 require (
 	github.com/alibabacloud-go/opensearch-util v1.0.1
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.1
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.3
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.7
 	github.com/aliyun/credentials-go v1.3.1
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
-	github.com/expr-lang/expr v1.16.9
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
 )
