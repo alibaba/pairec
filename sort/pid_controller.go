@@ -453,7 +453,7 @@ func (p *PIDController) IsControlledItem(item *module.Item) bool {
 		log.Error(fmt.Sprintf("module=PIDController\tgenerate item expression field, itemId:%s,expression:%s, err:%v", item.Id, p.itemExpression, err))
 		return false
 	}
-	properties := item.Properties
+	properties := item.GetCloneFeatures()
 
 	result, err := expression.Evaluate(properties)
 	if err != nil {
