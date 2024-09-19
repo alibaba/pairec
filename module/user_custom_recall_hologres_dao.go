@@ -7,12 +7,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type UserCustomRecallHologresDao struct {
@@ -25,7 +25,7 @@ type UserCustomRecallHologresDao struct {
 	userStmt    *sql.Stmt
 }
 
-func NewUserCusteomRecallHologresDao(config recconf.RecallConfig) *UserCustomRecallHologresDao {
+func NewUserCustomRecallHologresDao(config recconf.RecallConfig) *UserCustomRecallHologresDao {
 	hologres, err := holo.GetPostgres(config.DaoConf.HologresName)
 	if err != nil {
 		log.Error(fmt.Sprintf("error=%v", err))

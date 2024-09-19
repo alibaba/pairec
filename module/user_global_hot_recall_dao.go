@@ -14,6 +14,8 @@ func NewUserGlobalHotRecallDao(config recconf.RecallConfig) UserGlobalHotRecallD
 		return NewUserGlobalHotRecallHologresDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_TableStore {
 		return NewUserGlobalHotRecallTableStoreDao(config)
+	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewUserGlobalHotRecallFeatureStoreDao(config)
 	}
 
 	panic("not found UserGlobalHotRecallDao implement")

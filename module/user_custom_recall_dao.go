@@ -11,15 +11,17 @@ type UserCustomRecallDao interface {
 
 func NewUserCustomRecallDao(config recconf.RecallConfig) UserCustomRecallDao {
 	if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Mysql {
-		return NewUserCusteomRecallMysqlDao(config)
+		return NewUserCustomRecallMysqlDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_TableStore {
 		return NewUserCustomRecallTableStoreDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
-		return NewUserCusteomRecallHologresDao(config)
+		return NewUserCustomRecallHologresDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Redis {
-		return NewUserCusteomRecallRedisDao(config)
+		return NewUserCustomRecallRedisDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_ClickHouse {
-		return NewUserCusteomRecallClickHouseDao(config)
+		return NewUserCustomRecallClickHouseDao(config)
+	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewUserCustomRecallFeatureStoreDao(config)
 	}
 
 	panic("not found UserCustomRecallDao implement")

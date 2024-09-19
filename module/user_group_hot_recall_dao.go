@@ -12,6 +12,8 @@ type UserGroupHotRecallDao interface {
 func NewUserGroupHotRecallDao(config recconf.RecallConfig) UserGroupHotRecallDao {
 	if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
 		return NewUserGroupHotRecallHologresDao(config)
+	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewUserGroupHotRecallFeatureStoreDao(config)
 	}
 
 	panic("not found UserGroupHotRecallDao implement")
