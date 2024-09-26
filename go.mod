@@ -41,7 +41,7 @@ require (
 
 require (
 	github.com/alibabacloud-go/opensearch-util v1.0.1
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.4
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.6-0.20240926014745-c504e78b0106
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.7
 	github.com/aliyun/credentials-go v1.3.1
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
