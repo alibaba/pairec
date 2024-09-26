@@ -48,6 +48,8 @@ func NewUser2ItemExposureDao(config recconf.FilterConfig) User2ItemExposureDao {
 		dao = NewUser2ItemExposureTableStoreDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
 		dao = NewUser2ItemExposureHologresDao(config)
+	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		dao = NewUser2ItemExposureFeatureStoreDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Redis {
 		dao = NewUser2ItemExposureRedisDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_BE {

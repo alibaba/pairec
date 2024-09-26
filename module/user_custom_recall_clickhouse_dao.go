@@ -7,12 +7,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/clickhouse"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type UserCustomRecallClickHouseDao struct {
@@ -25,7 +25,7 @@ type UserCustomRecallClickHouseDao struct {
 	userStmt    *sql.Stmt
 }
 
-func NewUserCusteomRecallClickHouseDao(config recconf.RecallConfig) *UserCustomRecallClickHouseDao {
+func NewUserCustomRecallClickHouseDao(config recconf.RecallConfig) *UserCustomRecallClickHouseDao {
 	clickhouseDB, err := clickhouse.GetClickHouse(config.DaoConf.ClickHouseName)
 	if err != nil {
 		log.Error(fmt.Sprintf("error=%v", err))

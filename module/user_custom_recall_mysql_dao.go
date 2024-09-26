@@ -24,7 +24,7 @@ var (
 	sql_select = "SELECT item_ids FROM %s WHERE user_id='%s'"
 )
 
-func NewUserCusteomRecallMysqlDao(config recconf.RecallConfig) *UserCustomRecallMysqlDao {
+func NewUserCustomRecallMysqlDao(config recconf.RecallConfig) *UserCustomRecallMysqlDao {
 	dao := &UserCustomRecallMysqlDao{
 		recallCount: 1000,
 	}
