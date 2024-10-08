@@ -17,6 +17,8 @@ func NewItemStateFilterDao(config recconf.FilterConfig) ItemStateFilterDao {
 		return NewItemStateFilterTablestoreDao(config)
 	} else if config.ItemStateDaoConf.AdapterType == recconf.DataSource_Type_HBase_Thrift {
 		return NewItemStateFilterHBaseThriftDao(config)
+	} else if config.ItemStateDaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewItemStateFilterFeatureStoreDao(config)
 	}
 
 	panic(fmt.Sprintf("ItemStateFilterDao:not found, name:%s", config.Name))
