@@ -139,6 +139,9 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 					if itemId != "" {
 						if item, ok := itemMap[ItemId(itemId)]; ok {
 							item.AddProperties(itemFeatures)
+							if d.itmCache != nil {
+								d.itmCache.Put(itemId, itemFeatures)
+							}
 							if d.filterParam != nil {
 								result, err := d.filterParam.Evaluate(itemFeatures)
 								if err == nil && result {
