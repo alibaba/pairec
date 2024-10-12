@@ -12,6 +12,8 @@ type ItemCollaborativeDao interface {
 func NewItemCollaborativeDao(config recconf.RecallConfig) ItemCollaborativeDao {
 	if config.ItemCollaborativeDaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
 		return NewItemCollaborativeHologresDao(config)
+	} else if config.ItemCollaborativeDaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewItemCollaborativeFeatureStoreDao(config)
 	}
 	panic("not found ItemCollaborativeDao implement")
 }
