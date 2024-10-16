@@ -24,6 +24,8 @@ func NewUserCollaborativeDao(config recconf.RecallConfig) UserCollaborativeDao {
 		return NewUserCollaborativeHologresDao(config)
 	} else if config.UserCollaborativeDaoConf.AdapterType == recconf.DaoConf_Adapter_Redis {
 		return NewUserCollaborativeRedisDao(config)
+	} else if config.UserCollaborativeDaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewUserCollaborativeFeatureStoreDao(config)
 	}
 
 	panic("not found UserCollaborativeDao implement")
