@@ -70,7 +70,24 @@ func (r *BaseGeneralRank) DoRank(user *module.User, items []*module.Item, contex
 	// get user feature by the FeatureService
 	r.featureService.LoadFeaturesForGeneralRank(user, rankItems, context, pipeline)
 	if context.Debug {
-		fmt.Println("general rank user data", context.RecommendId, user)
+		data, _ := json.Marshal(user)
+		size := len(data)
+		for i := 0; i < size; {
+			end := i + 4096
+			if end >= size {
+				end = size
+			} else {
+				for end > i {
+					if data[end] == ',' {
+						end++
+						break
+					}
+					end--
+				}
+			}
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=general_rank\tuser=%s", context.RecommendId, string(data[i:end])))
+			i = end
+		}
 	}
 
 	if len(r.rankConfig.RankAlgoList) > 0 {

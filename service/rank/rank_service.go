@@ -102,7 +102,23 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	start := time.Now()
 	if context.Debug {
 		data, _ := json.Marshal(user)
-		fmt.Println(fmt.Sprintf("requestId=%s\tuser=%s", context.RecommendId, string(data)))
+		size := len(data)
+		for i := 0; i < size; {
+			end := i + 4096
+			if end >= size {
+				end = size
+			} else {
+				for end > i {
+					if data[end] == ',' {
+						end++
+						break
+					}
+					end--
+				}
+			}
+			log.Info(fmt.Sprintf("requestId=%s\tuser=%s", context.RecommendId, string(data[i:end])))
+			i = end
+		}
 	}
 
 	rankItems := items
