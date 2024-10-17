@@ -24,6 +24,8 @@ func NewFeatureOp(t string) FeatureOp {
 		return BatchRawFeatureOp{}
 	} else if t == "new_feature" {
 		return CreateNewFeatureOp{}
+	} else if t == "context_feature" {
+		return ContextFeatureOp{}
 	}
 
 	panic(fmt.Sprintf("not find feature type:%s", t))
@@ -127,4 +129,22 @@ func (op ComposeFeatureOp) ItemTransOp(featureName string, source string, remove
 	}
 
 	item.AddProperty(featureName, featureValue)
+}
+
+// ContextFeatureOp add context feature to user
+type ContextFeatureOp struct {
+	//featureOp
+}
+
+func (op ContextFeatureOp) UserTransOp(featureName string, source string, remove bool, normalizer Normalizer, user *module.User, context *context.RecommendContext) {
+
+	contextFeatures := context.GetParameter("features")
+	if contextFeatures != nil {
+		if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
+			user.AddProperties(ctxFeatures)
+		}
+	}
+}
+
+func (op ContextFeatureOp) ItemTransOp(featureName string, source string, remove bool, normalizer Normalizer, user *module.User, item *module.Item, context *context.RecommendContext) {
 }

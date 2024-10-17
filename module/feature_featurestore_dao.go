@@ -102,6 +102,17 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 		return
 	}
 
+	if model.GetLabelPriorityLevel() == 1 {
+		contextFeatures := context.GetParameter("features")
+		if contextFeatures != nil {
+			if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
+				for k, v := range ctxFeatures {
+					features[0][k] = v
+				}
+			}
+		}
+	}
+
 	if d.cacheFeaturesName != "" {
 		user.AddCacheFeatures(d.cacheFeaturesName, features[0])
 	} else {
