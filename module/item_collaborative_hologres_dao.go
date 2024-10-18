@@ -46,7 +46,10 @@ func NewItemCollaborativeHologresDao(config recconf.RecallConfig) *ItemCollabora
 
 func (d *ItemCollaborativeHologresDao) ListItemsByItem(user *User, context *context.RecommendContext) (ret []*Item) {
 	// context get recommend item id
-	item_id := context.GetParameter("item_id").(string)
+	item_id := utils.ToString(context.GetParameter("item_id"), "")
+	if item_id == "" {
+		return
+	}
 	builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 	builder.Select("item_ids")
 	builder.From(d.table)

@@ -115,6 +115,9 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 					}
 					end--
 				}
+				if end == i {
+					end = i + 4096
+				}
 			}
 			log.Info(fmt.Sprintf("requestId=%s\tuser=%s", context.RecommendId, string(data[i:end])))
 			i = end

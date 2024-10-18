@@ -38,7 +38,10 @@ func NewItemCollaborativeFeatureStoreDao(config recconf.RecallConfig) *ItemColla
 
 func (d *ItemCollaborativeFeatureStoreDao) ListItemsByItem(user *User, context *context.RecommendContext) (ret []*Item) {
 	// context get recommend item id
-	item_id := context.GetParameter("item_id").(string)
+	item_id := utils.ToString(context.GetParameter("item_id"), "")
+	if item_id == "" {
+		return
+	}
 	featureView := d.fsClient.GetProject().GetFeatureView(d.table)
 	if featureView == nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFeatureStoreDao\trecallName=%s\terror=featureView not found, table:%s", context.RecommendId, d.recallName, d.table))

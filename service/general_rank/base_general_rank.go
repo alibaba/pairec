@@ -84,6 +84,10 @@ func (r *BaseGeneralRank) DoRank(user *module.User, items []*module.Item, contex
 					}
 					end--
 				}
+
+				if end == i {
+					end = i + 4096
+				}
 			}
 			log.Info(fmt.Sprintf("requestId=%s\tmodule=general_rank\tuser=%s", context.RecommendId, string(data[i:end])))
 			i = end
