@@ -478,8 +478,10 @@ type MilvusVectorConfig struct {
 }
 type UserCollaborativeDaoConfig struct {
 	DaoConfig
-	User2ItemTable string
-	Item2ItemTable string
+	User2ItemTable           string
+	Item2ItemTable           string
+	User2ItemFeatureViewName string
+	Item2ItemFeatureViewName string
 
 	Normalization string // set "on" to enable it, otherwise set "off", enabled by default
 }
