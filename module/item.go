@@ -237,7 +237,14 @@ func (t *Item) AddRecallNameFeature() {
 func (t *Item) GetProperties() map[string]interface{} {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
-	return t.Properties
+
+	features := make(map[string]interface{}, len(t.Properties))
+
+	for k, v := range t.Properties {
+		features[k] = v
+	}
+
+	return features
 }
 func (t *Item) GetCloneFeatures() map[string]interface{} {
 	t.mutex.Lock()

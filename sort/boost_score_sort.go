@@ -74,7 +74,7 @@ func (s *BoostScoreSort) doSort(sortData *SortData) error {
 	items := sortData.Data.([]*module.Item)
 	userProperties := sortData.User.MakeUserFeatures2()
 	for _, item := range items {
-		properties := item.GetFeatures()
+		properties := item.GetProperties()
 		algoScores := item.GetAlgoScores()
 		for k, v := range algoScores {
 			properties[k] = v

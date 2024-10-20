@@ -18,6 +18,7 @@ func TestBoostScoreSort(t *testing.T) {
 		item.Score = float64(i)
 		item.RetrieveId = "r1"
 
+		item.AddRecallNameFeature()
 		items = append(items, item)
 	}
 
@@ -26,6 +27,7 @@ func TestBoostScoreSort(t *testing.T) {
 		item.Score = float64(i)
 		item.RetrieveId = "r2"
 
+		item.AddRecallNameFeature()
 		items = append(items, item)
 	}
 
@@ -83,6 +85,7 @@ func TestBoostScoreSortV2(t *testing.T) {
 		item.RetrieveId = "r1"
 
 		item.AddAlgoScore("algo_score", 1)
+		item.AddRecallNameFeature()
 		items = append(items, item)
 	}
 
@@ -92,6 +95,7 @@ func TestBoostScoreSortV2(t *testing.T) {
 		item.RetrieveId = "r2"
 
 		item.AddAlgoScore("algo_score", 10)
+		item.AddRecallNameFeature()
 		items = append(items, item)
 	}
 
