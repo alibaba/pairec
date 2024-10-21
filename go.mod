@@ -33,7 +33,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/tidwall/gjson v1.14.3
 	github.com/tsuna/gohbase v0.0.0-20200414231402-ae5d5a2cd032
-	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6
+	golang.org/x/exp v0.0.0-20230515195305-f3d0a9c9a5cc
 	gonum.org/v1/gonum v0.12.0
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.31.0
@@ -42,11 +42,13 @@ require (
 require (
 	github.com/aliyun/aliyun-pairec-config-go-sdk v1.0.2
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
+	github.com/bruceding/go-antlr-valuate v0.0.3
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
 )
 
 require (
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect

@@ -277,6 +277,22 @@ func (t *Item) AddProperties(properties map[string]interface{}) {
 		t.Properties[key] = val
 	}
 }
+
+func (t *Item) ExprData() map[string]any {
+	ret := make(map[string]any, len(t.algoScores)+len(t.Properties))
+
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	for k, v := range t.algoScores {
+		ret[k] = v
+	}
+
+	for k, v := range t.Properties {
+		ret[k] = v
+	}
+
+	return ret
+}
 func (t *Item) DeepClone() *Item {
 	item := NewItemWithProperty(string(t.Id), t.Properties)
 
