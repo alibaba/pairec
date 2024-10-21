@@ -682,6 +682,7 @@ type FilterConfig struct {
 		}
 		DefaultFilterName string
 	}
+	PluginAPIFilterConf PluginAPIFilterConfig
 }
 type BeFilterConfig struct {
 	FilterConfig
@@ -702,6 +703,7 @@ type SortConfig struct {
 	DPPConf                       DPPSortConfig
 	SSDConf                       SSDSortConfig
 	PIDConf                       PIDControllerConfig
+	PluginAPIConfig               PluginAPISortConfig
 	MixSortRules                  []MixSortConfig
 	BoostScoreConditionsFilterAll bool
 	BoostScoreConditions          []BoostScoreCondition
@@ -766,6 +768,9 @@ type AdjustCountConfig struct {
 	Count      int
 	Type       string
 }
+type PluginAPIFilterConfig struct {
+	URL string
+}
 type CallBackConfig struct {
 	DataSource      DataSourceConfig
 	RankConf        RankConfig
@@ -800,6 +805,10 @@ type TriggerConfig struct {
 	TriggerKey   string
 	DefaultValue string
 	Boundaries   []int
+}
+
+type PluginAPISortConfig struct {
+	URL string
 }
 
 type DPPSortConfig struct {
