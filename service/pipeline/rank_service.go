@@ -133,7 +133,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 		}()
 	}
 
-	exprAst, err := ast.GetExpAST(rankConfig.RankScore)
+	exprAst, err := ast.GetExpASTWithType(rankConfig.RankScore, rankConfig.ASTType)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=rank\tpipeline=%s\trankscore=%s\terror=%v", context.RecommendId, r.pipelineName, rankConfig.RankScore, err))
 	}
@@ -159,7 +159,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 			itemList := algoData.GetItems()
 			for k := range itemList {
 				if exprAst != nil {
-					itemList[k].Score = ast.ExprASTResult(exprAst, itemList[k])
+					itemList[k].Score = ast.ExprASTResultWithType(exprAst, itemList[k], rankConfig.ASTType)
 				}
 			}
 		}

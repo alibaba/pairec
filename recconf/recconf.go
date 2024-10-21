@@ -597,6 +597,7 @@ type RankConfig struct {
 	ContextFeatures []string
 	BatchCount      int
 	ScoreRewrite    map[string]string
+	ASTType         string
 }
 type ActionConfig struct {
 	ActionType string

@@ -3,6 +3,7 @@ package rank
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -244,7 +245,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 		}()
 	}
 
-	exprAst, err := ast.GetExpAST(rankConfig.RankScore)
+	exprAst, err := ast.GetExpASTWithType(rankConfig.RankScore, rankConfig.ASTType)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=rank\trankscore=%s\terror=%v", context.RecommendId, rankConfig.RankScore, err))
 	}
@@ -253,12 +254,21 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	if len(rankConfig.ScoreRewrite) > 0 {
 		scoreRewriteAst = make(map[string]ast.ExprAST, len(rankConfig.ScoreRewrite))
 		for source, sourceExpr := range rankConfig.ScoreRewrite {
-			ast, err := ast.GetExpAST(sourceExpr)
-			if err != nil {
-				log.Info(fmt.Sprintf("requestId=%s\tmodule=rank\tscorerewrite=%s\terror=%v", context.RecommendId, rankConfig.RankScore, err))
-				continue
+			if strings.Contains(sourceExpr, "=") && strings.Contains(sourceExpr, source) { // have assignment statement
+				ast, err := ast.GetExpASTByAntlrWithStatement(sourceExpr, source)
+				if err != nil {
+					log.Error(fmt.Sprintf("requestId=%s\tmodule=rank\tscorerewrite=%s\terror=%v", context.RecommendId, rankConfig.RankScore, err))
+					continue
+				}
+				scoreRewriteAst[source] = ast
+			} else {
+				ast, err := ast.GetExpASTWithType(sourceExpr, rankConfig.ASTType)
+				if err != nil {
+					log.Error(fmt.Sprintf("requestId=%s\tmodule=rank\tscorerewrite=%s\terror=%v", context.RecommendId, rankConfig.RankScore, err))
+					continue
+				}
+				scoreRewriteAst[source] = ast
 			}
-			scoreRewriteAst[source] = ast
 		}
 	}
 
@@ -286,18 +296,28 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 				// score rewrite 重写
 				if len(rankConfig.ScoreRewrite) > 0 {
 					scores := make(map[string]float64, len(rankConfig.ScoreRewrite))
-					for source := range rankConfig.ScoreRewrite {
-						if exprAst, ok := scoreRewriteAst[source]; ok {
-							scores[source] = ast.ExprASTResult(exprAst, itemList[k])
+					for source, sourceExpr := range rankConfig.ScoreRewrite {
+						if strings.Contains(sourceExpr, "=") && strings.Contains(sourceExpr, source) { // have assignment statement
+							if exprAst, ok := scoreRewriteAst[source]; ok {
+								scores[source] = ast.ExprASTResultByAntlrWithStatement(exprAst, itemList[k])
+							} else {
+								scores[source] = 0
+							}
+
 						} else {
-							scores[source] = 0
+							if exprAst, ok := scoreRewriteAst[source]; ok {
+								scores[source] = ast.ExprASTResultWithType(exprAst, itemList[k], rankConfig.ASTType)
+							} else {
+								scores[source] = 0
+							}
 						}
+
 					}
 					itemList[k].AddAlgoScores(scores)
 				}
 
 				if exprAst != nil {
-					itemList[k].Score = ast.ExprASTResult(exprAst, itemList[k])
+					itemList[k].Score = ast.ExprASTResultWithType(exprAst, itemList[k], rankConfig.ASTType)
 				}
 
 				if boostScoreFunc != nil {
