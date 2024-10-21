@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service"
 	"github.com/alibaba/pairec/v2/utils"
@@ -106,6 +107,23 @@ func (r *EmbeddingController) CheckParameter() error {
 	}
 	if r.param.SceneId == "" {
 		return errors.New("scene_id not empty")
+	}
+	data := make(map[string]interface{}, 16)
+	if err := json.Unmarshal(r.RequestBody, &data); err != nil {
+		return err
+	}
+
+	if r.param.Uid != "" {
+		if _, exist := data["user_features"]; !exist {
+			log.Error(fmt.Sprintf("requestId=%s\tuid=%s\terror=user_features not empty", r.RequestId, r.param.Uid))
+			return errors.New("user_features not empty")
+		}
+	}
+	if r.param.ItemId != "" {
+		if _, exist := data["item_features"]; !exist {
+			log.Error(fmt.Sprintf("requestId=%s\titem_id=%s\terror=item_features not empty", r.RequestId, r.param.ItemId))
+			return errors.New("item_features not empty")
+		}
 	}
 
 	return nil
