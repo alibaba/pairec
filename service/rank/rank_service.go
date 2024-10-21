@@ -254,7 +254,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	if len(rankConfig.ScoreRewrite) > 0 {
 		scoreRewriteAst = make(map[string]ast.ExprAST, len(rankConfig.ScoreRewrite))
 		for source, sourceExpr := range rankConfig.ScoreRewrite {
-			if strings.Contains(sourceExpr, source) {
+			if strings.Contains(sourceExpr, "=") && strings.Contains(sourceExpr, source) { // have assignment statement
 				ast, err := ast.GetExpASTByAntlrWithStatement(sourceExpr, source)
 				if err != nil {
 					log.Error(fmt.Sprintf("requestId=%s\tmodule=rank\tscorerewrite=%s\terror=%v", context.RecommendId, rankConfig.RankScore, err))
@@ -297,7 +297,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 				if len(rankConfig.ScoreRewrite) > 0 {
 					scores := make(map[string]float64, len(rankConfig.ScoreRewrite))
 					for source, sourceExpr := range rankConfig.ScoreRewrite {
-						if strings.Contains(sourceExpr, source) {
+						if strings.Contains(sourceExpr, "=") && strings.Contains(sourceExpr, source) { // have assignment statement
 							if exprAst, ok := scoreRewriteAst[source]; ok {
 								scores[source] = ast.ExprASTResultByAntlrWithStatement(exprAst, itemList[k])
 							} else {

@@ -312,3 +312,26 @@ func TestGoAntlrEvaluateStatement2(t *testing.T) {
 		t.Fatal("result not equal")
 	}
 }
+
+func TestGoAntlrEvaluateStatementCondition(t *testing.T) {
+	expression := `
+	if (fx == 'type_a') {
+		fx_score = 1;
+	} else {
+		fx_score = 2;
+	}
+	`
+	ast, err := GetExpASTByAntlrWithStatement(expression, "fx_score")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	item := module.NewItem("item_1")
+	item.AddProperty("fx", "type_a")
+
+	result := ExprASTResultByAntlrWithStatement(ast, item)
+	if result != float64(1) {
+		t.Log(result)
+		t.Fatal("result not equal")
+	}
+}
