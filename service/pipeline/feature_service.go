@@ -19,8 +19,9 @@ type FeatureService struct {
 func NewFeatureService(config *recconf.PipelineConfig) *FeatureService {
 
 	service := FeatureService{
-		pipelineName:    config.Name,
-		featureServices: make(map[string]*feature.FeatureService),
+		pipelineName:     config.Name,
+		featureServices:  make(map[string]*feature.FeatureService),
+		featureLoadConfs: config.FeatureLoadConfs,
 	}
 
 	return &service
