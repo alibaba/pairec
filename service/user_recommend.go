@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/alibaba/pairec/v2/log/feature_log"
 	"sync"
 	"time"
 
@@ -157,6 +158,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	}
 
 	items = items[:size]
+	feature_log.FeatureLog(user, items, context)
 	debugService.WriteRecommendLog(user, items, context)
 	// asynchronous clean hook func
 	for _, hf := range hook.RecommendCleanHooks {

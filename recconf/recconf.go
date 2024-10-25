@@ -79,6 +79,7 @@ type RecommendConfig struct {
 	ColdStartRankConfs        map[string]ColdStartRankConfig
 	DPPConf                   []DPPSortConfig
 	DebugConfs                map[string]DebugConfig
+	FeatureLogConfs           map[string]FeatureLogConfig
 	PipelineConfs             map[string][]PipelineConfig
 	PrometheusConfig          PrometheusConfig
 	UserDefineConfs           json.RawMessage
@@ -852,6 +853,14 @@ type DebugConfig struct {
 	KafKaName   string
 	FilePath    string
 	MaxFileNum  int
+}
+
+type FeatureLogConfig struct {
+	OutputType   string
+	DatahubName  string
+	KafKaName    string
+	UserFeatures string
+	ItemFeatures string
 }
 
 type PipelineConfig struct {
