@@ -63,7 +63,7 @@ func getFeatureData(user *module.User, userFeatures string, items []*module.Item
 }
 
 func getUserFeatures(user *module.User, userFeatures string) (result map[string]interface{}) {
-	result = make(map[string]interface{}, 64)
+	result = make(map[string]interface{}, 8)
 
 	if userFeatures == "" {
 		return
@@ -81,7 +81,7 @@ func getUserFeatures(user *module.User, userFeatures string) (result map[string]
 }
 
 func getItemFeatures(item *module.Item, itemFeatures string) (result map[string]interface{}) {
-	result = make(map[string]interface{}, 64)
+	result = make(map[string]interface{}, 8)
 	result["retrieve_id"] = item.RetrieveId
 	result["score"] = item.Score
 	result["algo_score"] = item.CloneAlgoScores()
