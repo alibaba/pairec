@@ -1,6 +1,7 @@
 package feature_log
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/datahub"
@@ -29,14 +30,14 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 	if config.OutputType == "datahub" {
 		datahubApi, err := datahub.GetDatahub(config.DatahubName)
 		if err != nil {
-			log.Error(fmt.Sprintf("event=FeatureLog\terr=%v", err))
+			log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
 			return
 		}
 		go datahubApi.SendMessage(messages)
 	}
 }
 
-func getFeatureData(user *module.User, userFeatures string, items []*module.Item, itemFeatures string, context *context.RecommendContext) []map[string]interface{} {
+func getFeatureData(user *module.User, userFields string, items []*module.Item, itemFields string, context *context.RecommendContext) []map[string]interface{} {
 	messages := make([]map[string]interface{}, 0, len(items))
 	if len(items) == 0 {
 		return messages
@@ -51,44 +52,60 @@ func getFeatureData(user *module.User, userFeatures string, items []*module.Item
 			logMap["exp_id"] = context.ExperimentResult.GetExpId()
 		}
 		logMap["request_time"] = time.Now().Unix()
-		logMap["user_features"] = getUserFeatures(user, userFeatures)
-		logMap["user_id"] = string(user.Id)
+		userFeatures := getUserFeatures(user, userFields)
+		if len(userFeatures) > 0 {
+			data, err := json.Marshal(userFeatures)
+			if err != nil {
+				log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
+			} else {
+				logMap["user_features"] = string(data)
+			}
+		}
 
+		logMap["user_id"] = string(user.Id)
 		logMap["item_id"] = string(item.Id)
 		logMap["position"] = strconv.Itoa(i + 1)
-		logMap["item_features"] = getItemFeatures(item, itemFeatures)
+		itemFeatures := getItemFeatures(item, itemFields)
+		if len(itemFeatures) > 0 {
+			data, err := json.Marshal(itemFeatures)
+			if err != nil {
+				log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
+			} else {
+				logMap["item_features"] = string(data)
+			}
+		}
 		messages = append(messages, logMap)
 	}
 	return messages
 }
 
-func getUserFeatures(user *module.User, userFeatures string) (result map[string]interface{}) {
+func getUserFeatures(user *module.User, userFields string) (result map[string]interface{}) {
 	result = make(map[string]interface{}, 8)
 
-	if userFeatures == "" {
+	if userFields == "" {
 		return
-	} else if userFeatures == "*" {
-		result = user.MakeUserFeatures()
+	} else if userFields == "*" {
+		result = user.MakeUserFeatures2()
 		return
 	}
 
-	userFields := strings.Split(userFeatures, ",")
+	userFieldsArray := strings.Split(userFields, ",")
 
-	for _, field := range userFields {
+	for _, field := range userFieldsArray {
 		result[field] = user.GetProperty(field)
 	}
 	return
 }
 
-func getItemFeatures(item *module.Item, itemFeatures string) (result map[string]interface{}) {
+func getItemFeatures(item *module.Item, itemFields string) (result map[string]interface{}) {
 	result = make(map[string]interface{}, 8)
 	result["retrieve_id"] = item.RetrieveId
 	result["score"] = item.Score
 	result["algo_score"] = item.CloneAlgoScores()
 
-	if itemFeatures == "" {
+	if itemFields == "" {
 		return
-	} else if itemFeatures == "*" {
+	} else if itemFields == "*" {
 		features := item.GetFeatures()
 
 		for key, value := range features {
@@ -97,8 +114,8 @@ func getItemFeatures(item *module.Item, itemFeatures string) (result map[string]
 		return
 	}
 
-	itemFields := strings.Split(itemFeatures, ",")
-	for _, field := range itemFields {
+	itemFieldsArray := strings.Split(itemFields, ",")
+	for _, field := range itemFieldsArray {
 		result[field] = item.GetProperty(field)
 	}
 	return

@@ -158,7 +158,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	}
 
 	items = items[:size]
-	feature_log.FeatureLog(user, items, context)
+	go feature_log.FeatureLog(user, items, context)
 	debugService.WriteRecommendLog(user, items, context)
 	// asynchronous clean hook func
 	for _, hf := range hook.RecommendCleanHooks {
