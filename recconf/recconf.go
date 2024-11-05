@@ -304,16 +304,17 @@ type MilvusConfig struct {
 	Timeout       int64
 }
 type RecallConfig struct {
-	Name         string
-	RecallType   string
-	RecallCount  int
-	RecallAlgo   string
-	ItemType     string
-	CacheAdapter string
-	CacheConfig  string
-	CachePrefix  string
-	CacheTime    int // cache time by seconds
-	Triggers     []TriggerConfig
+	Name           string
+	RecallType     string
+	RecallCount    int
+	RecallAlgo     string
+	VectorAlgoType string
+	ItemType       string
+	CacheAdapter   string
+	CacheConfig    string
+	CachePrefix    string
+	CacheTime      int // cache time by seconds
+	Triggers       []TriggerConfig
 
 	HologresVectorConf       HologresVectorConfig
 	BeVectorConf             BeVectorConfig
