@@ -607,7 +607,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				}
 
 				trafficPercentage := targetTraffic / taskTraffic
-				output, setValue = controller.DoWithId(trafficPercentage, binId)
+				output, setValue = controller.DoWithId(trafficPercentage, binId, ctx)
 				ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue, output, binId))
 				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue, output, binId))
 				if targetTraffic > 0 {
@@ -619,7 +619,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				} else {
 					targetTraffic = float64(0)
 				}
-				output, setValue = controller.Do(targetTraffic)
+				output, setValue = controller.Do(targetTraffic, ctx)
 				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,setValue=%f,output=%f", taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
 				if targetTraffic > 0 {
 					hasTraffic = true
@@ -741,7 +741,7 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 					traffic = value
 				}
 			}
-			alpha, setValue := controller.DoWithId(traffic, string(item.Id))
+			alpha, setValue := controller.DoWithId(traffic, string(item.Id), ctx)
 			delta := alpha
 			pos, _ := item.IntProperty("_ORIGIN_POSITION_")
 			ctrlId := pos
