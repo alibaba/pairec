@@ -22,14 +22,11 @@ func RegisterRecommendCleanHook(name string, hf RecommendCleanHookFunc) {
 	defer mu.Unlock()
 
 	if index, exist := RecommendCleanHookMap[name]; exist {
-		var hookfuncs []RecommendCleanHookFunc
-		for i, hookfunc := range RecommendCleanHooks {
-			if i != index {
-				hookfuncs = append(hookfuncs, hookfunc)
-			}
+		if index >= 0 && index < len(RecommendCleanHooks) {
+			RecommendCleanHooks[index] = hf
 		}
-		RecommendCleanHooks = hookfuncs
+	} else {
+		AddRecommendCleanHook(hf)
+		RecommendCleanHookMap[name] = len(RecommendCleanHooks) - 1
 	}
-	AddRecommendCleanHook(hf)
-	RecommendCleanHookMap[name] = len(RecommendCleanHooks) - 1
 }
