@@ -154,14 +154,15 @@ func loadTrafficControlTargetData(sceneName string, timestamp int64) {
 	targetMap = experimentClient.GetTrafficControlTargetData(runEnv, sceneName, timestamp)
 }
 
-func (p *PIDController) Do(trafficValue float64) (float64, float64) {
-	return p.DoWithId(trafficValue, "")
+func (p *PIDController) Do(trafficValue float64, ctx *context.RecommendContext) (float64, float64) {
+	return p.DoWithId(trafficValue, "", ctx)
 }
 
-func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string) (float64, float64) {
+func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *context.RecommendContext) (float64, float64) {
 	if !p.online {
 		return 0, 0
 	}
+	ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s", "DoWithId", itemOrExpId))
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && trafficValue > 1.0 {
 		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, trafficValue))
 		return 0, 0
@@ -175,6 +176,9 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string) (floa
 	}
 	if setValue == 0 {
 		setValue = 0.5
+	}
+	if itemOrExpId != "" {
+		ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s\tsetValue=%v", "DoWithId", itemOrExpId, setValue))
 	}
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回0
@@ -203,6 +207,7 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string) (floa
 	curTime := now.Unix()
 	var status = p.readPIDStatus(itemOrExpId, curTime)
 	timeDiff := curTime - status.LastTime
+	ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s\ttimeDiff=%v", "DoWithId", itemOrExpId, timeDiff))
 	// 时间差还在一个时间窗口内
 	if timeDiff < int64(p.timeWindow) && status.LastOutput != 0 {
 		return float64(status.LastOutput), setValue
@@ -231,6 +236,7 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string) (floa
 	} else {
 		err = float32(1.0 - trafficValue/setValue)
 	}
+	ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s\terr=%v\tlastErr=%v", "DoWithId", itemOrExpId, err, status.LastError))
 	status.ErrSum += err * float32(timeDiff)
 	dErr := (err - status.LastError) / float32(timeDiff)
 
@@ -244,6 +250,7 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string) (floa
 	if p.syncStatus {
 		go p.writePIDStatus(itemOrExpId) // 通过外部存储同步中间状态
 	}
+	ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s\toutput=%v", "DoWithId", itemOrExpId, output))
 	return float64(output), setValue
 }
 
@@ -457,7 +464,7 @@ func (p *PIDController) IsControlledItem(item *module.Item) bool {
 
 	result, err := expression.Evaluate(properties)
 	if err != nil {
-		log.Warning(fmt.Sprintf("module=PIDController\tcompute item expression field, itemId:%s, err:%v", item.Id, err))
+		//log.Warning(fmt.Sprintf("module=PIDController\tcompute item expression field, itemId:%s, err:%v", item.Id, err))
 		return false
 	}
 
