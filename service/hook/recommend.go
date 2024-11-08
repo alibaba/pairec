@@ -35,14 +35,33 @@ func RemoveRecommendCleanHook(name string) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	removeIndex := -1
 	if index, exist := RecommendCleanHookMap[name]; exist {
-		var hookfuncs []RecommendCleanHookFunc
-		for i, hookfunc := range RecommendCleanHooks {
-			if i != index {
-				hookfuncs = append(hookfuncs, hookfunc)
-			}
-		}
-		RecommendCleanHooks = hookfuncs
-		delete(RecommendCleanHookMap, name)
+		removeIndex = index
+	} else {
+		return
 	}
+	indexMap := make(map[int]string)
+	for n, index := range RecommendCleanHookMap {
+		if n == name {
+			continue
+		}
+		indexMap[index] = n
+	}
+
+	var hookfuncs []RecommendCleanHookFunc
+	for index, hf := range RecommendCleanHooks {
+		if index == removeIndex {
+			continue
+		}
+		if n, ok := indexMap[index]; ok {
+			hookfuncs = append(hookfuncs, hf)
+			RecommendCleanHookMap[n] = len(hookfuncs) - 1
+		} else {
+			hookfuncs = append(hookfuncs, hf)
+		}
+	}
+
+	RecommendCleanHooks = hookfuncs
+	delete(RecommendCleanHookMap, name)
 }
