@@ -32,8 +32,12 @@ func (f *CompletelyFairCountFilter) Filter(filterData *FilterData) error {
 func (f *CompletelyFairCountFilter) doFilter(filterData *FilterData) error {
 	start := time.Now()
 	items := filterData.Data.([]*module.Item)
-	if len(items) <= f.retainNum {
+	retainNum := f.retainNum
+
+	if len(items) == 0 {
 		return nil
+	} else if len(items) <= retainNum {
+		retainNum = len(items)
 	}
 
 	newItems := make([]*module.Item, 0, 200)
@@ -63,7 +67,7 @@ func (f *CompletelyFairCountFilter) doFilter(filterData *FilterData) error {
 		recallNamesCount = len(recallNames)
 	)
 
-	for count < f.retainNum {
+	for count < retainNum {
 		i := count % recallNamesCount
 
 		itemList := recallToItemMap[recallNames[i]]
