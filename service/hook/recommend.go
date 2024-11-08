@@ -30,3 +30,38 @@ func RegisterRecommendCleanHook(name string, hf RecommendCleanHookFunc) {
 		RecommendCleanHookMap[name] = len(RecommendCleanHooks) - 1
 	}
 }
+
+func RemoveRecommendCleanHook(name string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	removeIndex := -1
+	if index, exist := RecommendCleanHookMap[name]; exist {
+		removeIndex = index
+	} else {
+		return
+	}
+	indexMap := make(map[int]string)
+	for n, index := range RecommendCleanHookMap {
+		if n == name {
+			continue
+		}
+		indexMap[index] = n
+	}
+
+	var hookfuncs []RecommendCleanHookFunc
+	for index, hf := range RecommendCleanHooks {
+		if index == removeIndex {
+			continue
+		}
+		if n, ok := indexMap[index]; ok {
+			hookfuncs = append(hookfuncs, hf)
+			RecommendCleanHookMap[n] = len(hookfuncs) - 1
+		} else {
+			hookfuncs = append(hookfuncs, hf)
+		}
+	}
+
+	RecommendCleanHooks = hookfuncs
+	delete(RecommendCleanHookMap, name)
+}

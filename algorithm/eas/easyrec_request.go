@@ -47,7 +47,10 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{}, 
 			return
 		}
 
-		responseData.ItemIds = request.ItemIds
+		if r.responseFuncName != "torchrecEmbeddingItemsResponseFunc" {
+			responseData.ItemIds = request.ItemIds
+		}
+
 		response = responseData
 		return
 

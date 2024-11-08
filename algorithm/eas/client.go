@@ -88,6 +88,8 @@ func (r *EasRequest) SetResponseFunc(name string) {
 		r.responseFunc = torchrecMutValResponseFuncDebug
 	} else if name == "torchrecEmbeddingResponseFunc" {
 		r.responseFunc = torchrecEmbeddingResponseFunc
+	} else if name == "torchrecEmbeddingItemsResponseFunc" {
+		r.responseFunc = torchrecEmbeddingItemsResponseFunc
 	}
 
 	r.responseFuncName = name

@@ -70,6 +70,8 @@ func NewUser2ItemExposureDao(config recconf.FilterConfig) User2ItemExposureDao {
 			}
 		}(dao)
 		hook.RegisterRecommendCleanHook(fmt.Sprintf("%s_write_log", config.Name), f)
+	} else {
+		hook.RemoveRecommendCleanHook(fmt.Sprintf("%s_write_log", config.Name))
 	}
 
 	if config.ClearLogIfNotEnoughScene != "" {

@@ -481,3 +481,58 @@ func torchrecEmbeddingResponseFunc(data interface{}) (ret []response.AlgoRespons
 
 	return
 }
+
+type TorchrecEmbeddingItemsResponse struct {
+	EmbeddingItems []*EmbeddingInfo
+}
+
+func (r *TorchrecEmbeddingItemsResponse) GetScore() float64 {
+	return 0
+}
+
+func (r *TorchrecEmbeddingItemsResponse) GetScoreMap() map[string]float64 {
+	return nil
+}
+
+func (r *TorchrecEmbeddingItemsResponse) GetModuleType() bool {
+	return false
+}
+func (r *TorchrecEmbeddingItemsResponse) GetEmbeddingItems() []*EmbeddingInfo {
+	return r.EmbeddingItems
+}
+
+func torchrecEmbeddingItemsResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	outputs := resp.GetMapOutputs()
+	var embeddingItems []*EmbeddingInfo
+	var dimSize int
+	itemScoresOutput, itemScoreok := outputs["match_item_scores"]
+	if itemScoreok {
+		if len(itemScoresOutput.ArrayShape.Dim) >= 2 {
+			dimSize = int(itemScoresOutput.ArrayShape.Dim[1])
+		}
+		embeddingItems = make([]*EmbeddingInfo, 0, dimSize)
+	}
+
+	for i, itemId := range resp.ItemIds {
+		info := EmbeddingInfo{
+			ItemId: itemId,
+		}
+
+		if itemScoresOutput.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+			info.Score = float64(itemScoresOutput.FloatVal[i])
+		} else if itemScoresOutput.Dtype == easyrec.ArrayDataType_DT_DOUBLE {
+			info.Score = itemScoresOutput.DoubleVal[i]
+		}
+
+		embeddingItems = append(embeddingItems, &info)
+	}
+
+	ret = append(ret, &TorchrecEmbeddingItemsResponse{EmbeddingItems: embeddingItems})
+
+	return
+}
