@@ -37,11 +37,12 @@ func TestFixPositionStrategyByRecallName(t *testing.T) {
 
 		items = append(items, item)
 	}
+	user := module.NewUser("user_1")
 
 	for size := 10; size < 20; size++ {
 		context := context.NewRecommendContext()
 		context.Size = size
-		sortData := SortData{Data: items, Context: context}
+		sortData := SortData{Data: items, Context: context, User: user}
 
 		NewItemRankScoreSort().Sort(&sortData)
 
@@ -203,6 +204,7 @@ func TestFixPositionStrategyByCondition(t *testing.T) {
 						Name:     "sex",
 						Type:     "string",
 						Value:    "man",
+						Domain:   "item",
 						Operator: "equal",
 					},
 				},
@@ -215,6 +217,7 @@ func TestFixPositionStrategyByCondition(t *testing.T) {
 		item := module.NewItem(strconv.Itoa(i))
 		item.AddProperty("sex", "man")
 		item.RetrieveId = "r1"
+		item.Score = float64(i)
 
 		items = append(items, item)
 	}
@@ -222,14 +225,16 @@ func TestFixPositionStrategyByCondition(t *testing.T) {
 		item := module.NewItem(strconv.Itoa(i))
 		item.AddProperty("sex", "woman")
 		item.RetrieveId = "r2"
+		item.Score = float64(i)
 
 		items = append(items, item)
 	}
 
+	user := module.NewUser("user_1")
 	for size := 10; size < 20; size++ {
 		context := context.NewRecommendContext()
 		context.Size = size
-		sortData := SortData{Data: items, Context: context}
+		sortData := SortData{Data: items, Context: context, User: user}
 
 		NewItemRankScoreSort().Sort(&sortData)
 
