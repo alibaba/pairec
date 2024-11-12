@@ -125,6 +125,8 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			f = NewAdjustCountFilter(conf)
 		} else if conf.FilterType == "PriorityAdjustCountFilter" {
 			f = NewPriorityAdjustCountFilter(conf)
+		} else if conf.FilterType == "PriorityAdjustCountFilterV2" {
+			f = NewPriorityAdjustCountFilterV2(conf)
 		} else if conf.FilterType == "ItemStateFilter" {
 			f = NewItemStateFilter(conf)
 		} else if conf.FilterType == "ItemCustomFilter" {
@@ -205,6 +207,14 @@ func GetFiltersBySceneName(sceneName string) ([]IFilter, bool) {
 }
 
 func filterInfoLog(filterData *FilterData, module string, count int, start time.Time) {
+	ctx := filterData.Context
+	if filterData.PipelineName != "" {
+		ctx.LogInfo(fmt.Sprintf("module=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterData.PipelineName, count, utils.CostTime(start)))
+	} else {
+		ctx.LogInfo(fmt.Sprintf("module=%s\tcount=%d\tcost=%d", module, count, utils.CostTime(start)))
+	}
+}
+func filterInfoLogV2(filterData *FilterData, module string, filterName string, count int, start time.Time) {
 	ctx := filterData.Context
 	if filterData.PipelineName != "" {
 		ctx.LogInfo(fmt.Sprintf("module=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterData.PipelineName, count, utils.CostTime(start)))
