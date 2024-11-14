@@ -19,17 +19,22 @@ const (
 )
 
 type PriorityAdjustCountFilter struct {
+	name              string
 	ensureDiversity   bool
 	diversityDao      module.DiversityDao
 	configs           []recconf.AdjustCountConfig
 	diversityMinCount int
+	cloneInstances    map[string]*PriorityAdjustCountFilter
 }
 
 func NewPriorityAdjustCountFilter(config recconf.FilterConfig) *PriorityAdjustCountFilter {
 	filter := PriorityAdjustCountFilter{
+		name:              config.Name,
 		configs:           config.AdjustCountConfs,
 		ensureDiversity:   config.EnsureDiversity,
 		diversityMinCount: config.DiversityMinCount,
+
+		cloneInstances: make(map[string]*PriorityAdjustCountFilter),
 	}
 	if filter.diversityMinCount <= 0 {
 		filter.diversityMinCount = 10
@@ -241,6 +246,6 @@ func (f *PriorityAdjustCountFilter) doFilter(filterData *FilterData, ensureDiver
 	}
 
 	filterData.Data = newItems
-	filterInfoLog(filterData, "PriorityAdjustCountFilter", len(newItems), start)
+	filterInfoLogV2(filterData, "PriorityAdjustCountFilter", f.name, len(newItems), start)
 	return nil
 }

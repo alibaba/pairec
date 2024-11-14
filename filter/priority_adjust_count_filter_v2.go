@@ -14,12 +14,16 @@ import (
 type PriorityAdjustCountFilterV2 struct {
 	name    string
 	configs []recconf.AdjustCountConfig
+
+	cloneInstances map[string]*PriorityAdjustCountFilterV2
 }
 
 func NewPriorityAdjustCountFilterV2(config recconf.FilterConfig) *PriorityAdjustCountFilterV2 {
 	filter := PriorityAdjustCountFilterV2{
 		name:    config.Name,
 		configs: config.AdjustCountConfs,
+
+		cloneInstances: make(map[string]*PriorityAdjustCountFilterV2),
 	}
 
 	return &filter

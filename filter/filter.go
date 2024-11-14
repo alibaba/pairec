@@ -33,6 +33,11 @@ type IFilter interface {
 	Filter(filterData *FilterData) error
 }
 
+type ICloneFilter interface {
+	CloneWithConfig(params map[string]interface{}) IFilter
+	GetFilterName() string
+}
+
 type FilterService struct {
 	Filters map[string][]IFilter
 }
@@ -101,9 +106,20 @@ func (fs *FilterService) Filter(filterData *FilterData, tag string) {
 
 	}
 
-	// var err error
 	for _, f := range filters {
-		f.Filter(filterData)
+		newFilter := f
+		if cloneFilter, ok := f.(ICloneFilter); ok && context.ExperimentResult != nil {
+			filterConfig := context.ExperimentResult.GetExperimentParams().Get("filter."+cloneFilter.GetFilterName(), nil)
+			if filterConfig != nil {
+				if params, ok := filterConfig.(map[string]interface{}); ok {
+					if filterInstance := cloneFilter.CloneWithConfig(params); !utils.IsNil(filterInstance) {
+						newFilter = filterInstance
+					}
+				}
+			}
+		}
+
+		newFilter.Filter(filterData)
 	}
 }
 
