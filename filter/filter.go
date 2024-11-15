@@ -222,19 +222,11 @@ func GetFiltersBySceneName(sceneName string) ([]IFilter, bool) {
 	return ret, ok
 }
 
-func filterInfoLog(filterData *FilterData, module string, count int, start time.Time) {
+func filterInfoLog(filterData *FilterData, module string, filterName string, count int, start time.Time) {
 	ctx := filterData.Context
 	if filterData.PipelineName != "" {
-		ctx.LogInfo(fmt.Sprintf("module=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterData.PipelineName, count, utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=%s\tname=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterName, filterData.PipelineName, count, utils.CostTime(start)))
 	} else {
-		ctx.LogInfo(fmt.Sprintf("module=%s\tcount=%d\tcost=%d", module, count, utils.CostTime(start)))
-	}
-}
-func filterInfoLogV2(filterData *FilterData, module string, filterName string, count int, start time.Time) {
-	ctx := filterData.Context
-	if filterData.PipelineName != "" {
-		ctx.LogInfo(fmt.Sprintf("module=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterData.PipelineName, count, utils.CostTime(start)))
-	} else {
-		ctx.LogInfo(fmt.Sprintf("module=%s\tcount=%d\tcost=%d", module, count, utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=%s\tname=%s\tcount=%d\tcost=%d", module, filterName, count, utils.CostTime(start)))
 	}
 }

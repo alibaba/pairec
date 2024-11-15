@@ -10,11 +10,13 @@ import (
 
 // user exposure history filter
 type ItemCustomFilter struct {
+	name          string
 	itemCustomDao module.ItemCustomFilterDao
 }
 
 func NewItemCustomFilter(config recconf.FilterConfig) *ItemCustomFilter {
 	filter := ItemCustomFilter{
+		name:          config.Name,
 		itemCustomDao: module.NewItemCustomFilterDao(config),
 	}
 
@@ -42,6 +44,6 @@ func (f *ItemCustomFilter) doFilter(filterData *FilterData) error {
 	}
 
 	filterData.Data = newItems
-	filterInfoLog(filterData, "ItemCustomFilter", len(newItems), start)
+	filterInfoLog(filterData, "ItemCustomFilter", f.name, len(newItems), start)
 	return nil
 }

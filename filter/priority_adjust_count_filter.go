@@ -246,6 +246,6 @@ func (f *PriorityAdjustCountFilter) doFilter(filterData *FilterData, ensureDiver
 	}
 
 	filterData.Data = newItems
-	filterInfoLogV2(filterData, "PriorityAdjustCountFilter", f.name, len(newItems), start)
+	filterInfoLog(filterData, "PriorityAdjustCountFilter", f.name, len(newItems), start)
 	return nil
 }

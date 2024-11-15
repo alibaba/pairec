@@ -10,11 +10,13 @@ import (
 
 // remove duplicate item
 type DimensionFieldUniqueFilter struct {
+	name  string
 	field string
 }
 
 func NewDimensionFieldUniqueFilter(config recconf.FilterConfig) *DimensionFieldUniqueFilter {
 	filter := DimensionFieldUniqueFilter{
+		name:  config.Name,
 		field: config.Dimension,
 	}
 
@@ -48,7 +50,7 @@ func (f *DimensionFieldUniqueFilter) doFilter(filterData *FilterData) error {
 	}
 
 	filterData.Data = newItems
-	filterInfoLog(filterData, "DimensionFieldUniqueFilter", len(newItems), start)
+	filterInfoLog(filterData, "DimensionFieldUniqueFilter", f.name, len(newItems), start)
 	return nil
 }
 

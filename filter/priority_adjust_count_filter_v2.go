@@ -98,6 +98,6 @@ func (f *PriorityAdjustCountFilterV2) doFilter(filterData *FilterData) error {
 	}
 
 	filterData.Data = newItems
-	filterInfoLogV2(filterData, "PriorityAdjustCountFilterV2", f.name, len(newItems), start)
+	filterInfoLog(filterData, "PriorityAdjustCountFilterV2", f.name, len(newItems), start)
 	return nil
 }
