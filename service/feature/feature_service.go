@@ -10,6 +10,7 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/utils"
 )
 
@@ -118,6 +119,10 @@ func (s *FeatureService) LoadFeatures(user *module.User, items []*module.Item, c
 		if ok {
 			items = featureFunc(user, items, context)
 		}
+	}
+
+	if metrics.Enabled() {
+		metrics.LoadFeatureDurSecs.WithLabelValues(sceneName, "", "before_rank").Observe(time.Since(start).Seconds())
 	}
 
 	log.Info(fmt.Sprintf("requestId=%s\tmodule=LoadFeatures\tcost=%d", context.RecommendId, utils.CostTime(start)))

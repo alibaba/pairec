@@ -9,11 +9,13 @@ import (
 )
 
 type ItemStateFilter struct {
+	name         string
 	itemStateDao module.ItemStateFilterDao
 }
 
 func NewItemStateFilter(config recconf.FilterConfig) *ItemStateFilter {
 	filter := ItemStateFilter{
+		name:         config.Name,
 		itemStateDao: module.NewItemStateFilterDao(config),
 	}
 
@@ -34,6 +36,6 @@ func (f *ItemStateFilter) doFilter(filterData *FilterData) error {
 	newItems := f.itemStateDao.Filter(filterData.User, items)
 
 	filterData.Data = newItems
-	filterInfoLog(filterData, "ItemStateFilter", len(newItems), start)
+	filterInfoLog(filterData, "ItemStateFilter", f.name, len(newItems), start)
 	return nil
 }

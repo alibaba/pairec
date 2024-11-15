@@ -37,6 +37,10 @@ func (f *UniqueFilter) doFilter(filterData *FilterData) error {
 			for name, score := range algoScores {
 				exist.AddAlgoScore(name, score)
 			}
+			if exist.RecallScores == nil {
+				exist.RecallScores = map[string]float64{exist.RetrieveId: exist.Score}
+			}
+			exist.RecallScores[item.RetrieveId] = item.Score
 		}
 	}
 

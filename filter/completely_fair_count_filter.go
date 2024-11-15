@@ -11,11 +11,13 @@ import (
 )
 
 type CompletelyFairCountFilter struct {
+	name      string
 	retainNum int
 }
 
 func NewCompletelyFairCountFilter(config recconf.FilterConfig) *CompletelyFairCountFilter {
 	filter := CompletelyFairCountFilter{
+		name:      config.Name,
 		retainNum: config.RetainNum,
 	}
 
@@ -87,6 +89,6 @@ func (f *CompletelyFairCountFilter) doFilter(filterData *FilterData) error {
 	}
 
 	filterData.Data = newItems
-	filterInfoLog(filterData, "CompletelyFairCountFilter", len(newItems), start)
+	filterInfoLog(filterData, "CompletelyFairCountFilter", f.name, len(newItems), start)
 	return nil
 }

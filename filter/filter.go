@@ -33,6 +33,11 @@ type IFilter interface {
 	Filter(filterData *FilterData) error
 }
 
+type ICloneFilter interface {
+	CloneWithConfig(params map[string]interface{}) IFilter
+	GetFilterName() string
+}
+
 type FilterService struct {
 	Filters map[string][]IFilter
 }
@@ -101,9 +106,20 @@ func (fs *FilterService) Filter(filterData *FilterData, tag string) {
 
 	}
 
-	// var err error
 	for _, f := range filters {
-		f.Filter(filterData)
+		newFilter := f
+		if cloneFilter, ok := f.(ICloneFilter); ok && context.ExperimentResult != nil {
+			filterConfig := context.ExperimentResult.GetExperimentParams().Get("filter."+cloneFilter.GetFilterName(), nil)
+			if filterConfig != nil {
+				if params, ok := filterConfig.(map[string]interface{}); ok {
+					if filterInstance := cloneFilter.CloneWithConfig(params); !utils.IsNil(filterInstance) {
+						newFilter = filterInstance
+					}
+				}
+			}
+		}
+
+		newFilter.Filter(filterData)
 	}
 }
 
@@ -125,6 +141,8 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			f = NewAdjustCountFilter(conf)
 		} else if conf.FilterType == "PriorityAdjustCountFilter" {
 			f = NewPriorityAdjustCountFilter(conf)
+		} else if conf.FilterType == "PriorityAdjustCountFilterV2" {
+			f = NewPriorityAdjustCountFilterV2(conf)
 		} else if conf.FilterType == "ItemStateFilter" {
 			f = NewItemStateFilter(conf)
 		} else if conf.FilterType == "ItemCustomFilter" {
@@ -204,11 +222,11 @@ func GetFiltersBySceneName(sceneName string) ([]IFilter, bool) {
 	return ret, ok
 }
 
-func filterInfoLog(filterData *FilterData, module string, count int, start time.Time) {
+func filterInfoLog(filterData *FilterData, module string, filterName string, count int, start time.Time) {
 	ctx := filterData.Context
 	if filterData.PipelineName != "" {
-		ctx.LogInfo(fmt.Sprintf("module=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterData.PipelineName, count, utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=%s\tname=%s\tpipeline=%s\tcount=%d\tcost=%d", module, filterName, filterData.PipelineName, count, utils.CostTime(start)))
 	} else {
-		ctx.LogInfo(fmt.Sprintf("module=%s\tcount=%d\tcost=%d", module, count, utils.CostTime(start)))
+		ctx.LogInfo(fmt.Sprintf("module=%s\tname=%s\tcount=%d\tcost=%d", module, filterName, count, utils.CostTime(start)))
 	}
 }

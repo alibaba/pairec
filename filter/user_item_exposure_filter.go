@@ -10,11 +10,13 @@ import (
 
 // user exposure history filter
 type User2ItemExposureFilter struct {
+	name                 string
 	user2ItemExposureDao module.User2ItemExposureDao
 }
 
 func NewUser2ItemExposureFilter(config recconf.FilterConfig) *User2ItemExposureFilter {
 	filter := User2ItemExposureFilter{
+		name:                 config.Name,
 		user2ItemExposureDao: module.NewUser2ItemExposureDao(config),
 	}
 
@@ -35,7 +37,7 @@ func (f *User2ItemExposureFilter) doFilter(filterData *FilterData) error {
 	newItems := f.user2ItemExposureDao.FilterByHistory(filterData.Uid, items)
 
 	filterData.Data = newItems
-	filterInfoLog(filterData, "User2ItemExposureFilter", len(newItems), start)
+	filterInfoLog(filterData, "User2ItemExposureFilter", f.name, len(newItems), start)
 	return nil
 }
 func (f *User2ItemExposureFilter) MatchTag(tag string) bool {

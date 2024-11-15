@@ -20,9 +20,10 @@ type Item struct {
 	Embedding  []float64
 	//Extra     interface{}
 
-	mutex      sync.RWMutex
-	Properties map[string]interface{} `json:"properties"`
-	algoScores map[string]float64
+	mutex        sync.RWMutex
+	Properties   map[string]interface{} `json:"properties"`
+	algoScores   map[string]float64
+	RecallScores map[string]float64
 }
 
 func NewItem(id string) *Item {

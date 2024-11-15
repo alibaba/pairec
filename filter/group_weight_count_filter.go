@@ -84,6 +84,7 @@ func (s *AvgGroupWeightStrategy) DimensionCount(dimension string, retainNum int)
 }
 
 type GroupWeightCountFilter struct {
+	name                      string
 	retainNum                 int
 	dimension                 string
 	groupMinNum               int
@@ -95,6 +96,7 @@ type GroupWeightCountFilter struct {
 
 func NewGroupWeightCountFilter(config recconf.FilterConfig) *GroupWeightCountFilter {
 	filter := GroupWeightCountFilter{
+		name:                      config.Name,
 		retainNum:                 config.RetainNum,
 		dimension:                 config.Dimension,
 		groupMinNum:               config.GroupMinNum,
@@ -270,7 +272,7 @@ func (f *GroupWeightCountFilter) doFilter(filterData *FilterData) error {
 	}
 
 	filterData.Data = newItems
-	filterInfoLog(filterData, "GroupWeightCountFilter", len(newItems), start)
+	filterInfoLog(filterData, "GroupWeightCountFilter", f.name, len(newItems), start)
 	return nil
 }
 

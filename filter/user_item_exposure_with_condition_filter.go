@@ -12,12 +12,14 @@ import (
 
 // user exposure history filter with condition
 type User2ItemExposureWithConditionFilter struct {
+	name                 string
 	user2ItemExposureDao module.User2ItemExposureDao
 	filterParam          *module.FilterParam
 }
 
 func NewUser2ItemExposureWithConditionFilter(config recconf.FilterConfig) *User2ItemExposureWithConditionFilter {
 	filter := User2ItemExposureWithConditionFilter{
+		name:                 config.Name,
 		user2ItemExposureDao: module.NewUser2ItemExposureDao(config),
 	}
 	if len(config.Conditions) > 0 {
@@ -37,7 +39,7 @@ func (f *User2ItemExposureWithConditionFilter) Filter(filterData *FilterData) er
 			// if flag == true, should clear history, and no need to filter
 			if flag {
 				go f.user2ItemExposureDao.ClearHistory(filterData.User, filterData.Context)
-				filterInfoLog(filterData, "User2ItemExposureWithConditionFilter", len(filterData.Data.([]*module.Item)), time.Now())
+				filterInfoLog(filterData, "User2ItemExposureWithConditionFilter", f.name, len(filterData.Data.([]*module.Item)), time.Now())
 				return nil
 			}
 		} else {
@@ -54,7 +56,7 @@ func (f *User2ItemExposureWithConditionFilter) doFilter(filterData *FilterData) 
 	newItems := f.user2ItemExposureDao.FilterByHistory(filterData.Uid, items)
 
 	filterData.Data = newItems
-	filterInfoLog(filterData, "User2ItemExposureWithConditionFilter", len(newItems), start)
+	filterInfoLog(filterData, "User2ItemExposureWithConditionFilter", f.name, len(newItems), start)
 	return nil
 }
 func (f *User2ItemExposureWithConditionFilter) MatchTag(tag string) bool {
