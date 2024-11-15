@@ -76,6 +76,36 @@ func (f *ComplexTypeFeatures) UnmarshalJSON(data []byte) error {
 				}
 				f.FeaturesMap[feature.Name] = values
 			}
+		case "list<list<float>>":
+			if vals, ok := feature.Values.([]any); ok {
+				values := make([][]float32, 0, len(vals))
+				for _, vlist := range vals {
+					if lists, ok := vlist.([]any); ok {
+						list := make([]float32, 0, len(lists))
+						for _, v := range lists {
+							list = append(list, utils.ToFloat32(v, 0))
+						}
+						values = append(values, list)
+					}
+				}
+
+				f.FeaturesMap[feature.Name] = values
+			}
+		case "list<list<double>>":
+			if vals, ok := feature.Values.([]any); ok {
+				values := make([][]float64, 0, len(vals))
+				for _, vlist := range vals {
+					if lists, ok := vlist.([]any); ok {
+						list := make([]float64, 0, len(lists))
+						for _, v := range lists {
+							list = append(list, utils.ToFloat(v, 0))
+						}
+						values = append(values, list)
+					}
+				}
+
+				f.FeaturesMap[feature.Name] = values
+			}
 		case "map<string,string>":
 			if vals, ok := feature.Values.(map[string]any); ok {
 				values := make(map[string]string, len(vals))

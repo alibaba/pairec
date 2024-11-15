@@ -15,13 +15,15 @@ import (
 )
 
 type EmbeddingParam struct {
-	RequestId    string                 `json:"request_id"`
-	SceneId      string                 `json:"scene_id"`
-	Uid          string                 `json:"uid"` // user id
-	Debug        bool                   `json:"debug"`
-	UserFeatures map[string]interface{} `json:"user_features"`
-	ItemId       string                 `json:"item_id"`
-	ItemFeatures map[string]interface{} `json:"item_features"`
+	RequestId               string                 `json:"request_id"`
+	SceneId                 string                 `json:"scene_id"`
+	Uid                     string                 `json:"uid"` // user id
+	Debug                   bool                   `json:"debug"`
+	UserFeatures            map[string]interface{} `json:"user_features"`
+	UserComplexTypeFeatures ComplexTypeFeatures    `json:"user_complex_type_features"`
+	ItemId                  string                 `json:"item_id"`
+	ItemFeatures            map[string]interface{} `json:"item_features"`
+	ItemComplexTypeFeatures ComplexTypeFeatures    `json:"item_complex_type_features"`
 }
 
 func (r *EmbeddingParam) GetParameter(name string) interface{} {
@@ -96,6 +98,23 @@ func (r *EmbeddingController) decodeRequestBody() error {
 		r.RequestId = utils.UUID()
 	} else {
 		r.RequestId = r.param.RequestId
+	}
+	if len(r.param.UserComplexTypeFeatures.FeaturesMap) > 0 {
+		if r.param.UserFeatures == nil {
+			r.param.UserFeatures = make(map[string]interface{})
+		}
+		for k, v := range r.param.UserComplexTypeFeatures.FeaturesMap {
+			r.param.UserFeatures[k] = v
+		}
+	}
+
+	if len(r.param.ItemComplexTypeFeatures.FeaturesMap) > 0 {
+		if r.param.ItemFeatures == nil {
+			r.param.ItemFeatures = make(map[string]interface{})
+		}
+		for k, v := range r.param.ItemComplexTypeFeatures.FeaturesMap {
+			r.param.ItemFeatures[k] = v
+		}
 	}
 	return nil
 }
