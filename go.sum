@@ -66,8 +66,8 @@ github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227 h1:NBH
 github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227/go.mod h1:k+nixj5x99h1pIn/7RyAxeMtig9PvnCFdDNzHduLqWU=
 github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8Ahwq4o+y5g=
 github.com/aliyun/aliyun-log-go-sdk v0.1.27/go.mod h1:aBG0R+MWRTgvlIODQkz+a3/RM9bQYKsmSbKdbIx4vpc=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.9-0.20241112004943-ce2c668a3846 h1:2oK5qEqiZre20FrwCka8z4Nto+XC6AknMct7WDuQOww=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.9-0.20241112004943-ce2c668a3846/go.mod h1:t6q61MWkf/Ke0fXaUrRUrdbMdWuAEcfH3bhpeM9tLf0=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.9-0.20241118072910-a31680317377 h1:Ib83cLpcyVVlu0VmFnrisMW3uV8V/Vlk1Mk7MTH7P6s=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.9-0.20241118072910-a31680317377/go.mod h1:hYOflFhW0iowuAXC3wDXzio0Y73P4zdIsBhJb67wMJg=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.7 h1:tMeE//4qWyKkeAXD6ehjmV7HjaZXtwtZ8GXT7Ci/B08=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.7/go.mod h1:nYJ7Wp+sW/X3NAZBeJUyBGifcLTqIkNumq3lExpEG30=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7 h1:+d/mcgaxx1jaWtFN2WrBHy4XeM9IK5gmZvbbpVkhqHE=
@@ -148,6 +148,8 @@ github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1m
 github.com/envoyproxy/go-control-plane v0.9.9-0.20201210154907-fd9021fe5dad/go.mod h1:cXg6YxExXjJnVBQHBLXeUAgxn2UodCpnH306RInaBQk=
 github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1/go.mod h1:KJwIaB5Mv44NWtYuAOFCVOjcI94vtpEz2JU/D2v6IjE=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
+github.com/expr-lang/expr v1.16.9 h1:WUAzmR0JNI9JCiF0/ewwHB1gmcGw5wW7nWt8gc6PpCI=
+github.com/expr-lang/expr v1.16.9/go.mod h1:8/vRC7+7HBzESEqt5kKpYXxrxkr31SaO8r40VO/1IT4=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/franela/goblin v0.0.0-20200105215937-c9ffbefa60db/go.mod h1:7dvUGVsVBjqR7JHJk0brhHOZYGmfBYOrK0ZhYMEtBr4=
