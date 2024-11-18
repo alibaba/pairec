@@ -124,6 +124,21 @@ func (d *User2ItemExposureFeatureStoreDao) FilterByHistory(uid UID, items []*Ite
 }
 
 func (d *User2ItemExposureFeatureStoreDao) ClearHistory(user *User, context *context.RecommendContext) {
+	scene := context.GetParameter("scene").(string)
+	if scene != d.clearLogScene {
+		return
+	}
+	project := d.fsClient.GetProject()
+	featureView := project.GetFeatureView(d.table)
+	if featureView == nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureFeatureStoreDao\terror=table not found, name:%s", context.RecommendId, d.table))
+		return
+	}
+
+	err := fdbserverpb.DeleteBloomByKey(project, featureView, string(user.Id))
+	if err != nil {
+		context.LogError(fmt.Sprintf("delete user [%s] exposure items failed, err=%v", user.Id, err))
+	}
 }
 
 func (d *User2ItemExposureFeatureStoreDao) GetExposureItemIds(user *User, context *context.RecommendContext) (ret string) {

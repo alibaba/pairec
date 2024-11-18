@@ -41,7 +41,7 @@ require (
 
 require (
 	github.com/alibabacloud-go/opensearch-util v1.0.1
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.9-0.20241112004943-ce2c668a3846
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.9-0.20241118072910-a31680317377
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.7
 	github.com/aliyun/credentials-go v1.3.1
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
@@ -61,6 +61,7 @@ require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
+	github.com/expr-lang/expr v1.16.9 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
