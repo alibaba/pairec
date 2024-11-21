@@ -360,7 +360,7 @@ func (p *InFilterOp) DomainEvaluate(properties map[string]interface{}, userPrope
 		if p.value == "" {
 			right = p.string_values
 		} else {
-			if strings.Contains(p.value, "user.") {
+			if strings.HasPrefix(p.value, "user.") {
 				val := p.value[5:]
 				right1, ok := userProperties[val]
 				if !ok {
@@ -368,7 +368,7 @@ func (p *InFilterOp) DomainEvaluate(properties map[string]interface{}, userPrope
 				}
 				right = utils.ToStringArray(right1)
 
-			} else if strings.Contains(p.value, "item.") {
+			} else if strings.HasPrefix(p.value, "item.") {
 				val := p.value[5:]
 				right1, ok := itemProperties[val]
 				if !ok {
