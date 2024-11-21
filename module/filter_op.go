@@ -18,12 +18,17 @@ type FilterOp interface {
 	Evaluate(map[string]interface{}) (bool, error)
 	OpDomain() string
 }
+type FilterByDomainOp interface {
+	FilterOp
+	DomainEvaluate(map[string]any, map[string]any, map[string]any) (bool, error)
+}
 
 type EqualFilterOp struct {
-	Name   string
-	Domain string
-	Type   string
-	Value  interface{}
+	Name        string
+	Domain      string
+	Type        string
+	Value       interface{}
+	DomainValue string
 }
 
 func NewEqualFilterOp(config recconf.FilterParamConfig) *EqualFilterOp {
@@ -37,6 +42,9 @@ func NewEqualFilterOp(config recconf.FilterParamConfig) *EqualFilterOp {
 		equalFilterOp.Domain = ITEM
 	} else {
 		equalFilterOp.Domain = config.Domain
+	}
+	if v, ok := config.Value.(string); ok {
+		equalFilterOp.DomainValue = v
 	}
 
 	return equalFilterOp
@@ -67,16 +75,105 @@ func (p *EqualFilterOp) Evaluate(properties map[string]interface{}) (bool, error
 		return false, nil
 	}
 }
+func (p *EqualFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+
+	left, ok := properties[p.Name]
+	if !ok {
+		return false, nil
+	}
+
+	switch p.Type {
+	case "string":
+		v1 := utils.ToString(left, "v1")
+		var right string
+		if p.DomainValue == "" {
+			right = utils.ToString(p.Value, "v2")
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "v2")
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "v2")
+
+		} else {
+			right = utils.ToString(p.Value, "v2")
+		}
+
+		return v1 == right, nil
+	case "int":
+		v1 := utils.ToInt(left, -1)
+		var right int
+		if p.DomainValue == "" {
+			right = utils.ToInt(p.Value, -2)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, -2)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, -2)
+
+		} else {
+			right = utils.ToInt(p.Value, -2)
+		}
+		return v1 == right, nil
+	case "int64":
+		v1 := utils.ToInt64(left, -1)
+		var right int64
+		if p.DomainValue == "" {
+			right = utils.ToInt64(p.Value, -2)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, -2)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, -2)
+
+		} else {
+			right = utils.ToInt64(p.Value, -2)
+		}
+		return v1 == right, nil
+	default:
+		return false, nil
+	}
+}
 
 func (p *EqualFilterOp) OpDomain() string {
 	return p.Domain
 }
 
 type NotEqualFilterOp struct {
-	Name   string
-	Domain string
-	Type   string
-	Value  interface{}
+	Name        string
+	Domain      string
+	Type        string
+	Value       interface{}
+	DomainValue string
 }
 
 func NewNotEqualFilterOp(config recconf.FilterParamConfig) *NotEqualFilterOp {
@@ -91,6 +188,10 @@ func NewNotEqualFilterOp(config recconf.FilterParamConfig) *NotEqualFilterOp {
 		notEqualFilterOp.Domain = ITEM
 	} else {
 		notEqualFilterOp.Domain = config.Domain
+	}
+
+	if v, ok := config.Value.(string); ok {
+		notEqualFilterOp.DomainValue = v
 	}
 
 	return notEqualFilterOp
@@ -121,6 +222,90 @@ func (p *NotEqualFilterOp) Evaluate(properties map[string]interface{}) (bool, er
 		return false, nil
 	}
 }
+func (p *NotEqualFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+	left, ok := properties[p.Name]
+	if !ok {
+		return true, nil
+	}
+
+	switch p.Type {
+	case "string":
+		v1 := utils.ToString(left, "")
+		var right string
+		if p.DomainValue == "" {
+			right = utils.ToString(p.Value, "")
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToString(right1, "")
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToString(right1, "")
+		} else {
+			right = utils.ToString(p.Value, "")
+		}
+
+		return v1 != right, nil
+	case "int":
+		v1 := utils.ToInt(left, 0)
+		var right int
+		if p.DomainValue == "" {
+			right = utils.ToInt(p.Value, 0)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToInt(right1, 0)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToInt(right1, 0)
+		} else {
+			right = utils.ToInt(p.Value, 0)
+		}
+		return v1 != right, nil
+	case "int64":
+		v1 := utils.ToInt64(left, 0)
+		var right int64
+		if p.DomainValue == "" {
+			right = utils.ToInt64(p.Value, 0)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToInt64(right1, 0)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToInt64(right1, 0)
+		} else {
+			right = utils.ToInt64(p.Value, 0)
+		}
+		return v1 != right, nil
+	default:
+		return false, nil
+	}
+}
 
 func (p *NotEqualFilterOp) OpDomain() string {
 	return p.Domain
@@ -130,6 +315,7 @@ type InFilterOp struct {
 	Name          string
 	Domain        string
 	Type          string
+	value         string
 	int_values    []int
 	string_values []string
 }
@@ -147,35 +333,86 @@ func NewInFilterOp(config recconf.FilterParamConfig) *InFilterOp {
 		op.Domain = config.Domain
 	}
 
-	values, ok := config.Value.([]interface{})
-	if !ok {
-		panic("InFilterOp type error")
-
+	if val, ok := config.Value.(string); ok {
+		op.value = val
 	}
+
 	switch op.Type {
 	case "int":
-		for _, val := range values {
-			switch value := val.(type) {
-			case float64:
-				op.int_values = append(op.int_values, int(value))
-			case int:
-				op.int_values = append(op.int_values, value)
-			case int32:
-				op.int_values = append(op.int_values, int(value))
-			case int64:
-				op.int_values = append(op.int_values, int(value))
-			}
-		}
+		op.int_values = utils.ToIntArray(config.Value)
 
 	case "string":
-		for _, val := range values {
-			if value, ok := val.(string); ok {
-				op.string_values = append(op.string_values, value)
-			}
-		}
+		op.string_values = utils.ToStringArray(config.Value)
 	}
 
 	return op
+}
+func (p *InFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+	left, ok := properties[p.Name]
+	if !ok {
+		return false, nil
+	}
+
+	switch p.Type {
+	case "string":
+		v1 := utils.ToString(left, "")
+		var right []string
+		if p.value == "" {
+			right = p.string_values
+		} else {
+			if strings.Contains(p.value, "user.") {
+				val := p.value[5:]
+				right1, ok := userProperties[val]
+				if !ok {
+					return false, nil
+				}
+				right = utils.ToStringArray(right1)
+
+			} else if strings.Contains(p.value, "item.") {
+				val := p.value[5:]
+				right1, ok := itemProperties[val]
+				if !ok {
+					return true, nil
+				}
+				right = utils.ToStringArray(right1)
+			}
+		}
+		for _, val := range right {
+			if v1 == val {
+				return true, nil
+			}
+		}
+	case "int":
+		v1 := utils.ToInt(left, math.MinInt32)
+		var right []int
+		if p.value == "" {
+			right = p.int_values
+		} else {
+			if strings.HasPrefix(p.value, "user.") {
+				val := p.value[5:]
+				right1, ok := userProperties[val]
+				if !ok {
+					return false, nil
+				}
+				right = utils.ToIntArray(right1)
+
+			} else if strings.HasPrefix(p.value, "item.") {
+				val := p.value[5:]
+				right1, ok := itemProperties[val]
+				if !ok {
+					return true, nil
+				}
+				right = utils.ToIntArray(right1)
+			}
+
+		}
+		for _, val := range right {
+			if v1 == val {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func (p *InFilterOp) Evaluate(properties map[string]interface{}) (bool, error) {
@@ -260,48 +497,17 @@ func (p *FilterParam) Evaluate(properties map[string]interface{}) (bool, error) 
 
 func (p *FilterParam) EvaluateByDomain(userProperties, itemProperties map[string]interface{}) (bool, error) {
 	for _, op := range p.operators {
-		if containsOp, ok := op.(*ContainsFilterOp); ok {
-			if containsOp.OpDomain() == ITEM {
-				ret, err := containsOp.ContainsEvaluate(itemProperties, userProperties, itemProperties)
+		if domainFilterOp, ok := op.(FilterByDomainOp); ok {
+			if domainFilterOp.OpDomain() == ITEM {
+				ret, err := domainFilterOp.DomainEvaluate(itemProperties, userProperties, itemProperties)
 				if !ret || err != nil {
 					return false, err
 				}
-			} else if containsOp.OpDomain() == USER {
-				ret, err := containsOp.ContainsEvaluate(userProperties, userProperties, itemProperties)
+			} else if domainFilterOp.OpDomain() == USER {
+				ret, err := domainFilterOp.DomainEvaluate(userProperties, userProperties, itemProperties)
 				if !ret || err != nil {
 					return false, err
 				}
-			} else {
-				return false, fmt.Errorf("not support this domain:%s", op.OpDomain())
-			}
-
-		} else if notContainsOp, ok := op.(*NotContainsFilterOp); ok {
-			if notContainsOp.OpDomain() == ITEM {
-				ret, err := notContainsOp.ContainsEvaluate(itemProperties, userProperties, itemProperties)
-				if !ret || err != nil {
-					return false, err
-				}
-			} else if notContainsOp.OpDomain() == USER {
-				ret, err := notContainsOp.ContainsEvaluate(userProperties, userProperties, itemProperties)
-				if !ret || err != nil {
-					return false, err
-				}
-			} else {
-				return false, fmt.Errorf("not support this domain:%s", op.OpDomain())
-			}
-		} else if notInOp, ok := op.(*NotInFilterOp); ok {
-			if notInOp.OpDomain() == ITEM {
-				ret, err := notInOp.NotInEvaluate(itemProperties, userProperties, itemProperties)
-				if !ret || err != nil {
-					return false, err
-				}
-			} else if notInOp.OpDomain() == USER {
-				ret, err := notInOp.NotInEvaluate(userProperties, userProperties, itemProperties)
-				if !ret || err != nil {
-					return false, err
-				}
-			} else {
-				return false, fmt.Errorf("not support this domain:%s", op.OpDomain())
 			}
 
 		} else {
@@ -325,10 +531,11 @@ func (p *FilterParam) EvaluateByDomain(userProperties, itemProperties map[string
 }
 
 type GreaterFilterOp struct {
-	Name   string
-	Domain string
-	Type   string
-	Value  interface{}
+	Name        string
+	Domain      string
+	Type        string
+	Value       interface{}
+	DomainValue string
 }
 
 func NewGreaterFilterOp(config recconf.FilterParamConfig) *GreaterFilterOp {
@@ -343,6 +550,10 @@ func NewGreaterFilterOp(config recconf.FilterParamConfig) *GreaterFilterOp {
 		greaterFilterOp.Domain = ITEM
 	} else {
 		greaterFilterOp.Domain = config.Domain
+	}
+
+	if v, ok := config.Value.(string); ok {
+		greaterFilterOp.DomainValue = v
 	}
 
 	return greaterFilterOp
@@ -373,16 +584,101 @@ func (p *GreaterFilterOp) Evaluate(properties map[string]interface{}) (bool, err
 		return false, nil
 	}
 }
+func (p *GreaterFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+	left, ok := properties[p.Name]
+	if !ok {
+		return false, nil
+	}
+
+	switch p.Type {
+	case "float":
+		v1 := utils.ToFloat(left, 0)
+		var right float64
+		if p.DomainValue == "" {
+			right = utils.ToFloat(p.Value, 0)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToFloat(right1, 0)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToFloat(right1, 0)
+		} else {
+			right = utils.ToFloat(p.Value, 0)
+		}
+
+		return v1 > right, nil
+	case "int":
+		v1 := utils.ToInt(left, 0)
+		var right int
+		if p.DomainValue == "" {
+			right = utils.ToInt(p.Value, 0)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, 0)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, 0)
+		} else {
+			right = utils.ToInt(p.Value, 0)
+		}
+		return v1 > right, nil
+	case "int64":
+		v1 := utils.ToInt64(left, 0)
+		var right int64
+		if p.DomainValue == "" {
+			right = utils.ToInt64(p.Value, 0)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, 0)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, 0)
+		} else {
+			right = utils.ToInt64(p.Value, 0)
+		}
+		return v1 > right, nil
+	default:
+		return false, nil
+	}
+}
 
 func (p *GreaterFilterOp) OpDomain() string {
 	return p.Domain
 }
 
 type GreaterThanFilterOp struct {
-	Name   string
-	Domain string
-	Type   string
-	Value  interface{}
+	Name        string
+	Domain      string
+	Type        string
+	Value       interface{}
+	DomainValue string
 }
 
 func NewGreaterThanFilterOp(config recconf.FilterParamConfig) *GreaterThanFilterOp {
@@ -397,6 +693,9 @@ func NewGreaterThanFilterOp(config recconf.FilterParamConfig) *GreaterThanFilter
 		greaterThanFilterOp.Domain = ITEM
 	} else {
 		greaterThanFilterOp.Domain = config.Domain
+	}
+	if v, ok := config.Value.(string); ok {
+		greaterThanFilterOp.DomainValue = v
 	}
 
 	return greaterThanFilterOp
@@ -427,16 +726,101 @@ func (p *GreaterThanFilterOp) Evaluate(properties map[string]interface{}) (bool,
 		return false, nil
 	}
 }
+func (p *GreaterThanFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+	left, ok := properties[p.Name]
+	if !ok {
+		return false, nil
+	}
+
+	switch p.Type {
+	case "float":
+		v1 := utils.ToFloat(left, math.SmallestNonzeroFloat64)
+		var right float64
+		if p.DomainValue == "" {
+			right = utils.ToFloat(p.Value, math.MaxFloat64)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToFloat(right1, math.MaxFloat64)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToFloat(right1, math.MaxFloat64)
+		} else {
+			right = utils.ToFloat(p.Value, math.MaxFloat64)
+		}
+
+		return v1 >= right, nil
+	case "int":
+		v1 := utils.ToInt(left, math.MinInt)
+		var right int
+		if p.DomainValue == "" {
+			right = utils.ToInt(p.Value, math.MaxInt)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, math.MaxInt)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, math.MaxInt)
+		} else {
+			right = utils.ToInt(p.Value, math.MaxInt)
+		}
+		return v1 >= right, nil
+	case "int64":
+		v1 := utils.ToInt64(left, 0)
+		var right int64
+		if p.DomainValue == "" {
+			right = utils.ToInt64(p.Value, 0)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, 0)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, 0)
+		} else {
+			right = utils.ToInt64(p.Value, 0)
+		}
+		return v1 >= right, nil
+	default:
+		return false, nil
+	}
+}
 
 func (p *GreaterThanFilterOp) OpDomain() string {
 	return p.Domain
 }
 
 type LessFilterOp struct {
-	Name   string
-	Domain string
-	Type   string
-	Value  interface{}
+	Name        string
+	Domain      string
+	Type        string
+	Value       interface{}
+	DomainValue string
 }
 
 func NewLessFilterOp(config recconf.FilterParamConfig) *LessFilterOp {
@@ -453,6 +837,9 @@ func NewLessFilterOp(config recconf.FilterParamConfig) *LessFilterOp {
 		lessFilterOp.Domain = config.Domain
 	}
 
+	if v, ok := config.Value.(string); ok {
+		lessFilterOp.DomainValue = v
+	}
 	return lessFilterOp
 }
 
@@ -481,16 +868,101 @@ func (p *LessFilterOp) Evaluate(properties map[string]interface{}) (bool, error)
 		return false, nil
 	}
 }
+func (p *LessFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+	left, ok := properties[p.Name]
+	if !ok {
+		return false, nil
+	}
+
+	switch p.Type {
+	case "float":
+		v1 := utils.ToFloat(left, math.MaxFloat64)
+		var right float64
+		if p.DomainValue == "" {
+			right = utils.ToFloat(p.Value, math.SmallestNonzeroFloat64)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToFloat(right1, math.SmallestNonzeroFloat64)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToFloat(right1, math.SmallestNonzeroFloat64)
+		} else {
+			right = utils.ToFloat(p.Value, math.SmallestNonzeroFloat64)
+		}
+
+		return v1 < right, nil
+	case "int":
+		v1 := utils.ToInt(left, math.MaxInt)
+		var right int
+		if p.DomainValue == "" {
+			right = utils.ToInt(p.Value, math.MinInt)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, math.MinInt)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, math.MinInt)
+		} else {
+			right = utils.ToInt(p.Value, math.MinInt)
+		}
+		return v1 < right, nil
+	case "int64":
+		v1 := utils.ToInt64(left, 0)
+		var right int64
+		if p.DomainValue == "" {
+			right = utils.ToInt64(p.Value, 0)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, 0)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, 0)
+		} else {
+			right = utils.ToInt64(p.Value, 0)
+		}
+		return v1 < right, nil
+	default:
+		return false, nil
+	}
+}
 
 func (p *LessFilterOp) OpDomain() string {
 	return p.Domain
 }
 
 type LessThanFilterOp struct {
-	Name   string
-	Domain string
-	Type   string
-	Value  interface{}
+	Name        string
+	Domain      string
+	Type        string
+	Value       interface{}
+	DomainValue string
 }
 
 func NewLessThanFilterOp(config recconf.FilterParamConfig) *LessThanFilterOp {
@@ -507,6 +979,9 @@ func NewLessThanFilterOp(config recconf.FilterParamConfig) *LessThanFilterOp {
 		lessThanFilterOp.Domain = config.Domain
 	}
 
+	if v, ok := config.Value.(string); ok {
+		lessThanFilterOp.DomainValue = v
+	}
 	return lessThanFilterOp
 }
 
@@ -531,6 +1006,90 @@ func (p *LessThanFilterOp) Evaluate(properties map[string]interface{}) (bool, er
 		v1 := utils.ToInt64(left, 0)
 		v2 := utils.ToInt64(p.Value, 0)
 		return v1 <= v2, nil
+	default:
+		return false, nil
+	}
+}
+func (p *LessThanFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+	left, ok := properties[p.Name]
+	if !ok {
+		return false, nil
+	}
+
+	switch p.Type {
+	case "float":
+		v1 := utils.ToFloat(left, math.MaxFloat64)
+		var right float64
+		if p.DomainValue == "" {
+			right = utils.ToFloat(p.Value, math.SmallestNonzeroFloat64)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToFloat(right1, math.SmallestNonzeroFloat64)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return true, nil
+			}
+			right = utils.ToFloat(right1, math.SmallestNonzeroFloat64)
+		} else {
+			right = utils.ToFloat(p.Value, math.SmallestNonzeroFloat64)
+		}
+
+		return v1 <= right, nil
+	case "int":
+		v1 := utils.ToInt(left, math.MaxInt)
+		var right int
+		if p.DomainValue == "" {
+			right = utils.ToInt(p.Value, math.MinInt)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, math.MinInt)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt(right1, math.MinInt)
+		} else {
+			right = utils.ToInt(p.Value, math.MinInt)
+		}
+		return v1 <= right, nil
+	case "int64":
+		v1 := utils.ToInt64(left, 0)
+		var right int64
+		if p.DomainValue == "" {
+			right = utils.ToInt64(p.Value, 0)
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, 0)
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToInt64(right1, 0)
+		} else {
+			right = utils.ToInt64(p.Value, 0)
+		}
+		return v1 <= right, nil
 	default:
 		return false, nil
 	}
@@ -568,7 +1127,7 @@ func (p *ContainsFilterOp) Evaluate(properties map[string]interface{}) (bool, er
 	return false, nil
 }
 
-func (p *ContainsFilterOp) ContainsEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+func (p *ContainsFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
 	left1, ok := properties[p.Name]
 	if !ok {
 		return false, nil
@@ -580,27 +1139,17 @@ func (p *ContainsFilterOp) ContainsEvaluate(properties map[string]interface{}, u
 			left  []string
 			right []string
 		)
-		if leftStrings, ok := left1.([]string); ok {
-			left = leftStrings
-		} else if leftInterfaces, ok := left1.([]interface{}); ok {
-			for _, val := range leftInterfaces {
-				if val1 := utils.ToString(val, ""); val1 != "" {
-					left = append(left, val1)
-				}
-			}
-		} else {
-			return false, nil
-		}
+		left = utils.ToStringArray(left1)
 		if value, ok := p.Value.(string); ok {
 			var right1 interface{}
-			if strings.Contains(value, "user.") {
+			if strings.HasPrefix(value, "user.") {
 				val := value[5:]
 				right1, ok = userProperties[val]
 				if !ok {
 					return false, nil
 				}
 
-			} else if strings.Contains(value, "item.") {
+			} else if strings.HasPrefix(value, "item.") {
 				val := value[5:]
 				right1, ok = itemProperties[val]
 				if !ok {
@@ -610,17 +1159,9 @@ func (p *ContainsFilterOp) ContainsEvaluate(properties map[string]interface{}, u
 				right1 = []string{value}
 			}
 
-			if right, ok = right1.([]string); !ok {
-				return false, nil
-			}
-		} else if values, ok := p.Value.([]string); ok {
-			right = values
-		} else if values, ok := p.Value.([]any); ok {
-			for _, val := range values {
-				if val1 := utils.ToString(val, ""); val1 != "" {
-					right = append(right, val1)
-				}
-			}
+			right = utils.ToStringArray(right1)
+		} else {
+			right = utils.ToStringArray(p.Value)
 		}
 
 		if len(left) == 0 || len(right) == 0 {
@@ -633,32 +1174,26 @@ func (p *ContainsFilterOp) ContainsEvaluate(properties map[string]interface{}, u
 			left  []int
 			right []int
 		)
-		left, ok = left1.([]int)
-		if !ok {
-			return false, nil
-		}
+		left = utils.ToIntArray(left1)
 		if value, ok := p.Value.(string); ok {
 			var right1 interface{}
-			if strings.Contains(value, "user.") {
+			if strings.HasPrefix(value, "user.") {
 				val := value[5:]
-				fmt.Println(val)
 				right1, ok = userProperties[val]
 				if !ok {
 					return false, nil
 				}
 
-			} else if strings.Contains(value, "item.") {
+			} else if strings.HasPrefix(value, "item.") {
 				val := value[5:]
 				right1, ok = itemProperties[val]
 				if !ok {
 					return false, nil
 				}
 			}
-			if right, ok = right1.([]int); !ok {
-				return false, nil
-			}
-		} else if values, ok := p.Value.([]int); ok {
-			right = values
+			right = utils.ToIntArray(right1)
+		} else {
+			right = utils.ToIntArray(p.Value)
 		}
 		if len(left) == 0 || len(right) == 0 {
 			return false, nil
@@ -701,7 +1236,7 @@ func (p *NotContainsFilterOp) Evaluate(properties map[string]interface{}) (bool,
 	return false, nil
 }
 
-func (p *NotContainsFilterOp) ContainsEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+func (p *NotContainsFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
 	left1, ok := properties[p.Name]
 	if !ok {
 		return false, nil
@@ -712,38 +1247,26 @@ func (p *NotContainsFilterOp) ContainsEvaluate(properties map[string]interface{}
 			left  []string
 			right []string
 		)
-		if leftStrings, ok := left1.([]string); ok {
-			left = leftStrings
-		} else if leftInterfaces, ok := left1.([]interface{}); ok {
-			for _, val := range leftInterfaces {
-				if val1 := utils.ToString(val, ""); val1 != "" {
-					left = append(left, val1)
-				}
-			}
-		} else {
-			return false, nil
-		}
+		left = utils.ToStringArray(left1)
 		if value, ok := p.Value.(string); ok {
 			var right1 interface{}
-			if strings.Contains(value, "user.") {
+			if strings.HasPrefix(value, "user.") {
 				val := value[5:]
 				right1, ok = userProperties[val]
 				if !ok {
 					return false, nil
 				}
 
-			} else if strings.Contains(value, "item.") {
+			} else if strings.HasPrefix(value, "item.") {
 				val := value[5:]
 				right1, ok = itemProperties[val]
 				if !ok {
 					return false, nil
 				}
 			}
-			if right, ok = right1.([]string); !ok {
-				return false, nil
-			}
-		} else if values, ok := p.Value.([]string); ok {
-			right = values
+			right = utils.ToStringArray(right1)
+		} else {
+			right = utils.ToStringArray(p.Value)
 		}
 		if len(left) == 0 || len(right) == 0 {
 			return false, nil
@@ -755,32 +1278,26 @@ func (p *NotContainsFilterOp) ContainsEvaluate(properties map[string]interface{}
 			left  []int
 			right []int
 		)
-		left, ok = left1.([]int)
-		if !ok {
-			return false, nil
-		}
+		left = utils.ToIntArray(left1)
 		if value, ok := p.Value.(string); ok {
 			var right1 interface{}
-			if strings.Contains(value, "user.") {
+			if strings.HasPrefix(value, "user.") {
 				val := value[5:]
-				fmt.Println(val)
 				right1, ok = userProperties[val]
 				if !ok {
 					return false, nil
 				}
 
-			} else if strings.Contains(value, "item.") {
+			} else if strings.HasPrefix(value, "item.") {
 				val := value[5:]
 				right1, ok = itemProperties[val]
 				if !ok {
 					return false, nil
 				}
 			}
-			if right, ok = right1.([]int); !ok {
-				return false, nil
-			}
-		} else if values, ok := p.Value.([]int); ok {
-			right = values
+			right = utils.ToIntArray(right1)
+		} else {
+			right = utils.ToIntArray(p.Value)
 		}
 		if len(left) == 0 || len(right) == 0 {
 			return false, nil
@@ -821,13 +1338,9 @@ func NewNotInFilterOp(config recconf.FilterParamConfig) *NotInFilterOp {
 	} else {
 		switch op.Type {
 		case "int":
-			if values, ok := config.Value.([]int); ok {
-				op.int_values = append(op.int_values, values...)
-			}
+			op.int_values = utils.ToIntArray(config.Value)
 		case "string":
-			if values, ok := config.Value.([]string); ok {
-				op.string_values = append(op.string_values, values...)
-			}
+			op.string_values = utils.ToStringArray(config.Value)
 
 		}
 	}
@@ -838,7 +1351,7 @@ func (p *NotInFilterOp) Evaluate(properties map[string]interface{}) (bool, error
 	return false, nil
 }
 
-func (p *NotInFilterOp) NotInEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+func (p *NotInFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
 	left1, ok := properties[p.Name]
 	if !ok {
 		return false, nil
@@ -850,29 +1363,21 @@ func (p *NotInFilterOp) NotInEvaluate(properties map[string]interface{}, userPro
 		if p.value == "" {
 			right = p.string_values
 		} else {
-			if strings.Contains(p.value, "user.") {
+			if strings.HasPrefix(p.value, "user.") {
 				val := p.value[5:]
 				right1, ok := userProperties[val]
 				if !ok {
 					return true, nil
 				}
-				if rightVal, ok := right1.([]string); ok {
-					right = rightVal
-				} else {
-					return false, nil
-				}
+				right = utils.ToStringArray(right1)
 
-			} else if strings.Contains(p.value, "item.") {
+			} else if strings.HasPrefix(p.value, "item.") {
 				val := p.value[5:]
 				right1, ok := itemProperties[val]
 				if !ok {
 					return true, nil
 				}
-				if rightVal, ok := right1.([]string); ok {
-					right = rightVal
-				} else {
-					return false, nil
-				}
+				right = utils.ToStringArray(right1)
 			}
 		}
 		for _, val := range right {
@@ -890,29 +1395,23 @@ func (p *NotInFilterOp) NotInEvaluate(properties map[string]interface{}, userPro
 		if p.value == "" {
 			right = p.int_values
 		} else {
-			if strings.Contains(p.value, "user.") {
+			if strings.HasPrefix(p.value, "user.") {
 				val := p.value[5:]
 				right1, ok := userProperties[val]
 				if !ok {
 					return true, nil
 				}
-				if rightVal, ok := right1.([]int); ok {
-					right = rightVal
-				} else {
-					return false, nil
-				}
 
-			} else if strings.Contains(p.value, "item.") {
+				right = utils.ToIntArray(right1)
+
+			} else if strings.HasPrefix(p.value, "item.") {
 				val := p.value[5:]
 				right1, ok := itemProperties[val]
 				if !ok {
 					return true, nil
 				}
-				if rightVal, ok := right1.([]int); ok {
-					right = rightVal
-				} else {
-					return false, nil
-				}
+
+				right = utils.ToIntArray(right1)
 			}
 		}
 		for _, val := range right {

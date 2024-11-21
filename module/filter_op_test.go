@@ -23,7 +23,7 @@ func TestContainsFilterOp(t *testing.T) {
 				Value:    "user.list",
 			},
 			ItemProperties: map[string]interface{}{
-				"valid_list": []string{"42", "42.5", "43"},
+				"valid_list": []any{"42", "42.5", "43"},
 			},
 			UserProperties: map[string]interface{}{
 				"list": []string{"41", "43.5", "44"},
@@ -42,7 +42,7 @@ func TestContainsFilterOp(t *testing.T) {
 				"valid_list": []string{"42", "42.5", "43"},
 			},
 			UserProperties: map[string]interface{}{
-				"list": []string{"41", "43.5", "42.5"},
+				"list": []any{"41", "43.5", "42.5"},
 			},
 			Expect: true,
 		},
@@ -90,12 +90,44 @@ func TestContainsFilterOp(t *testing.T) {
 			},
 			Expect: true,
 		},
+		{
+			Config: recconf.FilterParamConfig{
+				Name:     "valid_list",
+				Domain:   "item",
+				Operator: "contains",
+				Type:     "[]string",
+				Value:    []any{"40", "41", "41.5", "42"},
+			},
+			ItemProperties: map[string]interface{}{
+				"valid_list": []string{"42", "42.5", "43"},
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: recconf.FilterParamConfig{
+				Name:     "valid_list",
+				Domain:   "item",
+				Operator: "contains",
+				Type:     "[]int",
+				Value:    []any{40, 41, 42},
+			},
+			ItemProperties: map[string]interface{}{
+				"valid_list": []int{42, 43},
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
 	}
 
 	for _, case1 := range testcases {
 		containsOp := NewContainsFilterOp(case1.Config)
 
-		result, err := containsOp.ContainsEvaluate(case1.ItemProperties, case1.UserProperties, case1.ItemProperties)
+		result, err := containsOp.DomainEvaluate(case1.ItemProperties, case1.UserProperties, case1.ItemProperties)
 
 		if err != nil {
 			t.Error(err)
@@ -214,7 +246,7 @@ func TestNotContainsFilterOp(t *testing.T) {
 	for _, case1 := range testcases {
 		containsOp := NewNotContainsFilterOp(case1.Config)
 
-		result, err := containsOp.ContainsEvaluate(case1.ItemProperties, case1.UserProperties, case1.ItemProperties)
+		result, err := containsOp.DomainEvaluate(case1.ItemProperties, case1.UserProperties, case1.ItemProperties)
 
 		if err != nil {
 			t.Error(err)
@@ -228,7 +260,7 @@ func TestNotContainsFilterOp(t *testing.T) {
 
 }
 
-func TestFilterParam(t *testing.T) {
+func TestFilterParamByFilterOp(t *testing.T) {
 
 	testcases := []struct {
 		Config         []recconf.FilterParamConfig
@@ -348,6 +380,24 @@ func TestFilterParam(t *testing.T) {
 			},
 			Expect: false,
 		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "string",
+					Value:    "user.list",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []any{"40", "41", "42"},
+			},
+			Expect: true,
+		},
 	}
 
 	for _, case1 := range testcases {
@@ -387,7 +437,7 @@ func TestNotInFilterOp(t *testing.T) {
 				"foo": "42",
 			},
 			UserProperties: map[string]interface{}{
-				"list": []string{"41", "43.5", "44"},
+				"list": []any{"41", "43.5", "44"},
 			},
 			Expect: true,
 		},
@@ -417,7 +467,7 @@ func TestNotInFilterOp(t *testing.T) {
 			},
 			ItemProperties: map[string]interface{}{},
 			UserProperties: map[string]interface{}{
-				"list": []string{"41", "43.5", "42.5"},
+				"list": []any{"41", "43.5", "42.5"},
 			},
 			Expect: false,
 		},
@@ -441,7 +491,7 @@ func TestNotInFilterOp(t *testing.T) {
 				Domain:   "item",
 				Operator: "not_in",
 				Type:     "string",
-				Value:    []string{"40", "41", "41.5", "42"},
+				Value:    []any{"40", "41", "41.5", "42"},
 			},
 			ItemProperties: map[string]interface{}{
 				"foo": "42",
@@ -472,7 +522,7 @@ func TestNotInFilterOp(t *testing.T) {
 	for _, case1 := range testcases {
 		containsOp := NewNotInFilterOp(case1.Config)
 
-		result, err := containsOp.NotInEvaluate(case1.ItemProperties, case1.UserProperties, case1.ItemProperties)
+		result, err := containsOp.DomainEvaluate(case1.ItemProperties, case1.UserProperties, case1.ItemProperties)
 
 		if err != nil {
 			t.Error(err)
@@ -480,6 +530,489 @@ func TestNotInFilterOp(t *testing.T) {
 
 		if result != case1.Expect {
 			t.Error(case1, "result error")
+		}
+
+	}
+
+}
+func TestInFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "string",
+					Value:    []any{"41", "42", "44"},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "44"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "string",
+					Value:    []string{"41", "42", "44"},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "44"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "int",
+					Value:    []any{"41", "42", "44"},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "44"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "int",
+					Value:    []int{41, 42, 44},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "44"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "int",
+					Value:    []any{41, 42, 44},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "44"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "int",
+					Value:    []any{41, 44},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "44"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "string",
+					Value:    []any{"41", "44"},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "44"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "string",
+					Value:    "user.list",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "42", "43.5", "44"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "int",
+					Value:    "user.list",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "42", "43.5", "44"},
+				"foo":  42,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "string",
+					Value:    "user.list",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "44"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "string",
+					Value:    "user.list",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				//"list": []string{"41", "43.5", "44"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "in",
+					Type:     "string",
+					Value:    "user.list",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{},
+			},
+			Expect: false,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error")
+		}
+
+	}
+
+}
+func TestEqualFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "string",
+					Value:    "",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "string",
+					Value:    "",
+				},
+			},
+			ItemProperties: map[string]interface{}{},
+			Expect:         false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "string",
+					Value:    "42",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "48"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "string",
+					Value:    "43",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "string",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+				"bar":  "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Operator: "equal",
+					Type:     "string",
+					Value:    "item.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+				"bar": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "int",
+					Value:    "item.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+				"bar": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "int",
+					Value:    "42",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+				"bar": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "int",
+					Value:    42,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+				"bar": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "int",
+					Value:    43,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"bar": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "int64",
+					Value:    43,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"bar": 42,
+				"foo": 43,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "equal",
+					Type:     "int64",
+					Value:    "item.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"bar": 42,
+				"foo": 43,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
 		}
 
 	}
@@ -555,6 +1088,116 @@ func TestNotEqualFilterOp(t *testing.T) {
 			},
 			UserProperties: map[string]interface{}{
 				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "not_equal",
+					Type:     "int",
+					Value:    43,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "not_equal",
+					Type:     "int",
+					Value:    42,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": 42,
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "user",
+					Operator: "not_equal",
+					Type:     "string",
+					Value:    "item.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"bar": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+				"foo":  "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "user",
+					Operator: "not_equal",
+					Type:     "string",
+					Value:    "item.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+				"foo":  "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "not_equal",
+					Type:     "string",
+					Value:    "item.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+				"bar": "43",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "not_equal",
+					Type:     "string",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+				"bar":  "43",
 			},
 			Expect: true,
 		},
@@ -659,6 +1302,630 @@ func TestIsNotNullFilterOp(t *testing.T) {
 			},
 			ItemProperties: map[string]interface{}{},
 			Expect:         false,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
+		}
+
+	}
+
+}
+
+func TestGreaterFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "int",
+					Value:    45,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "int",
+					Value:    40,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "int",
+					Value:    "45",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "int",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 45,
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "int",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "40",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: false,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
+		}
+
+	}
+
+}
+
+func TestGreaterThanFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "int",
+					Value:    45,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "int",
+					Value:    40,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "int",
+					Value:    "45",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "int",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 45,
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "int",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 42,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "40",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: true,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
+		}
+
+	}
+
+}
+
+func TestLessFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "int",
+					Value:    45,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "int",
+					Value:    40,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "int",
+					Value:    "45",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "int",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 45,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "int",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "40",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 45,
+			},
+			Expect: true,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
+		}
+
+	}
+
+}
+
+func TestLessThanFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "int",
+					Value:    45,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "int",
+					Value:    40,
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "int",
+					Value:    "42",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "int",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 45,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "int",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "40",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 40,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "float",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": 45,
+			},
+			Expect: true,
 		},
 	}
 
