@@ -162,7 +162,9 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *
 	if !p.online {
 		return 0, 0
 	}
-	ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s", "DoWithId", itemOrExpId))
+	if ctx.Debug {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s", itemOrExpId))
+	}
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && trafficValue > 1.0 {
 		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, trafficValue))
 		return 0, 0
@@ -178,7 +180,7 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *
 		setValue = 0.5
 	}
 	if itemOrExpId != "" {
-		ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s\tsetValue=%v", "DoWithId", itemOrExpId, setValue))
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\tsetValue=%v", itemOrExpId, setValue))
 	}
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回0
@@ -207,9 +209,12 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *
 	curTime := now.Unix()
 	var status = p.readPIDStatus(itemOrExpId, curTime)
 	timeDiff := curTime - status.LastTime
-	ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s\ttimeDiff=%v", "DoWithId", itemOrExpId, timeDiff))
+	if ctx.Debug {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\ttimeDiff=%v", itemOrExpId, timeDiff))
+	}
 	// 时间差还在一个时间窗口内
 	if timeDiff < int64(p.timeWindow) && status.LastOutput != 0 {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\tthe time difference is still within the previous time window", itemOrExpId))
 		return float64(status.LastOutput), setValue
 	}
 	if p.freezeMinutes > 0 {
@@ -218,6 +223,7 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *
 		curMinute := now.Minute()
 		elapseMinutes := curHour*60 + curMinute
 		if elapseMinutes < p.freezeMinutes {
+			ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\texit within the freezing time", itemOrExpId))
 			return float64(status.LastOutput), setValue
 		}
 	}
@@ -236,10 +242,12 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *
 	} else {
 		err = float32(1.0 - trafficValue/setValue)
 	}
-	ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s\terr=%v\tlastErr=%v", "DoWithId", itemOrExpId, err, status.LastError))
+
 	status.ErrSum += err * float32(timeDiff)
 	dErr := (err - status.LastError) / float32(timeDiff)
-
+	if ctx.Debug {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\terr=%v\tlastErr=%v\tdErr=%v", itemOrExpId, err, status.LastError, dErr))
+	}
 	// Compute final output
 	output := p.kp*err + p.ki*status.ErrSum + p.kd*dErr
 
@@ -250,7 +258,10 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *
 	if p.syncStatus {
 		go p.writePIDStatus(itemOrExpId) // 通过外部存储同步中间状态
 	}
-	ctx.LogDebug(fmt.Sprintf("Event=%s\titemId=%s\toutput=%v", "DoWithId", itemOrExpId, output))
+	if ctx.Debug {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\toutput=%v", itemOrExpId, output))
+	}
+
 	return float64(output), setValue
 }
 

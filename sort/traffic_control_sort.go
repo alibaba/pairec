@@ -2,6 +2,7 @@ package sort
 
 import (
 	gocontext "context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/Knetic/govaluate"
@@ -68,8 +69,7 @@ func init() {
 func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 	experimentClient = abtest.GetExperimentClient()
 	if experimentClient == nil {
-		log.Error("module=TrafficControlSort\tGetExperimentClient failed.")
-		return nil
+		log.Warning("module=TrafficControlSort\tget experiment client failed.")
 	}
 	conf := config.PIDConf
 
@@ -108,7 +108,7 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 			trafficControlSort.controllerLock.RUnlock()
 
 			for expId := range tmpExpControllers {
-				trafficControlSort.loadTrafficControlTask(expId)
+				trafficControlSort.loadTrafficControlTaskMetaData(expId)
 			}
 			time.Sleep(time.Minute) // 这里需要更新频繁一点，不然web页面上meta信息的修改不能及时反应出来
 		}
@@ -120,7 +120,9 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 func (p *TrafficControlSort) Sort(sortData *SortData) error {
 	items, good := sortData.Data.([]*module.Item)
 	if !good {
-		return errors.New("sort data type error")
+		msg := "sort data type error"
+		log.Error(fmt.Sprintf("module=TrafficControlSort\terror=%s", msg))
+		return errors.New(msg)
 	}
 	if len(items) == 0 {
 		return nil
@@ -140,7 +142,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 	if p.boostScoreSort != nil && params.Get("pid_boost_score", true).(bool) {
 		err := p.boostScoreSort.Sort(sortData)
 		if err != nil {
-			ctx.LogError(fmt.Sprintf("module=TrafficControlSort\terror=%v", err))
+			ctx.LogError(fmt.Sprintf("module=TrafficControlSort\tBoostScore\terror=%v", err))
 		}
 		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tBoostScoreSort\tcount=%d\tcost=%d", len(items), utils.CostTime(start)))
 	}
@@ -157,13 +159,13 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 
 	wholeCtrls, singleCtrls := splitController(controllerMap, ctx)
 	if len(wholeCtrls) == 0 && len(singleCtrls) == 0 {
-		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcount=%d\tNo traffic control task", len(items)))
+		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcount=%d\tboth global traffic control and single traffic control are zero", len(items)))
 		sortData.Data = items
 		return nil
 	}
 
 	if enable := setHyperParams(controllerMap, ctx); !enable {
-		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcount=%d\ttraffic control task turn off", len(items)))
+		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcount=%d\ttraffic control hyper params turn off", len(items)))
 		sortData.Data = items
 		return nil
 	}
@@ -211,13 +213,13 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 	return nil
 }
 
-func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PIDController {
+func (p *TrafficControlSort) loadTrafficControlTaskMetaData(expId string) map[string]*PIDController {
 	// 调用 SDK 获取调控计划的元信息, 创建 FlowControllers
 	runEnv := os.Getenv("PAIREC_ENVIRONMENT")
 	timestamp := p.config.Timestamp
 	tasks := experimentClient.GetTrafficControlTaskMetaData(runEnv, timestamp)
 	if len(tasks) == 0 {
-		p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tNo Traffic Control Task.", timestamp))
+		log.Info(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tnot find traffic control task.", timestamp))
 		return nil
 	}
 	var oldControllerMap map[string]*PIDController
@@ -231,11 +233,14 @@ func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PI
 	for i, task := range tasks {
 		taskUserExpress, err := ParseExpression(task.UserConditionArray, task.UserConditionExpress)
 		if err != nil {
-			p.context.LogError(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s", task.UserConditionArray, task.UserConditionExpress))
+			log.Error(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s", task.UserConditionArray, task.UserConditionExpress))
 		}
 		for _, value := range task.TrafficControlTargets {
 			target := value
-			if target.Status == "Closed" {
+			if target.TrafficControlTargetId == "" {
+				continue
+			}
+			if target.Status == constants.TrafficControlTargetStatusClosed {
 				continue
 			}
 			params := experimentClient.GetSceneParams(task.SceneName)
@@ -274,7 +279,7 @@ func (p *TrafficControlSort) loadTrafficControlTask(expId string) map[string]*PI
 	p.controllerLock.Lock()
 	p.exp2controllers[expId] = controllerMap
 	p.controllerLock.Unlock()
-	p.context.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tload %d Traffic Control Task for exp=%s.", timestamp, len(controllerMap), expId))
+	log.Info(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tload %d Traffic Control Task for exp=%s.", timestamp, len(controllerMap), expId))
 	return controllerMap
 }
 
@@ -361,7 +366,7 @@ func (p *TrafficControlSort) getPidControllers(ctx *context.RecommendContext) ma
 	}
 	p.controllerLock.RUnlock()
 
-	return p.loadTrafficControlTask(experiment)
+	return p.loadTrafficControlTaskMetaData(experiment)
 }
 
 func splitController(controllers map[string]*PIDController, ctx *context.RecommendContext) (map[string]*PIDController, map[string]*PIDController) {
@@ -391,11 +396,12 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 	var count int
 	planOutput, count = FlowControl(controllerMap, ctx)
 	if len(planOutput) == 0 || count == 0 {
-		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcount=%d\tcost=%d\tMacro FlowControl Not Need", len(items), utils.CostTime(begin)))
+		ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttraffic control task output is zero"))
 		return
 	}
-	ctx.LogInfo(fmt.Sprintf("module=PID_macro_control_signal\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
-
+	if ctx.Debug {
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\tplan out put: %v", planOutput))
+	}
 	begin = time.Now()
 	itemScores := make([]float64, len(items))
 	// 计算各个目标的偏好分的全局占比
@@ -455,8 +461,9 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 			planOutput[targetId] = alpha
 		}
 	}
-	ctx.LogInfo(fmt.Sprintf("module=PID_compute_uplift_score\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
-
+	if ctx.Debug {
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\tafter compute in macro, plan out put: %v", planOutput))
+	}
 	// compute delta rank
 	begin = time.Now()
 	pageNo := utils.ToInt(ctx.GetParameter("pageNum"), 1)
@@ -525,7 +532,7 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 		}(b, candidates)
 	}
 	wg.Wait()
-	ctx.LogInfo(fmt.Sprintf("module=PID_macro_compute_delta_rank\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
+	ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tmacro control\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
 }
 
 // FlowControl 非单品（整体）目标流量调控，返回各个目标的调控力度
@@ -546,9 +553,12 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 	// 获取流量实时统计值
 	runEnv := os.Getenv("PAIREC_ENVIRONMENT")
 	expId := ctx.ExperimentResult.GetExpId()
-	ctx.LogDebug(fmt.Sprintf("expId:%s", expId))
 	traffics := experimentClient.GetTrafficControlTargetTraffic(runEnv, scene, expId, "ER_ALL")
-	ctx.LogDebug(fmt.Sprintf("tarffic:%v", traffics))
+	if ctx.Debug {
+		data, _ := json.Marshal(traffics)
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tflow control\texpId:%s", expId))
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tflow control\ttraffics:%s", string(data)))
+	}
 	allTrafficDict := make(map[string]experiments.TrafficControlTargetTraffic)
 	expTrafficDict := make(map[string]experiments.TrafficControlTargetTraffic)
 	for _, traffic := range traffics {
@@ -595,7 +605,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				}
 				if controller.IsAllocateExpWise() && targetTraffic < controller.GetMinExpTraffic() {
 					// 用全局流量代替冷启动的实验流量
-					ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\texp=%s\ttargetTraffic=%f change to global targetTraffic", taskId, targetId, controller.target.Name, expId, targetTraffic))
+					ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tflow control\t<taskId:%s/targetId:%s>[targetName:%s]\texp=%s\ttargetTraffic=%f change to global targetTraffic", taskId, targetId, controller.target.Name, expId, targetTraffic))
 					binId = ""
 					if input, ok := allTrafficDict[targetId]; ok {
 						targetTraffic = input.TargetTraffic
@@ -608,8 +618,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 
 				trafficPercentage := targetTraffic / taskTraffic
 				output, setValue = controller.DoWithId(trafficPercentage, binId, ctx)
-				ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue, output, binId))
-				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue, output, binId))
+				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tflow control\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue, output, binId))
 				if targetTraffic > 0 {
 					hasTraffic = true
 				}
@@ -620,14 +629,14 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 					targetTraffic = float64(0)
 				}
 				output, setValue = controller.Do(targetTraffic, ctx)
-				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,setValue=%f,output=%f", taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
+				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tflow control\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,setValue=%f,output=%f", taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
 				if targetTraffic > 0 {
 					hasTraffic = true
 				}
 			}
 			select {
 			case <-gCtx.Done():
-				ctx.LogWarning(fmt.Sprintf("targetTraffic controller timeout in goruntine: <taskId:%s/targetId:%s>[targetName:%s]", taskId, targetId, controller.target.Name))
+				ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tflow control\ttargetTraffic controller timeout in goruntine: <taskId:%s/targetId:%s>[targetName:%s]", taskId, targetId, controller.target.Name))
 				return
 			case retCh <- struct {
 				string
@@ -648,7 +657,7 @@ Loop:
 			}
 		case <-gCtx.Done():
 			if errors.Is(gCtx.Err(), gocontext.DeadlineExceeded) {
-				ctx.LogWarning(fmt.Sprintf("traffic controller timeout: %v", gCtx.Err()))
+				ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tflow control\ttraffic controller timeout: %v", gCtx.Err()))
 			}
 			break Loop
 		}
@@ -697,7 +706,9 @@ func SampleControlTargetsByScore(maxUpliftTargetCnt int, targetScore, alpha map[
 			selected[targetId] = true
 		}
 	}
-	ctx.LogDebug(fmt.Sprintf("selected uplift target ids %v score", selected))
+	if ctx.Debug {
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tsample control target\tselected uplift target ids %v score", selected))
+	}
 	for _, targetId := range targetIds {
 		if alpha[targetId] <= 0 {
 			continue
@@ -711,15 +722,11 @@ func SampleControlTargetsByScore(maxUpliftTargetCnt int, targetScore, alpha map[
 // 微观调控，针对单个item
 func microControl(controllerMap map[string]*PIDController, items []*module.Item, ctx *context.RecommendContext, wgCtrl *sync.WaitGroup) {
 	defer wgCtrl.Done()
-	begin := time.Now()
 	itemTargetTraffic := loadTargetItemTraffic(ctx, items, controllerMap) // key1: targetId, key2: itemId, value: traffic
-	ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
 
 	params := ctx.ExperimentResult.GetExperimentParams()
 	maxUpliftCnt := params.GetInt("pid_max_uplift_item_cnt", 5)
 	upliftCnt := 0
-
-	begin = time.Now()
 	maxScore := 0.0
 	for i, item := range items {
 		score := item.Score
@@ -765,7 +772,7 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 				}
 			}
 			deltaRank += delta // 多个目标调控方向不一致时，需要扳手腕看谁力气大
-			ctx.LogDebug(fmt.Sprintf("itemId:%s, [targetId:%s/targetName:%s], origin pos=%d, traffic=%f, setValue=%f, percentage=%f,alpha=%f, delta rank=%f, traffic_control_id=%d", item.Id, targetId, controller.target.Name, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
+			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\titemId:%s, [targetId:%s/targetName:%s], origin pos=%d, traffic=%f, setValue=%f, percentage=%f,alpha=%f, delta rank=%f, traffic_control_id=%d", item.Id, targetId, controller.target.Name, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
 		}
 
 		if deltaRank != 0.0 {
@@ -777,7 +784,6 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 			}
 		}
 	}
-	ctx.LogInfo(fmt.Sprintf("module=PID_micro_compute_delta_rank\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
 }
 
 type controlParams struct {
@@ -798,7 +804,7 @@ func computeDeltaRank(c *PIDController, item *module.Item, rank int, alpha float
 	if alpha < 0.0 { // pull down
 		rho := args.eta * (1.0 - tanh(scoreWeight))
 		deltaRank *= sigmoid(float64(rank), rho)
-		ctx.LogDebug(fmt.Sprintf("item %s [%s/%s], score proportion=%.3f, rho=%.3f, origin pos=%d, delta rank=%f", item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, rho, rank+1, deltaRank))
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tcompute delta rank\titem %s [%s/%s], score proportion=%.3f, rho=%.3f, origin pos=%d, delta rank=%f", item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, rho, rank+1, deltaRank))
 	} else { // uplift
 		deltaRank *= itemScore // item.Score 越大，提权越多；用来在不同提取目标间竞争
 		distinctStartPos := ctx.Size
@@ -818,7 +824,7 @@ func computeDeltaRank(c *PIDController, item *module.Item, rank int, alpha float
 			}
 		}
 		controlId, _ := item.IntProperty("__traffic_control_id__")
-		ctx.LogDebug(fmt.Sprintf("item:%s\t[targetId:%s/targetName:%s], score proportion=%.3f,norm_score=%.3f, origin pos=%d, delta rank=%f, traffic_control_id=%d", item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, itemScore, rank+1, deltaRank, controlId))
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tcompute delta rank\titem:%s\t[targetId:%s/targetName:%s], score proportion=%.3f,norm_score=%.3f, origin pos=%d, delta rank=%f, traffic_control_id=%d", item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, itemScore, rank+1, deltaRank, controlId))
 	}
 	return deltaRank
 }
@@ -899,9 +905,6 @@ func sigmoid(x, rho float64) float64 {
 }
 
 func setHyperParams(controllers map[string]*PIDController, ctx *context.RecommendContext) bool {
-	if nil == controllers || len(controllers) == 0 {
-		return false
-	}
 	params := ctx.ExperimentResult.GetExperimentParams()
 	on := params.GetInt("pid_control_enable", 1)
 	if on == 0 {
@@ -910,17 +913,23 @@ func setHyperParams(controllers map[string]*PIDController, ctx *context.Recommen
 
 	offPrefix := params.GetString("pid_off_target_name_prefix", "")
 	if offPrefix != "" {
-		for _, c := range controllers {
-			if strings.HasPrefix(c.target.Name, offPrefix) {
-				c.SetOnline(false)
+		for _, controller := range controllers {
+			if strings.HasPrefix(controller.target.Name, offPrefix) {
+				controller.SetOnline(false)
+				if ctx.Debug {
+					ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tset target turn off, targetName:%s", controller.target.Name))
+				}
 			}
 		}
 	}
 	onPrefix := params.GetString("pid_on_target_name_prefix", "")
 	if onPrefix != "" {
-		for _, c := range controllers {
-			if strings.HasPrefix(c.target.Name, onPrefix) {
-				c.SetOnline(true)
+		for _, controller := range controllers {
+			if strings.HasPrefix(controller.target.Name, onPrefix) {
+				controller.SetOnline(true)
+				if ctx.Debug {
+					ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tset target turn on, targetName:%s", controller.target.Name))
+				}
 			}
 		}
 	}
