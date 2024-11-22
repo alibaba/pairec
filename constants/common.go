@@ -10,4 +10,5 @@ const (
 	TrafficControlTaskControlLogicApproach     = "Approach"
 	TrafficControlTargetStatisPeriodDaily      = "Daily"
 	TrafficControlTargetStatisPeriodHour       = "Hour"
+	TrafficControlTargetStatusClosed           = "Closed"
 )
