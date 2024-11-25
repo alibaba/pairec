@@ -154,22 +154,22 @@ func loadTrafficControlTargetData(sceneName string, timestamp int64) {
 	targetMap = experimentClient.GetTrafficControlTargetData(runEnv, sceneName, timestamp)
 }
 
-func (p *PIDController) Do(trafficValue float64, ctx *context.RecommendContext) (float64, float64) {
-	return p.DoWithId(trafficValue, "", ctx)
+func (p *PIDController) Do(trafficOrPercent float64, ctx *context.RecommendContext) (float64, float64) {
+	return p.DoWithId(trafficOrPercent, "", ctx)
 }
 
-func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *context.RecommendContext) (float64, float64) {
+func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, ctx *context.RecommendContext) (float64, float64) {
 	if !p.online {
 		return 0, 0
 	}
 	if ctx.Debug {
 		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s", itemOrExpId))
 	}
-	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && trafficValue > 1.0 {
-		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, trafficValue))
+	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && trafficOrPercent > 1.0 {
+		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, trafficOrPercent))
 		return 0, 0
 	}
-	if trafficValue == 0 && !p.runWithZeroInput {
+	if trafficOrPercent == 0 && !p.runWithZeroInput {
 		return 0, 0
 	}
 	setValue, enabled := p.getTargetSetValue()
@@ -183,24 +183,24 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *
 		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\tsetValue=%v", itemOrExpId, setValue))
 	}
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
-		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回0
+		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
 		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
-			if trafficValue >= (setValue / 100) {
+			if trafficOrPercent >= (setValue / 100) {
 				return 0, setValue
 			}
 		} else {
-			if trafficValue >= setValue {
+			if trafficOrPercent >= setValue {
 				return 0, setValue
 			}
 		}
 	}
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
-		if BetweenSlackInterval(trafficValue, setValue/100, float64(p.target.ToleranceValue)/100) {
+		if BetweenSlackInterval(trafficOrPercent, setValue/100, float64(p.target.ToleranceValue)/100) {
 			// when current input is between `setValue` and `setValue+SetVale Range`, turn off controller
 			return 0, setValue
 		}
 	} else {
-		if BetweenSlackInterval(trafficValue, setValue, float64(p.target.ToleranceValue)) {
+		if BetweenSlackInterval(trafficOrPercent, setValue, float64(p.target.ToleranceValue)) {
 			return 0, setValue
 		}
 	}
@@ -238,9 +238,9 @@ func (p *PIDController) DoWithId(trafficValue float64, itemOrExpId string, ctx *
 
 	var err float32
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
-		err = float32(setValue/100.0 - trafficValue)
+		err = float32(setValue/100.0 - trafficOrPercent)
 	} else {
-		err = float32(1.0 - trafficValue/setValue)
+		err = float32(1.0 - trafficOrPercent/setValue)
 	}
 
 	status.ErrSum += err * float32(timeDiff)
