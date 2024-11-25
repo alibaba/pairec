@@ -266,7 +266,7 @@ func (p *TrafficControlSort) loadTrafficControlTaskMetaData(expId string) map[st
 					continue
 				}
 			}
-			controller := NewPIDController(&task, &target, p.config, expId)
+			controller := NewPIDController(&tasks[i], &target, p.config, expId)
 			if controller != nil {
 				if taskUserExpress != "" {
 					controller.SetUserExpress(taskUserExpress)
