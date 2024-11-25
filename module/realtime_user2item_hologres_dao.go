@@ -101,6 +101,15 @@ func (d *RealtimeUser2ItemHologresDao) ListItemsByUser(user *User, context *cont
 	if len(itemTriggers) == 0 {
 		return
 	}
+	if d.itemTable == "" {
+		for itemId, weight := range itemTriggers {
+			item := NewItem(itemId)
+			item.RetrieveId = d.recallName
+			item.Score = weight
+			ret = append(ret, item)
+		}
+		return
+	}
 
 	var itemIds []interface{}
 	for id := range itemTriggers {
