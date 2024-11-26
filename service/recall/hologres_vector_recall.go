@@ -167,7 +167,7 @@ func (r *HologresVectorRecall) GetCandidateItems(user *module.User, context *con
 
 	rows, err := r.dbStmt.Query(userEmbedding)
 	if err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=HologresVectorRecall\tname=%s\terr=%v", context.RecommendId, r.modelName, err))
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=HologresVectorRecall\tname=%s\tsql=%s\tuser_embedding=%s\terr=%v", context.RecommendId, r.modelName, r.sql, userEmbedding, err))
 		return
 	}
 
