@@ -293,3 +293,66 @@ func IsNil(i interface{}) bool {
 	}
 	return false
 }
+
+func ToIntArray(values interface{}) (ret []int) {
+	switch vals := values.(type) {
+	case []any:
+		for _, v := range vals {
+			ret = append(ret, ToInt(v, 0))
+		}
+	case []int:
+		return vals
+	case []int32:
+		for _, v := range vals {
+			ret = append(ret, int(v))
+		}
+	case []int64:
+		for _, v := range vals {
+			ret = append(ret, int(v))
+		}
+	case []string:
+		for _, v := range vals {
+			ret = append(ret, ToInt(v, 0))
+		}
+	}
+
+	return
+}
+
+func ToStringArray(values interface{}) (ret []string) {
+	switch vals := values.(type) {
+	case []any:
+		for _, v := range vals {
+			val := ToString(v, "")
+			if val != "" {
+				ret = append(ret, val)
+			}
+		}
+	case []string:
+		return vals
+	case []int:
+		for _, v := range vals {
+			val := ToString(v, "")
+			if val != "" {
+				ret = append(ret, val)
+			}
+		}
+	case []int32:
+		for _, v := range vals {
+			val := ToString(v, "")
+			if val != "" {
+				ret = append(ret, val)
+			}
+		}
+	case []int64:
+		for _, v := range vals {
+			val := ToString(v, "")
+			if val != "" {
+				ret = append(ret, val)
+			}
+		}
+
+	}
+
+	return
+}
