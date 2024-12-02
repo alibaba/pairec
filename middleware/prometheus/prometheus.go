@@ -3,6 +3,7 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -20,6 +21,20 @@ const (
 	KB float64 = 1 << (10 * iota)
 	MB
 )
+
+var tr = &http.Transport{
+	DialContext: (&net.Dialer{
+		Timeout:   100 * time.Millisecond, // 100ms
+		KeepAlive: 5 * time.Minute,
+	}).DialContext,
+	MaxIdleConnsPerHost:   200,
+	MaxIdleConns:          200,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 10 * time.Second,
+}
+
+var client = &http.Client{Transport: tr}
 
 const defaultSubsystem = "pairec"
 
@@ -135,9 +150,11 @@ func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 		//log.Errorf("failed to create push gateway request: %v", err)
 		return
 	}
-	client := &http.Client{}
-	if _, err = client.Do(req); err != nil {
+
+	if resp, err := client.Do(req); err != nil {
 		log.Error(fmt.Sprintf("Error sending to push gateway: %v", err))
+	} else {
+		resp.Body.Close()
 	}
 }
 
