@@ -484,7 +484,12 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 		newCtrlIdThreshold: params.GetFloat("pid_new_id_target_threshold", 1.0),
 		needNewCtrlId:      make(map[string]bool),
 	}
+
+	targetControlledNum := make(map[string]int, len(controllerMap))
+	mu := sync.Mutex{}
+
 	for targetId := range controllerMap {
+		targetControlledNum[targetId] = len(items)
 		newCtrlId := utils.GetExperimentParamByPath(params, fmt.Sprintf("pid_params.%s.new_ctrl_id", targetId), false)
 		ctrlParams.needNewCtrlId[targetId] = newCtrlId.(bool)
 	}
@@ -517,6 +522,11 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 				finalDeltaRank := 0.0
 				for targetId, controller := range controllerMap {
 					if !controller.IsControlledItem(item) {
+						if ctx.Debug {
+							mu.Lock()
+							targetControlledNum[targetId] = targetControlledNum[targetId] - 1
+							mu.Unlock()
+						}
 						continue
 					}
 					if alpha, ok := targetOutput[targetId]; ok && alpha != 0 {
@@ -536,6 +546,9 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 		}(b, candidates)
 	}
 	wg.Wait()
+	if ctx.Debug {
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget controlled count=%v", targetControlledNum))
+	}
 	ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tmacro control\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
 }
 
