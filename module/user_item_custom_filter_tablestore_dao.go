@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
+	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/tablestoredb"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 )
 
 type User2ItemCustomFilterTableStoreDao struct {
@@ -27,7 +28,7 @@ func NewUser2ItemCustomFilterTableStoreDao(config recconf.FilterConfig) *User2It
 	return dao
 }
 
-func (d *User2ItemCustomFilterTableStoreDao) Filter(uid UID, items []*Item) (ret []*Item) {
+func (d *User2ItemCustomFilterTableStoreDao) Filter(uid UID, items []*Item, ctx *context.RecommendContext) (ret []*Item) {
 	getRowRequest := new(tablestore.GetRowRequest)
 	criteria := new(tablestore.SingleRowQueryCriteria)
 	putPk := new(tablestore.PrimaryKey)
@@ -42,7 +43,7 @@ func (d *User2ItemCustomFilterTableStoreDao) Filter(uid UID, items []*Item) (ret
 	getResp, err := d.tablestore.Client.GetRow(getRowRequest)
 
 	if err != nil {
-		log.Error(fmt.Sprintf("module=User2ItemCustomFilterTableStoreDao\tuid=%s\terr=%v", uid, err))
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemCustomFilterTableStoreDao\terr=%v", ctx.RecommendId, err))
 		ret = items
 		return
 	}
