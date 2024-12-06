@@ -157,6 +157,8 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			f = NewUser2ItemExposureWithConditionFilter(conf)
 		} else if conf.FilterType == "ConditionFilter" {
 			f = NewConditionFilter(conf)
+		} else if conf.FilterType == "PluginAPIFilter" {
+			f = NewPluginAPIFilter(conf)
 		}
 
 		if f == nil {
