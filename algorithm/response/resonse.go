@@ -6,4 +6,8 @@ type AlgoResponse interface {
 	GetModuleType() bool
 }
 
+type AlgoMultiClassifyResponse interface {
+	GetClassifyMap() map[string][]float64
+}
+
 type ResponseFunc func(interface{}) ([]AlgoResponse, error)

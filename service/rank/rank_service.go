@@ -3,6 +3,7 @@ package rank
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -298,6 +299,18 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 						arr_score := algoResult[j].GetScoreMap()
 						for k, v := range arr_score {
 							itemList[j].AddAlgoScore(name+"_"+k, v)
+						}
+					} else if resp, ok := algoResult[j].(response.AlgoMultiClassifyResponse); ok {
+						arr_score := resp.GetClassifyMap()
+						for k, scores := range arr_score {
+							if len(scores) == 1 {
+								itemList[j].AddAlgoScore(name+"_"+k, scores[0])
+							} else if len(scores) > 1 {
+								for i, score := range scores {
+									itemList[j].AddAlgoScore(name+"_"+k+"_"+strconv.Itoa(i), score)
+								}
+								itemList[j].AddProperty(name+"_"+k, scores)
+							}
 						}
 					} else {
 						itemList[j].AddAlgoScore(name, algoResult[j].GetScore())

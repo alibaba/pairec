@@ -35,7 +35,7 @@ func (r *EasyrecResponse) GetModuleType() bool {
 func easyrecMutValResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
 	resp, ok := data.(*easyrec.PBResponse)
 	if !ok {
-		err = fmt.Errorf("invalid data type, %v", data)
+		err = fmt.Errorf("easyrecMutValResponseFunc,invalid data type, %v", data)
 		return
 	}
 	outputs := resp.GetOutputs()
@@ -111,6 +111,107 @@ func easyrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoRespon
 
 	for i, v := range response {
 		ret = append(ret, &EasyrecResponse{scoreArr: v, multiValModule: true, RawFeatures: itemFeatures[i], GenerateFeatures: generateFeatures[i], ContextFeatures: contextFeatures[i]})
+	}
+
+	return
+}
+
+type EasyrecClassificationResponse struct {
+	EasyrecResponse
+	mulClassifyArr map[string][]float64
+}
+
+func (r *EasyrecClassificationResponse) GetClassifyMap() map[string][]float64 {
+	return r.mulClassifyArr
+}
+func easyrecMutClassificationResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.PBResponse)
+	if !ok {
+		err = fmt.Errorf("easyrecMutClassificationResponseFunc,invalid data type, %v", data)
+		return
+	}
+	var response []map[string][]float64
+	for i := range resp.ItemIds {
+		scores := make(map[string][]float64)
+		for output, arrayProto := range resp.GetTfOutputs() {
+			if len(arrayProto.ArrayShape.Dim) == 1 {
+				scores[output] = []float64{float64(arrayProto.GetFloatVal()[i])}
+			} else if len(arrayProto.ArrayShape.Dim) == 2 {
+				var arr []float64
+				d := int(arrayProto.ArrayShape.Dim[1])
+				for j := 0; j < d; j++ {
+					arr = append(arr, float64(arrayProto.GetFloatVal()[i*d+j]))
+				}
+				scores[output] = arr
+			}
+		}
+
+		response = append(response, scores)
+	}
+
+	for _, v := range response {
+		ret = append(ret, &EasyrecClassificationResponse{mulClassifyArr: v, EasyrecResponse: EasyrecResponse{multiValModule: false}})
+	}
+
+	return
+}
+func easyrecMutClassificationResponseFuncDebug(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.PBResponse)
+	if !ok {
+		err = fmt.Errorf("easyrecMutClassificationResponseFuncDebug, invalid data type, %v", data)
+		return
+	}
+
+	var response []map[string][]float64
+	for i := range resp.ItemIds {
+		scores := make(map[string][]float64)
+		for output, arrayProto := range resp.GetTfOutputs() {
+			if len(arrayProto.ArrayShape.Dim) == 1 {
+				scores[output] = []float64{float64(arrayProto.GetFloatVal()[i])}
+			} else if len(arrayProto.ArrayShape.Dim) == 2 {
+				var arr []float64
+				d := int(arrayProto.ArrayShape.Dim[1])
+				for j := 0; j < d; j++ {
+					arr = append(arr, float64(arrayProto.GetFloatVal()[i*d+j]))
+				}
+				scores[output] = arr
+			}
+		}
+
+		response = append(response, scores)
+	}
+	var (
+		itemFeatures     []string
+		generateFeatures []*bytes.Buffer
+		contextFeatures  []string
+	)
+	for _, itemId := range resp.ItemIds {
+		if f, ok := resp.RawFeatures[itemId]; ok {
+			itemFeatures = append(itemFeatures, f)
+		} else {
+			itemFeatures = append(itemFeatures, "")
+		}
+
+		if g, ok := resp.GenerateFeatures[itemId]; ok {
+			generateFeatures = append(generateFeatures, bytes.NewBufferString(g))
+		} else {
+			generateFeatures = append(generateFeatures, new(bytes.Buffer))
+		}
+		if c, ok := resp.ContextFeatures[itemId]; ok {
+			features := c.Features
+			j, _ := json.Marshal(features)
+			contextFeatures = append(contextFeatures, string(j))
+		} else {
+			contextFeatures = append(contextFeatures, "")
+		}
+	}
+
+	for i, v := range response {
+		ret = append(ret, &EasyrecClassificationResponse{
+			mulClassifyArr: v,
+			EasyrecResponse: EasyrecResponse{multiValModule: false, RawFeatures: itemFeatures[i],
+				GenerateFeatures: generateFeatures[i], ContextFeatures: contextFeatures[i]},
+		})
 	}
 
 	return
