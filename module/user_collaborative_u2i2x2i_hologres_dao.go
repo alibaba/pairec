@@ -168,6 +168,7 @@ func (d *UserU2I2X2IHologresDao) ListItemsByUser(user *User, context *context.Re
 							stmt2, err := d.db.Prepare(sql)
 							if err != nil {
 								log.Error(fmt.Sprintf("requestId=%s\tmodule=UserU2I2X2IHologresDao\terror=hologres error(%v)", context.RecommendId, err))
+								d.mu.Unlock()
 								goto LOOP
 							}
 							d.item2XStmtMap[stmtkey] = stmt2
@@ -195,6 +196,8 @@ func (d *UserU2I2X2IHologresDao) ListItemsByUser(user *User, context *context.Re
 						preferScore := preferScoreMap[triggerId]
 
 						if xVal != "" {
+							d.mu.Lock() // protect xPreferScoreMap
+
 							// an item may have many categories, split with delimiter first.
 							// if a category appears multiple times, add up the scores.
 							if d.xDelimiter != "" {
@@ -206,6 +209,8 @@ func (d *UserU2I2X2IHologresDao) ListItemsByUser(user *User, context *context.Re
 								xPreferScoreMap[xVal] += preferScore
 								xValues = append(xValues, xVal)
 							}
+
+							d.mu.Unlock()
 						}
 					}
 					rows.Close()
@@ -272,6 +277,7 @@ func (d *UserU2I2X2IHologresDao) ListItemsByUser(user *User, context *context.Re
 							stmt2, err := d.db.Prepare(sql)
 							if err != nil {
 								log.Error(fmt.Sprintf("requestId=%s\tmodule=UserU2I2X2IHologresDao\terror=hologres error(%v)", context.RecommendId, err))
+								d.mu.Unlock()
 								goto LOOP
 							}
 							d.x2ItemStmtMap[stmtkey] = stmt2

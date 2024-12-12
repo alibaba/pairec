@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type UserCollaborativeHologresDao struct {
@@ -151,6 +151,7 @@ func (d *UserCollaborativeHologresDao) ListItemsByUser(user *User, context *cont
 							stmt2, err := d.db.Prepare(sql)
 							if err != nil {
 								log.Error(fmt.Sprintf("requestId=%s\tmodule=UserCollaborativeHologresDao\terror=hologres error(%v)", context.RecommendId, err))
+								d.mu.Unlock()
 								goto LOOP
 							}
 							d.itemStmtMap[stmtkey] = stmt2

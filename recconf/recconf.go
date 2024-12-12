@@ -436,6 +436,11 @@ type RealTimeUser2ItemDaoConfig struct {
 	Item2ItemTable        string
 	SimilarItemIdField    string
 	SimilarItemScoreField string
+
+	Item2XTable string
+	X2ItemTable string
+	XKey        string
+	XDelimiter  string
 }
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig

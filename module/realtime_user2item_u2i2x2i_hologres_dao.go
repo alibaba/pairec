@@ -4,7 +4,6 @@ import (
 	gocontext "context"
 	"database/sql"
 	"fmt"
-	"math/cmplx"
 	gosort "sort"
 	"strconv"
 	"strings"
@@ -16,50 +15,40 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
-	"github.com/alibaba/pairec/v2/utils"
 	"github.com/huandu/go-sqlbuilder"
 )
 
-var (
-	govaluateFunctions = map[string]govaluate.ExpressionFunction{
-		"exp": func(args ...interface{}) (interface{}, error) {
-			v := utils.ToFloat(args[0], 0)
-			return real(cmplx.Exp(complex(v, 0))), nil
-		},
-	}
-)
-var (
-	weight_mode_sum = "sum"
-	weight_mode_max = "max"
-)
-
-type RealtimeUser2ItemHologresDao struct {
+type RealtimeUser2Item2X2ItemHologresDao struct {
 	*RealtimeUser2ItemBaseDao
 	hasPlayTimeField          bool
 	itemCount                 int
 	db                        *sql.DB
 	userTriggerTable          string
 	whereClause               string
-	itemTable                 string
-	similarItemIdField        string
-	similarItemScoreField     string
+	item2XTable               string
+	x2ItemTable               string
+	xKey                      string
+	xDelimiter                string
 	weightEvaluableExpression *govaluate.EvaluableExpression
 	weightMode                string
 	mu                        sync.RWMutex
 	userStmt                  *sql.Stmt
-	itemStmtMap               map[int]*sql.Stmt
+	item2XStmtMap             map[int]*sql.Stmt
+	x2ItemStmtMap             map[int]*sql.Stmt
 }
 
-func NewRealtimeUser2ItemHologresDao(config recconf.RecallConfig) *RealtimeUser2ItemHologresDao {
-	dao := &RealtimeUser2ItemHologresDao{
+func NewRealtimeUser2Item2X2ItemHologresDao(config recconf.RecallConfig) *RealtimeUser2Item2X2ItemHologresDao {
+	dao := &RealtimeUser2Item2X2ItemHologresDao{
 		itemCount:                config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.ItemCount,
 		userTriggerTable:         config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.HologresTableName,
 		whereClause:              config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.WhereClause,
 		hasPlayTimeField:         true,
-		itemTable:                config.RealTimeUser2ItemDaoConf.Item2ItemTable,
-		similarItemIdField:       config.RealTimeUser2ItemDaoConf.SimilarItemIdField,
-		similarItemScoreField:    config.RealTimeUser2ItemDaoConf.SimilarItemScoreField,
-		itemStmtMap:              make(map[int]*sql.Stmt, 0),
+		item2XTable:              config.RealTimeUser2ItemDaoConf.Item2XTable,
+		x2ItemTable:              config.RealTimeUser2ItemDaoConf.X2ItemTable,
+		xKey:                     config.RealTimeUser2ItemDaoConf.XKey,
+		xDelimiter:               config.RealTimeUser2ItemDaoConf.XDelimiter,
+		item2XStmtMap:            make(map[int]*sql.Stmt, 0),
+		x2ItemStmtMap:            make(map[int]*sql.Stmt, 0),
 		weightMode:               config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.WeightMode,
 		RealtimeUser2ItemBaseDao: NewRealtimeUser2ItemBaseDao(&config),
 	}
@@ -90,18 +79,24 @@ func NewRealtimeUser2ItemHologresDao(config recconf.RecallConfig) *RealtimeUser2
 	return dao
 }
 
-func (d *RealtimeUser2ItemHologresDao) getItemStmt(key int) *sql.Stmt {
+func (d *RealtimeUser2Item2X2ItemHologresDao) getItem2XStmt(key int) *sql.Stmt {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.itemStmtMap[key]
+	return d.item2XStmtMap[key]
 }
-func (d *RealtimeUser2ItemHologresDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
 
+func (d *RealtimeUser2Item2X2ItemHologresDao) getX2ItemStmt(key int) *sql.Stmt {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.x2ItemStmtMap[key]
+}
+
+func (d *RealtimeUser2Item2X2ItemHologresDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
 	itemTriggers := d.GetTriggers(user, context)
 	if len(itemTriggers) == 0 {
 		return
 	}
-	if d.itemTable == "" {
+	if d.item2XTable == "" {
 		for itemId, weight := range itemTriggers {
 			item := NewItem(itemId)
 			item.RetrieveId = d.recallName
@@ -116,36 +111,29 @@ func (d *RealtimeUser2ItemHologresDao) ListItemsByUser(user *User, context *cont
 		itemIds = append(itemIds, id)
 	}
 
-	similarItemField := "similar_item_ids"
-	if d.similarItemIdField != "" {
-		if d.similarItemScoreField == "" {
-			similarItemField = d.similarItemIdField
-		} else {
-			similarItemField = fmt.Sprintf("CONCAT_WS(':', %s, %s::text)", d.similarItemIdField, d.similarItemScoreField)
-		}
-	}
+	xPreferScoreMap := make(map[string]float64)
 
 	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
-	sb.Select("item_id", similarItemField).
-		From(d.itemTable).
+	sb.Select("item_id", d.xKey).
+		From(d.item2XTable).
 		Where(
 			sb.In("item_id", itemIds...),
 		)
 	sql, args := sb.Build()
 
 	stmtkey := len(itemIds)
-	stmt := d.getItemStmt(stmtkey)
+	stmt := d.getItem2XStmt(stmtkey)
 	if stmt == nil {
 		d.mu.Lock()
-		stmt = d.itemStmtMap[stmtkey]
+		stmt = d.item2XStmtMap[stmtkey]
 		if stmt == nil {
 			stmt2, err := d.db.Prepare(sql)
 			if err != nil {
-				log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
+				log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
 				d.mu.Unlock()
 				return
 			}
-			d.itemStmtMap[stmtkey] = stmt2
+			d.item2XStmtMap[stmtkey] = stmt2
 			stmt = stmt2
 			d.mu.Unlock()
 		} else {
@@ -154,36 +142,120 @@ func (d *RealtimeUser2ItemHologresDao) ListItemsByUser(user *User, context *cont
 	}
 	ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 100*time.Millisecond)
 	defer cancel()
+
 	rows, err := stmt.QueryContext(ctx, args...)
 	if err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemHologresDao\tsql=%s\terror=%v", context.RecommendId, sql, err))
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\tsql=%s\terror=%v", context.RecommendId, sql, err))
 		return
 	}
-
 	defer rows.Close()
+
+	xValues := make([]string, 0)
 	for rows.Next() {
-		var triggerId, ids string
-		if err := rows.Scan(&triggerId, &ids); err != nil {
-			log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemHologresDao\terror=%v", context.RecommendId, err))
+		var triggerId, xVal string
+		if err := rows.Scan(&triggerId, &xVal); err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\terror=%v", context.RecommendId, err))
 			continue
 		}
 
 		preferScore := itemTriggers[triggerId]
 
+		if xVal != "" {
+			// an item may have many categories, split with delimiter first.
+			// if a category appears multiple times, add up the scores.
+			if d.xDelimiter != "" {
+				for _, v := range strings.Split(xVal, d.xDelimiter) {
+					xPreferScoreMap[v] += preferScore
+					xValues = append(xValues, v)
+				}
+			} else {
+				xPreferScoreMap[xVal] += preferScore
+				xValues = append(xValues, xVal)
+			}
+		}
+	}
+
+	xValueMap := make(map[string]bool)
+	for _, xVal := range xValues {
+		xValueMap[xVal] = true
+	}
+
+	var mergedXValues []any
+	for val := range xValueMap {
+		mergedXValues = append(mergedXValues, val)
+	}
+
+	if len(mergedXValues) == 0 {
+		return
+	}
+
+	sb = sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select(d.xKey, "item_id").
+		From(d.x2ItemTable).
+		Where(
+			sb.In(d.xKey, mergedXValues...),
+		)
+	sql, args = sb.Build()
+
+	stmtkey = len(mergedXValues)
+	stmt = d.getX2ItemStmt(stmtkey)
+	if stmt == nil {
+		d.mu.Lock()
+		stmt = d.x2ItemStmtMap[stmtkey]
+		if stmt == nil {
+			stmt2, err := d.db.Prepare(sql)
+			if err != nil {
+				log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
+				d.mu.Unlock()
+				return
+			}
+			d.x2ItemStmtMap[stmtkey] = stmt2
+			stmt = stmt2
+			d.mu.Unlock()
+		} else {
+			d.mu.Unlock()
+		}
+	}
+	ctx, cancel = gocontext.WithTimeout(gocontext.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	rows, err = stmt.QueryContext(ctx, args...)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\tsql=%s\terror=%v", context.RecommendId, sql, err))
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var xValue, ids string
+		if err := rows.Scan(&xValue, &ids); err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\terror=%v", context.RecommendId, err))
+			continue
+		}
+
+		preferScore := xPreferScoreMap[xValue]
+
 		list := strings.Split(ids, ",")
 		for _, str := range list {
 			strs := strings.Split(str, ":")
-			if len(strs) == 2 && len(strs[0]) > 0 && strs[0] != "null" {
-				item := NewItem(strs[0])
-				item.RetrieveId = d.recallName
-				if tmpScore, err := strconv.ParseFloat(strings.TrimSpace(strs[1]), 64); err == nil {
-					item.Score = tmpScore * preferScore
-				} else {
-					item.Score = preferScore
-				}
 
-				ret = append(ret, item)
+			if len(strs[0]) > 0 && strs[0] != "null" {
+				if _, ok := itemTriggers[strs[0]]; ok { // if item id has been in trigger, ignore it
+					continue
+				}
 			}
+
+			item := NewItem(strs[0])
+			item.RetrieveId = d.recallName
+			item.Score = preferScore
+
+			if len(strs) == 2 {
+				if tmpScore, err := strconv.ParseFloat(strings.TrimSpace(strs[1]), 64); err == nil {
+					item.Score = item.Score * tmpScore
+				}
+			}
+
+			ret = append(ret, item)
 		}
 	}
 
@@ -197,7 +269,7 @@ func (d *RealtimeUser2ItemHologresDao) ListItemsByUser(user *User, context *cont
 	return
 }
 
-func (d *RealtimeUser2ItemHologresDao) GetTriggerInfos(user *User, context *context.RecommendContext) (triggerInfos []*TriggerInfo) {
+func (d *RealtimeUser2Item2X2ItemHologresDao) GetTriggerInfos(user *User, context *context.RecommendContext) (triggerInfos []*TriggerInfo) {
 	itemTriggerMap := make(map[string]*TriggerInfo, d.limit)
 	var selectFields []string
 	if d.hasPlayTimeField {
@@ -224,7 +296,7 @@ func (d *RealtimeUser2ItemHologresDao) GetTriggerInfos(user *User, context *cont
 		if d.userStmt == nil {
 			stmt, err := d.db.Prepare(sqlquery)
 			if err != nil {
-				log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
+				log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
 				d.mu.Unlock()
 				return
 			}
@@ -238,7 +310,7 @@ func (d *RealtimeUser2ItemHologresDao) GetTriggerInfos(user *User, context *cont
 	defer cancel()
 	rows, err := d.userStmt.QueryContext(ctx, args...)
 	if err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
 		return
 	}
 
@@ -297,11 +369,8 @@ func (d *RealtimeUser2ItemHologresDao) GetTriggerInfos(user *User, context *cont
 				trigger.Weight = weight
 				itemTriggerMap[trigger.ItemId] = trigger
 			}
-
-			//fmt.Println(trigger.itemId, itemTriggerMap[trigger.itemId])
-			//itemTriggers[trigger.itemId] += weight
 		} else {
-			log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2Item2X2ItemHologresDao\terror=hologres error(%v)", context.RecommendId, err))
 		}
 	}
 
@@ -318,7 +387,7 @@ func (d *RealtimeUser2ItemHologresDao) GetTriggerInfos(user *User, context *cont
 
 	return
 }
-func (d *RealtimeUser2ItemHologresDao) GetTriggers(user *User, context *context.RecommendContext) (itemTriggers map[string]float64) {
+func (d *RealtimeUser2Item2X2ItemHologresDao) GetTriggers(user *User, context *context.RecommendContext) (itemTriggers map[string]float64) {
 	triggerInfos := d.GetTriggerInfos(user, context)
 	itemTriggers = make(map[string]float64, len(triggerInfos))
 

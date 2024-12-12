@@ -17,6 +17,10 @@ type RealTimeUser2ItemDao interface {
 func NewRealTimeUser2ItemDao(config recconf.RecallConfig) RealTimeUser2ItemDao {
 
 	if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
+		if config.RealTimeUser2ItemDaoConf.Item2XTable != "" && config.RealTimeUser2ItemDaoConf.X2ItemTable != "" {
+			return NewRealtimeUser2Item2X2ItemHologresDao(config)
+		}
+
 		return NewRealtimeUser2ItemHologresDao(config)
 	} else if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdapterType == recconf.DataSource_Type_BE {
 		return NewRealtimeUser2ItemBeDao(config)
