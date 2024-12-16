@@ -21,6 +21,10 @@ func NewUserCollaborativeDao(config recconf.RecallConfig) UserCollaborativeDao {
 	} else if config.UserCollaborativeDaoConf.AdapterType == recconf.DaoConf_Adapter_TableStore {
 		return NewUserCollaborativeTableStoreDao(config)
 	} else if config.UserCollaborativeDaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
+		if config.UserCollaborativeDaoConf.Item2XTable != "" && config.UserCollaborativeDaoConf.X2ItemTable != "" {
+			return NewUserU2I2X2IHologresDao(config)
+		}
+
 		return NewUserCollaborativeHologresDao(config)
 	} else if config.UserCollaborativeDaoConf.AdapterType == recconf.DaoConf_Adapter_Redis {
 		return NewUserCollaborativeRedisDao(config)

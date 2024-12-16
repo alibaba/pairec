@@ -436,6 +436,11 @@ type RealTimeUser2ItemDaoConfig struct {
 	Item2ItemTable        string
 	SimilarItemIdField    string
 	SimilarItemScoreField string
+
+	Item2XTable string
+	X2ItemTable string
+	XKey        string
+	XDelimiter  string
 }
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig
@@ -484,6 +489,10 @@ type UserCollaborativeDaoConfig struct {
 	Item2ItemTable           string
 	User2ItemFeatureViewName string
 	Item2ItemFeatureViewName string
+	Item2XTable              string
+	X2ItemTable              string
+	XKey                     string
+	XDelimiter               string
 
 	Normalization string // set "on" to enable it, otherwise set "off", enabled by default
 }
