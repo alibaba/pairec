@@ -51,6 +51,7 @@ require (
 )
 
 require (
+	fortio.org/assert v1.2.1 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.4 // indirect
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.9 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
