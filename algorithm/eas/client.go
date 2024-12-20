@@ -74,6 +74,10 @@ func (r *EasRequest) SetResponseFunc(name string) {
 		r.responseFunc = easyrecMutValResponseFunc
 	} else if name == "easyrecMutValResponseFuncDebug" {
 		r.responseFunc = easyrecMutValResponseFuncDebug
+	} else if name == "easyrecMutClassificationResponseFunc" {
+		r.responseFunc = easyrecMutClassificationResponseFunc
+	} else if name == "easyrecMutClassificationResponseFuncDebug" {
+		r.responseFunc = easyrecMutClassificationResponseFuncDebug
 	} else if name == "easyrecUserEmbResponseFunc" {
 		r.responseFunc = easyrecUserEmbResponseFunc
 	} else if name == "easyrecUserRealtimeEmbeddingResponseFunc" {
