@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -66,7 +66,7 @@ func initMetrics(conf *recconf.RecommendConfig) {
 		subsystem = "pairec"
 	}
 	commonLabels := []string{
-		"scene", "exp_id",
+		"scene",
 	}
 	buckets := []float64{
 		.005, .01, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .15, .2, .25, .3, .35, .4, .45, .5, .55, .6, .7, .8,
@@ -126,7 +126,7 @@ func initMetrics(conf *recconf.RecommendConfig) {
 		Buckets:   buckets,
 		Help:      "The load feature cost in seconds.",
 	}, []string{
-		"scene", "exp_id", "stage",
+		"scene", "stage",
 	})
 
 	RankDurSecs = prometheus.NewHistogramVec(prometheus.HistogramOpts{

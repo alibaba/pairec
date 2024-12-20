@@ -41,7 +41,7 @@ func NewUserRecommendService() *UserRecommendService {
 func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*module.Item {
 	start := time.Now()
 
-	var scene, expId string
+	var scene string
 	if context.ExperimentResult != nil {
 		scene = context.ExperimentResult.SceneName
 		//expId = context.ExperimentResult.ExpId
@@ -77,7 +77,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	items := r.recallService.GetItems(user, context)
 
 	if metrics.Enabled() {
-		metrics.RecallDurSecs.WithLabelValues(scene, expId).Observe(time.Since(recallStart).Seconds())
+		metrics.RecallDurSecs.WithLabelValues(scene).Observe(time.Since(recallStart).Seconds())
 
 		recallCountMap := map[string]int{}
 		for _, item := range items {
@@ -97,7 +97,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	items = r.Filter(user, items, context)
 
 	if metrics.Enabled() {
-		metrics.FilterDurSecs.WithLabelValues(scene, expId).Observe(time.Since(filterStart).Seconds())
+		metrics.FilterDurSecs.WithLabelValues(scene).Observe(time.Since(filterStart).Seconds())
 	}
 
 	debugService.WriteFilterLog(user, items, context)
@@ -108,7 +108,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	items = r.generalRankService.Rank(user, items, context)
 
 	if metrics.Enabled() {
-		metrics.GeneralRankDurSecs.WithLabelValues(scene, expId).Observe(time.Since(generalRankStart).Seconds())
+		metrics.GeneralRankDurSecs.WithLabelValues(scene).Observe(time.Since(generalRankStart).Seconds())
 	}
 
 	//debugService.WriteGeneralLog(user, items, context)
@@ -129,7 +129,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	r.rankService.Rank(user, items, context)
 
 	if metrics.Enabled() {
-		metrics.RankDurSecs.WithLabelValues(scene, expId).Observe(time.Since(rankStart).Seconds())
+		metrics.RankDurSecs.WithLabelValues(scene).Observe(time.Since(rankStart).Seconds())
 	}
 
 	wg.Wait()
@@ -143,7 +143,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	items = r.Sort(user, items, context)
 
 	if metrics.Enabled() {
-		metrics.SortDurSecs.WithLabelValues(scene, expId).Observe(time.Since(sortStart).Seconds())
+		metrics.SortDurSecs.WithLabelValues(scene).Observe(time.Since(sortStart).Seconds())
 	}
 	debugService.WriteSortLog(user, items, context)
 
@@ -153,7 +153,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 		log.Warning(fmt.Sprintf("requestId=%s\tmodule=recommend\tevent=filter\tuid=%s\tmsg=length of items less than size\tcount=%d", context.RecommendId, userId, len(items)))
 
 		if metrics.Enabled() {
-			metrics.SizeNotEnoughTotal.WithLabelValues(scene, expId).Inc()
+			metrics.SizeNotEnoughTotal.WithLabelValues(scene).Inc()
 		}
 	}
 
@@ -166,8 +166,8 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	}
 
 	if metrics.Enabled() {
-		metrics.RecTotal.WithLabelValues(scene, expId).Inc()
-		metrics.RecDurSecs.WithLabelValues(scene, expId).Observe(time.Since(start).Seconds())
+		metrics.RecTotal.WithLabelValues(scene).Inc()
+		metrics.RecDurSecs.WithLabelValues(scene).Observe(time.Since(start).Seconds())
 	}
 
 	return items
