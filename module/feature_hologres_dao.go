@@ -66,6 +66,20 @@ func NewFeatureHologresDao(config recconf.FeatureDaoConfig) *FeatureHologresDao 
 	if config.NoUsePlayTimeField {
 		dao.hasPlayTimeField = false
 	}
+	if dao.itemSelectFields != "" {
+		fields := strings.Split(dao.itemSelectFields, ",")
+		if len(fields) > 0 && fields[0] != dao.itemFeatureKeyName {
+			selectFields := make([]string, 0, 1+len(fields))
+			selectFields = append(selectFields, dao.itemFeatureKeyName)
+			for _, field := range fields {
+				if field != "" {
+					selectFields = append(selectFields, field)
+				}
+			}
+
+			dao.itemSelectFields = strings.Join(selectFields, ",")
+		}
+	}
 	return dao
 }
 func (d *FeatureHologresDao) getItemStmt(key int) *sql.Stmt {
