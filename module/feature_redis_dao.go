@@ -8,12 +8,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gomodule/redigo/redis"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/redisdb"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/gomodule/redigo/redis"
 )
 
 const (
@@ -96,6 +96,18 @@ func (d *FeatureRedisDao) userFeatureFetch(user *User, context *context.Recommen
 
 	key = d.redisPrefix + key
 
+	// hit user cache
+	if d.cache != nil {
+		if cacheValue, ok := d.cache.GetIfPresent(key); ok {
+			if d.cacheFeaturesName != "" {
+				user.AddCacheFeatures(d.cacheFeaturesName, cacheValue.(map[string]interface{}))
+			} else {
+				user.AddProperties(cacheValue.(map[string]interface{}))
+			}
+			return
+		}
+	}
+
 	conn := d.redis.Get()
 	defer conn.Close()
 	if d.redisDataType == REDIS_DATA_TYPE_STRING {
@@ -140,6 +152,9 @@ func (d *FeatureRedisDao) userFeatureFetchByString(user *User, context *context.
 	} else {
 		user.AddProperties(properties)
 	}
+	if d.cache != nil {
+		d.cache.Put(key, properties)
+	}
 
 	return nil
 }
@@ -178,6 +193,9 @@ func (d *FeatureRedisDao) userFeatureFetchByHash(user *User, context *context.Re
 		user.AddCacheFeatures(d.cacheFeaturesName, properties)
 	} else {
 		user.AddProperties(properties)
+	}
+	if d.cache != nil {
+		d.cache.Put(key, properties)
 	}
 	return nil
 }
@@ -223,6 +241,12 @@ func (d *FeatureRedisDao) itemsFeatureFetch(items []*Item, context *context.Reco
 						key = item.StringProperty(fk)
 					}
 					key = d.redisPrefix + key
+					if d.cache != nil {
+						if cacheValue, ok := d.cache.GetIfPresent(key); ok {
+							item.AddProperties(cacheValue.(map[string]interface{}))
+							continue
+						}
+					}
 
 					keys = append(keys, key)
 				}
@@ -281,6 +305,9 @@ func (d *FeatureRedisDao) itemFeatureFetchByString(items []*Item, context *conte
 			}
 		}
 		item.AddProperties(properties)
+		if d.cache != nil {
+			d.cache.Put(keys[i], properties)
+		}
 	}
 
 	return nil
@@ -294,7 +321,7 @@ func (d *FeatureRedisDao) itemFeatureFetchByHash(items []*Item, context *context
 		}
 		conn.Flush()
 
-		for i := range keys {
+		for i, key := range keys {
 			strs, err := redis.Strings(conn.Receive())
 			if err != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureRedisDao\terror=%v", context.RecommendId, err))
@@ -306,17 +333,20 @@ func (d *FeatureRedisDao) itemFeatureFetchByHash(items []*Item, context *context
 				properties[strs[i]] = strs[i+1]
 			}
 			item.AddProperties(properties)
+			if d.cache != nil {
+				d.cache.Put(key, properties)
+			}
 
 		}
 	} else {
 		for _, key := range keys {
 			var params []interface{}
 			params = append(params, key)
-			params = append(params, d.userSelectFields...)
+			params = append(params, d.itemSelectFields...)
 			conn.Send("HMGET", params...)
 		}
 		conn.Flush()
-		for i := range keys {
+		for i, key := range keys {
 			strs, err := redis.Strings(conn.Receive())
 			if err != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureRedisDao\terror=%v", context.RecommendId, err))
@@ -328,9 +358,12 @@ func (d *FeatureRedisDao) itemFeatureFetchByHash(items []*Item, context *context
 				if val == "" {
 					continue
 				}
-				properties[d.userSelectFields[k].(string)] = val
+				properties[d.itemSelectFields[k].(string)] = val
 			}
 			item.AddProperties(properties)
+			if d.cache != nil {
+				d.cache.Put(key, properties)
+			}
 
 		}
 
