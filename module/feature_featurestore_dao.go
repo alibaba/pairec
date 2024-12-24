@@ -76,6 +76,9 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 			} else {
 				user.AddProperties(cacheValue.(map[string]interface{}))
 			}
+			if context.Debug {
+				log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\tmsg=hit cache(%s)", context.RecommendId, key))
+			}
 			return
 		}
 	}
@@ -197,6 +200,9 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 		if d.cache != nil {
 			if cacheValue, ok := d.cache.GetIfPresent(key); ok {
 				item.AddProperties(cacheValue.(map[string]any))
+				if context.Debug {
+					item.AddProperty("__debug_cache_hit__", true)
+				}
 				continue
 			}
 		}
@@ -206,6 +212,10 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 	}
 	for k := range keysMap {
 		keys = append(keys, k)
+	}
+
+	if len(keys) == 0 {
+		return
 	}
 
 	var (

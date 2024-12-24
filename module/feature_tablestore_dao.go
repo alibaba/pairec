@@ -85,6 +85,9 @@ func (d *FeatureTablestoreDao) userFeatureFetch(user *User, context *context.Rec
 			} else {
 				user.AddProperties(cacheValue.(map[string]interface{}))
 			}
+			if context.Debug {
+				log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\tmsg=hit cache(%s)", context.RecommendId, key))
+			}
 			return
 		}
 	}
@@ -380,6 +383,9 @@ func (d *FeatureTablestoreDao) itemsFeatureFetch(items []*Item, context *context
 					if d.cache != nil {
 						if cacheValue, ok := d.cache.GetIfPresent(key); ok {
 							item.AddProperties(cacheValue.(map[string]interface{}))
+							if context.Debug {
+								item.AddProperty("__debug_cache_hit__", true)
+							}
 							continue
 						}
 					}
@@ -388,6 +394,9 @@ func (d *FeatureTablestoreDao) itemsFeatureFetch(items []*Item, context *context
 					pkToGet := new(tablestore.PrimaryKey)
 					pkToGet.AddPrimaryKeyColumn(d.itemFeatureKeyName, key)
 					mqCriteria.AddRow(pkToGet)
+				}
+				if len(key2Item) == 0 {
+					return
 				}
 				mqCriteria.MaxVersion = 1
 				if d.itemSelectFields != "" {

@@ -125,6 +125,9 @@ func (d *FeatureHologresDao) userFeatureFetch(user *User, context *context.Recom
 			} else {
 				user.AddProperties(cacheValue.(map[string]interface{}))
 			}
+			if context.Debug {
+				log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\tmsg=hit cache(%s)", context.RecommendId, key))
+			}
 			return
 		}
 	}
@@ -548,12 +551,19 @@ func (d *FeatureHologresDao) itemsFeatureFetch(items []*Item, context *context.R
 					if d.cache != nil {
 						if cacheValue, ok := d.cache.GetIfPresent(key); ok {
 							item.AddProperties(cacheValue.(map[string]interface{}))
+							if context.Debug {
+								item.AddProperty("__debug_cache_hit__", true)
+							}
 							continue
 						}
 					}
 
 					keys = append(keys, key)
 					key2Item[key] = item
+				}
+
+				if len(keys) == 0 {
+					return
 				}
 
 				builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
