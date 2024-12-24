@@ -229,6 +229,11 @@ type FeatureDaoConfig struct {
 	// LoadFromCacheFeaturesName load features from user cacheFeatures map
 	// Only valid when FeatureStore = user
 	LoadFromCacheFeaturesName string
+
+	// CacheSize cache featrue data size
+	CacheSize int
+	//CacheTime cache featrue data time in second
+	CacheTime int
 }
 type FeatureConfig struct {
 	FeatureType         string

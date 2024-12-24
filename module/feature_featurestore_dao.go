@@ -13,26 +13,22 @@ import (
 
 type FeatureFeatureStoreDao struct {
 	*FeatureBaseDao
-	client             *fs.FSClient
-	fsModel            string
-	fsEntity           string
-	fsViewName         string
-	userFeatureKeyName string
-	itemFeatureKeyName string
-	userSelectFields   string
-	itemSelectFields   string
+	client           *fs.FSClient
+	fsModel          string
+	fsEntity         string
+	fsViewName       string
+	userSelectFields string
+	itemSelectFields string
 }
 
 func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureStoreDao {
 	dao := &FeatureFeatureStoreDao{
-		FeatureBaseDao:     NewFeatureBaseDao(&config),
-		fsModel:            config.FeatureStoreModelName,
-		fsEntity:           config.FeatureStoreEntityName,
-		fsViewName:         config.FeatureStoreViewName,
-		userFeatureKeyName: config.UserFeatureKeyName,
-		itemFeatureKeyName: config.ItemFeatureKeyName,
-		userSelectFields:   config.UserSelectFields,
-		itemSelectFields:   config.ItemSelectFields,
+		FeatureBaseDao:   NewFeatureBaseDao(&config),
+		fsModel:          config.FeatureStoreModelName,
+		fsEntity:         config.FeatureStoreEntityName,
+		fsViewName:       config.FeatureStoreViewName,
+		userSelectFields: config.UserSelectFields,
+		itemSelectFields: config.ItemSelectFields,
 	}
 	client, err := fs.GetFeatureStoreClient(config.FeatureStoreName)
 	if err != nil {
@@ -71,6 +67,20 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 	if key == "" {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=property not found(%s)", context.RecommendId, comms[1]))
 		return
+	}
+	// hit user cache
+	if d.cache != nil {
+		if cacheValue, ok := d.cache.GetIfPresent(key); ok {
+			if d.cacheFeaturesName != "" {
+				user.AddCacheFeatures(d.cacheFeaturesName, cacheValue.(map[string]interface{}))
+			} else {
+				user.AddProperties(cacheValue.(map[string]interface{}))
+			}
+			if context.Debug {
+				log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\tmsg=hit cache(%s)", context.RecommendId, key))
+			}
+			return
+		}
 	}
 
 	if d.fsViewName != "" {
@@ -118,6 +128,9 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 	} else {
 		user.AddProperties(features[0])
 	}
+	if d.cache != nil {
+		d.cache.Put(key, features[0])
+	}
 }
 func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithFeatureView(user *User, context *context.RecommendContext, key string) {
 	featureView := d.client.GetProject().GetFeatureView(d.fsViewName)
@@ -146,6 +159,9 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithFeatureView(user *User, c
 		user.AddCacheFeatures(d.cacheFeaturesName, features[0])
 	} else {
 		user.AddProperties(features[0])
+	}
+	if d.cache != nil {
+		d.cache.Put(key, features[0])
 	}
 }
 
@@ -181,12 +197,25 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 		} else {
 			key = item.StringProperty(fk)
 		}
+		if d.cache != nil {
+			if cacheValue, ok := d.cache.GetIfPresent(key); ok {
+				item.AddProperties(cacheValue.(map[string]any))
+				if context.Debug {
+					item.AddProperty("__debug_cache_hit__", true)
+				}
+				continue
+			}
+		}
 
 		keysMap[key] = true
 		key2Item[key] = append(key2Item[key], item)
 	}
 	for k := range keysMap {
 		keys = append(keys, k)
+	}
+
+	if len(keys) == 0 {
+		return
 	}
 
 	var (
@@ -236,6 +265,9 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 			if key == featureMap[entityJoinId] {
 				for _, item := range itemlist {
 					item.AddProperties(featureMap)
+					if d.cache != nil {
+						d.cache.Put(key, featureMap)
+					}
 				}
 				features[i] = features[len(features)-1]
 				features = features[:len(features)-1]

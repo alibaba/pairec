@@ -10,6 +10,7 @@ import (
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/goburrow/cache"
 )
 
 const (
@@ -96,6 +97,8 @@ type FeatureBaseDao struct {
 	sequenceDelim       string
 	sequenceDimFields   []string
 	sequencePlayTimeMap map[string]float64
+
+	cache cache.Cache
 }
 
 func NewFeatureBaseDao(config *recconf.FeatureDaoConfig) *FeatureBaseDao {
@@ -127,6 +130,15 @@ func NewFeatureBaseDao(config *recconf.FeatureDaoConfig) *FeatureBaseDao {
 	}
 	if config.SequenceDimFields != "" {
 		dao.sequenceDimFields = strings.Split(config.SequenceDimFields, ",")
+	}
+
+	if config.CacheSize > 0 {
+		cacheTime := 3600
+		if config.CacheTime > 0 {
+			cacheTime = config.CacheTime
+		}
+		dao.cache = cache.New(cache.WithMaximumSize(config.CacheSize),
+			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
 	}
 	return &dao
 }

@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/alibaba/pairec/v2/utils/sqlutil"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type FeatureHologresDao struct {
@@ -66,6 +66,20 @@ func NewFeatureHologresDao(config recconf.FeatureDaoConfig) *FeatureHologresDao 
 	if config.NoUsePlayTimeField {
 		dao.hasPlayTimeField = false
 	}
+	if dao.itemSelectFields != "" {
+		fields := strings.Split(dao.itemSelectFields, ",")
+		if len(fields) > 0 && fields[0] != dao.itemFeatureKeyName {
+			selectFields := make([]string, 0, 1+len(fields))
+			selectFields = append(selectFields, dao.itemFeatureKeyName)
+			for _, field := range fields {
+				if field != "" {
+					selectFields = append(selectFields, field)
+				}
+			}
+
+			dao.itemSelectFields = strings.Join(selectFields, ",")
+		}
+	}
 	return dao
 }
 func (d *FeatureHologresDao) getItemStmt(key int) *sql.Stmt {
@@ -102,6 +116,20 @@ func (d *FeatureHologresDao) userFeatureFetch(user *User, context *context.Recom
 	if key == "" {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\terror=property not found(%s)", context.RecommendId, comms[1]))
 		return
+	}
+	// hit user cache
+	if d.cache != nil {
+		if cacheValue, ok := d.cache.GetIfPresent(key); ok {
+			if d.cacheFeaturesName != "" {
+				user.AddCacheFeatures(d.cacheFeaturesName, cacheValue.(map[string]interface{}))
+			} else {
+				user.AddProperties(cacheValue.(map[string]interface{}))
+			}
+			if context.Debug {
+				log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\tmsg=hit cache(%s)", context.RecommendId, key))
+			}
+			return
+		}
 	}
 
 	builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
@@ -162,6 +190,10 @@ func (d *FeatureHologresDao) userFeatureFetch(user *User, context *context.Recom
 				user.AddCacheFeatures(d.cacheFeaturesName, properties)
 			} else {
 				user.AddProperties(properties)
+			}
+
+			if d.cache != nil {
+				d.cache.Put(key, properties)
 			}
 		} else {
 			log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\terror=hologres error(%v)", context.RecommendId, err))
@@ -516,8 +548,22 @@ func (d *FeatureHologresDao) itemsFeatureFetch(items []*Item, context *context.R
 					} else {
 						key = item.StringProperty(fk)
 					}
+					if d.cache != nil {
+						if cacheValue, ok := d.cache.GetIfPresent(key); ok {
+							item.AddProperties(cacheValue.(map[string]interface{}))
+							if context.Debug {
+								item.AddProperty("__debug_cache_hit__", true)
+							}
+							continue
+						}
+					}
+
 					keys = append(keys, key)
 					key2Item[key] = item
+				}
+
+				if len(keys) == 0 {
+					return
 				}
 
 				builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
@@ -596,15 +642,16 @@ func (d *FeatureHologresDao) itemsFeatureFetch(items []*Item, context *context.R
 				}
 
 				values := sqlutil.ColumnValues(columns)
+				var key string
 				for rows.Next() {
 					if err := rows.Scan(values...); err == nil {
 						var item *Item
 						properties := make(map[string]interface{}, len(values))
+						key = ""
 						for i, column := range columns {
 							name := column.Name()
 							val := values[i]
 							if i == 0 {
-								var key string
 								if value := sqlutil.ParseColumnValues(val); value != nil {
 									key = utils.ToString(value, "")
 								}
@@ -622,6 +669,9 @@ func (d *FeatureHologresDao) itemsFeatureFetch(items []*Item, context *context.R
 						}
 						if nil != item && len(properties) > 0 {
 							item.AddProperties(properties)
+							if d.cache != nil {
+								d.cache.Put(key, properties)
+							}
 						}
 
 					} else {

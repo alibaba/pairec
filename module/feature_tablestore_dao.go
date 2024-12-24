@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/tablestoredb"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 )
 
 type FeatureTablestoreDao struct {
@@ -77,6 +77,20 @@ func (d *FeatureTablestoreDao) userFeatureFetch(user *User, context *context.Rec
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureTablestoreDao\terror=property not found(%s)", context.RecommendId, comms[1]))
 		return
 	}
+	// hit user cache
+	if d.cache != nil {
+		if cacheValue, ok := d.cache.GetIfPresent(key); ok {
+			if d.cacheFeaturesName != "" {
+				user.AddCacheFeatures(d.cacheFeaturesName, cacheValue.(map[string]interface{}))
+			} else {
+				user.AddProperties(cacheValue.(map[string]interface{}))
+			}
+			if context.Debug {
+				log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\tmsg=hit cache(%s)", context.RecommendId, key))
+			}
+			return
+		}
+	}
 
 	getRowRequest := new(tablestore.GetRowRequest)
 	criteria := new(tablestore.SingleRowQueryCriteria)
@@ -115,6 +129,9 @@ func (d *FeatureTablestoreDao) userFeatureFetch(user *User, context *context.Rec
 		user.AddCacheFeatures(d.cacheFeaturesName, properties)
 	} else {
 		user.AddProperties(properties)
+	}
+	if d.cache != nil {
+		d.cache.Put(key, properties)
 	}
 }
 
@@ -363,12 +380,23 @@ func (d *FeatureTablestoreDao) itemsFeatureFetch(items []*Item, context *context
 					} else {
 						key = item.StringProperty(fk)
 					}
+					if d.cache != nil {
+						if cacheValue, ok := d.cache.GetIfPresent(key); ok {
+							item.AddProperties(cacheValue.(map[string]interface{}))
+							if context.Debug {
+								item.AddProperty("__debug_cache_hit__", true)
+							}
+							continue
+						}
+					}
 					key2Item[key] = item
 
-					// keys = append(keys, key)
 					pkToGet := new(tablestore.PrimaryKey)
 					pkToGet.AddPrimaryKeyColumn(d.itemFeatureKeyName, key)
 					mqCriteria.AddRow(pkToGet)
+				}
+				if len(key2Item) == 0 {
+					return
 				}
 				mqCriteria.MaxVersion = 1
 				if d.itemSelectFields != "" {
@@ -420,6 +448,9 @@ func (d *FeatureTablestoreDao) itemsFeatureFetch(items []*Item, context *context
 					}
 
 					item.AddProperties(properties)
+					if d.cache != nil {
+						d.cache.Put(key, properties)
+					}
 				}
 
 			default:
