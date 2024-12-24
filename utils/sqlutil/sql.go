@@ -3,6 +3,7 @@ package sqlutil
 import (
 	"database/sql"
 	"reflect"
+	"strings"
 )
 
 // ColumnValues return dynamic column values by the sql.ColumnType
@@ -45,7 +46,11 @@ func ColumnValues(columns []*sql.ColumnType) []interface{} {
 				}
 			}
 		default:
-			values[i] = &sql.NullFloat64{}
+			if strings.HasPrefix(column.DatabaseTypeName(), "_") { // array
+				values[i] = &[]uint8{}
+			} else {
+				values[i] = &sql.NullFloat64{}
+			}
 		}
 	}
 
@@ -82,6 +87,11 @@ func ParseColumnValues(value interface{}) interface{} {
 		if v.Valid {
 			return v.Time
 		}
+	case *[]uint8:
+		val := string(*v)
+		val = strings.Trim(val, "{}")
+		strs := strings.Split(val, ",")
+		return strs
 	default:
 		return nil
 	}
