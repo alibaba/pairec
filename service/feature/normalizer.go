@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type Normalizer interface {
@@ -91,7 +93,6 @@ type ExpressionNormalizer struct {
 var (
 	functions = map[string]govaluate.ExpressionFunction{
 		"getString": func(args ...interface{}) (interface{}, error) {
-			fmt.Println(args)
 			if len(args) == 0 {
 				return "", errors.New("args should not empty")
 			}
@@ -102,6 +103,25 @@ var (
 				return args[1], nil
 			}
 			return "", nil
+		},
+		"trim": func(args ...interface{}) (interface{}, error) {
+			if len(args) != 2 {
+				return "", errors.New("args length not equal 2")
+			}
+
+			str := utils.ToString(args[0], "")
+			cutset := utils.ToString(args[1], "")
+			fmt.Println(strings.TrimPrefix(str, cutset), str, cutset)
+			return strings.Trim(str, cutset), nil
+		},
+		"trimPrefix": func(args ...interface{}) (interface{}, error) {
+			if len(args) != 2 {
+				return "", errors.New("args length not equal 2")
+			}
+
+			str := utils.ToString(args[0], "")
+			cutset := utils.ToString(args[1], "")
+			return strings.TrimPrefix(str, cutset), nil
 		},
 	}
 )
