@@ -9,6 +9,7 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type BoostScoreCondition struct {
@@ -19,7 +20,7 @@ type BoostScoreCondition struct {
 func NewBoostScoreCondition(config *recconf.BoostScoreCondition) (*BoostScoreCondition, error) {
 	condition := &BoostScoreCondition{}
 	if config.Expression != "" {
-		expression, err := govaluate.NewEvaluableExpression(config.Expression)
+		expression, err := govaluate.NewEvaluableExpressionWithFunctions(config.Expression, utils.GovaluateFunctions())
 		if err != nil {
 			return nil, err
 		}

@@ -1,10 +1,8 @@
 package feature
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
-	"strings"
 	"time"
 
 	"github.com/Knetic/govaluate"
@@ -90,55 +88,9 @@ type ExpressionNormalizer struct {
 	evaluableExpression *govaluate.EvaluableExpression
 }
 
-var (
-	functions = map[string]govaluate.ExpressionFunction{
-		"getString": func(args ...interface{}) (interface{}, error) {
-			if len(args) == 0 {
-				return "", errors.New("args should not empty")
-			}
-			if args[0] != "" {
-				return args[0], nil
-			}
-			if len(args) > 1 {
-				return args[1], nil
-			}
-			return "", nil
-		},
-		"trim": func(args ...interface{}) (interface{}, error) {
-			if len(args) != 2 {
-				return "", errors.New("args length not equal 2")
-			}
-
-			str := utils.ToString(args[0], "")
-			cutset := utils.ToString(args[1], "")
-			fmt.Println(strings.TrimPrefix(str, cutset), str, cutset)
-			return strings.Trim(str, cutset), nil
-		},
-		"trimPrefix": func(args ...interface{}) (interface{}, error) {
-			if len(args) != 2 {
-				return "", errors.New("args length not equal 2")
-			}
-
-			str := utils.ToString(args[0], "")
-			cutset := utils.ToString(args[1], "")
-			return strings.TrimPrefix(str, cutset), nil
-		},
-		"replace": func(args ...interface{}) (interface{}, error) {
-			if len(args) != 3 {
-				return "", errors.New("args length not equal 3")
-			}
-
-			str := utils.ToString(args[0], "")
-			old := utils.ToString(args[1], "")
-			new := utils.ToString(args[2], "")
-			return strings.ReplaceAll(str, old, new), nil
-		},
-	}
-)
-
 func NewExpressionNormalizer(expression string) *ExpressionNormalizer {
 	normalizer := &ExpressionNormalizer{}
-	goExpression, err := govaluate.NewEvaluableExpressionWithFunctions(expression, functions)
+	goExpression, err := govaluate.NewEvaluableExpressionWithFunctions(expression, utils.GovaluateFunctions())
 	if err == nil {
 		normalizer.evaluableExpression = goExpression
 	} else {
