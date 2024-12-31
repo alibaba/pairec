@@ -123,6 +123,16 @@ var (
 			cutset := utils.ToString(args[1], "")
 			return strings.TrimPrefix(str, cutset), nil
 		},
+		"replace": func(args ...interface{}) (interface{}, error) {
+			if len(args) != 3 {
+				return "", errors.New("args length not equal 3")
+			}
+
+			str := utils.ToString(args[0], "")
+			old := utils.ToString(args[1], "")
+			new := utils.ToString(args[2], "")
+			return strings.ReplaceAll(str, old, new), nil
+		},
 	}
 )
 

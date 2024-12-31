@@ -118,5 +118,23 @@ func TestNewFeatureWithExpressionFeatureOp(t *testing.T) {
 		assert.Equal(t, items[1].StringProperty("trim_feature"), "user1_456")
 
 	})
+	t.Run("test_new_feature_with_expression", func(t *testing.T) {
+		conf := recconf.FeatureLoadConfig{}
+		conf.Features = append(conf.Features, recconf.FeatureConfig{
+			FeatureType:   "new_feature",
+			FeatureStore:  "item",
+			FeatureSource: "item:compose_feature",
+			FeatureName:   "replace_feature",
+			Normalizer:    "expression",
+			Expression:    "replace(trimPrefix(compose_feature, 'compose_feature_'), '_', '#')",
+		})
+
+		feature := LoadWithConfig(conf)
+		feature.LoadFeatures(user, items, context.NewRecommendContext())
+
+		assert.Equal(t, items[0].StringProperty("replace_feature"), "user1#123")
+		assert.Equal(t, items[1].StringProperty("replace_feature"), "user1#456")
+
+	})
 
 }
