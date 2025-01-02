@@ -1,13 +1,13 @@
 package feature
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type Normalizer interface {
@@ -88,27 +88,9 @@ type ExpressionNormalizer struct {
 	evaluableExpression *govaluate.EvaluableExpression
 }
 
-var (
-	functions = map[string]govaluate.ExpressionFunction{
-		"getString": func(args ...interface{}) (interface{}, error) {
-			fmt.Println(args)
-			if len(args) == 0 {
-				return "", errors.New("args should not empty")
-			}
-			if args[0] != "" {
-				return args[0], nil
-			}
-			if len(args) > 1 {
-				return args[1], nil
-			}
-			return "", nil
-		},
-	}
-)
-
 func NewExpressionNormalizer(expression string) *ExpressionNormalizer {
 	normalizer := &ExpressionNormalizer{}
-	goExpression, err := govaluate.NewEvaluableExpressionWithFunctions(expression, functions)
+	goExpression, err := govaluate.NewEvaluableExpressionWithFunctions(expression, utils.GovaluateFunctions())
 	if err == nil {
 		normalizer.evaluableExpression = goExpression
 	} else {

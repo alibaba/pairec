@@ -118,7 +118,12 @@ func (op ComposeFeatureOp) ItemTransOp(featureName string, source string, remove
 				// item.AddProperty(featureName, value)
 				featureValue += "_" + value
 			} else {
-				value := item.StringProperty(comms[1])
+				var value string
+				if comms[1] == "id" {
+					value = string(item.Id)
+				} else {
+					value = item.StringProperty(comms[1])
+				}
 				featureValue += "_" + value
 				if remove {
 					item.DeleteProperty(comms[1])
