@@ -163,6 +163,7 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 
 	if rankConfig.Processor == eas.Eas_Processor_EASYREC {
 		userFeatures = r.User.MakeUserFeatures2()
+		algoGenerator.SetItemFeatures(rankConfig.ItemFeatures)
 	} else {
 		userFeatures = r.User.MakeUserFeatures()
 	}
@@ -184,7 +185,11 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 	}
 
 	if algoGenerator.HasFeatures() {
-		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel)
+		if context.Debug {
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(2)
+		} else {
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel)
+		}
 	}
 
 	var wg sync.WaitGroup

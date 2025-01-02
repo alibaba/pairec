@@ -356,3 +356,13 @@ func ToStringArray(values interface{}) (ret []string) {
 
 	return
 }
+
+// IndexOfArray returns the index of the first occurrence of val in arrs, or -1 if not present.
+func IndexOfArray[T comparable](arrs []T, val T) int {
+	for idx, v := range arrs {
+		if v == val {
+			return idx
+		}
+	}
+	return -1
+}

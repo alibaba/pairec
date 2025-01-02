@@ -2,9 +2,10 @@ package service
 
 import (
 	"fmt"
-	"github.com/alibaba/pairec/v2/log/feature_log"
 	"sync"
 	"time"
+
+	"github.com/alibaba/pairec/v2/log/feature_log"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"fortio.org/assert"
 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/pkg/eas"
 	"github.com/alibaba/pairec/v2/utils"
@@ -507,6 +508,70 @@ func TestTorchrecItemEmbeddingResponseFunc(t *testing.T) {
 		t.Fatal("not torchrecEmbeddingResponse")
 	} else {
 		t.Log(resp.GetEmbedding(), resp.dimSize)
+	}
+
+}
+
+func TestTorchrecItemFeaturesResponse(t *testing.T) {
+
+	builder := easyrec.NewEasyrecRequestBuilderDebugWithLevel(903)
+	builder.AddItemId("7033")
+	builder.AddUserFeature("user_id", 33981)
+
+	length := 4
+	array := make([]float64, length)
+	array[0] = 0.24689289764507472
+	array[1] = 0.005758482924454689
+	array[2] = 0.6765301324940026
+	array[3] = 0.18137273055602343
+	builder.AddUserFeature("raw_3", array)
+
+	myMap := make(map[string]int32)
+	myMap["866"] = 4143
+	myMap["1627"] = 2451
+	builder.AddUserFeature("map_2", myMap)
+
+	rows := 3
+	cols := 4
+	array2 := make([][]float32, rows)
+	for i := range array2 {
+		array2[i] = make([]float32, cols)
+	}
+	for i := 0; i < rows; i++ {
+		for j := 0; j < cols; j++ {
+			array2[i][j] = 1.0
+		}
+	}
+	builder.AddUserFeature("click", array2)
+
+	builder.AddContextFeature("id_2", []any{array, array})
+
+	builder.AddContextFeature("id_3", []any{"a", "b"})
+
+	builder.AddItemFeature("id_4", []any{"a", "b"})
+
+	request := builder.EasyrecRequest()
+	t.Log(request)
+	pbData, _ := proto.Marshal(request)
+	client := eas.NewPredictClient("http://1730760139076263.cn-beijing.pai-eas.aliyuncs.com", "test_torch_rec_multi_tower_din_gpu")
+	client.SetToken(os.Getenv("TEST_TORCHREC_DIN_GPU_TOKEN"))
+	err := client.Init()
+	if err != nil {
+		t.Fatal(err)
+	}
+	respBody, err := client.BytesPredict(pbData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	responseData := &easyrec.TorchRecPBResponse{}
+	proto.Unmarshal(respBody, responseData)
+
+	//fmt.Println(responseData)
+	arrayProto := responseData.GetMapOutputs()["logits"]
+	assert.Equal(t, arrayProto.ArrayShape.Dim, []int64{1})
+	assert.Equal(t, arrayProto.FloatVal, []float32{-0.036377475})
+	for k, v := range responseData.GetMapOutputs() {
+		t.Log(k, v)
 	}
 
 }
