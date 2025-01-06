@@ -75,6 +75,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 	maps := make(map[int][]interface{}, cpuCount)
 	itemMap := make(map[ItemId]*Item, len(items))
 	index := 0
+	userFeatures := user.MakeUserFeatures2()
 	for i, item := range items {
 		itemId := string(item.Id)
 		if d.itmCache != nil {
@@ -82,7 +83,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 				properties := attrs.(map[string]interface{})
 				item.AddProperties(properties)
 				if d.filterParam != nil {
-					result, err := d.filterParam.Evaluate(properties)
+					result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 					if err == nil && result {
 						fields[itemId] = true
 					}
@@ -254,23 +255,8 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 								continue
 							}
 
-							switch v := val.(type) {
-							case *sql.NullString:
-								if v.Valid {
-									properties[name] = v.String
-								}
-							case *sql.NullInt32:
-								if v.Valid {
-									properties[name] = v.Int32
-								}
-							case *sql.NullInt64:
-								if v.Valid {
-									properties[name] = v.Int64
-								}
-							case *sql.NullFloat64:
-								if v.Valid {
-									properties[name] = v.Float64
-								}
+							if value := sqlutil.ParseColumnValues(val); value != nil {
+								properties[name] = value
 							}
 						}
 						if d.itmCache != nil {
@@ -280,8 +266,8 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 							item.AddProperties(properties)
 						}
 						if d.filterParam != nil {
-							result, err := d.filterParam.Evaluate(properties)
-							if err == nil && result == true {
+							result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
+							if err == nil && result {
 								fieldMap[id] = true
 							}
 						} else {
