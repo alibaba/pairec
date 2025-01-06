@@ -203,6 +203,9 @@ message PBRequest {
 
   // user realtime embedding return num
   int32 faiss_neigh_num = 5;
+
+  // item features for each item, key is item input name
+  map<string, ContextFeatures> item_features = 6;
 }
 
 // return results

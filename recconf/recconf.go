@@ -637,6 +637,7 @@ type RankConfig struct {
 	RankScore       string
 	Processor       string
 	ContextFeatures []string
+	ItemFeatures    []string
 	BatchCount      int
 	ScoreRewrite    map[string]string
 	ASTType         string

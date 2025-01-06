@@ -170,6 +170,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 
 	if rankConfig.Processor == eas.Eas_Processor_EASYREC {
 		userFeatures = user.MakeUserFeatures2()
+		algoGenerator.SetItemFeatures(rankConfig.ItemFeatures)
 	} else {
 		userFeatures = user.MakeUserFeatures()
 	}
@@ -197,7 +198,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 
 		var features map[string]any
 		if rankConfig.Processor == eas.Eas_Processor_EASYREC {
-			if len(rankConfig.ContextFeatures) > 0 {
+			if len(rankConfig.ContextFeatures) > 0 || len(rankConfig.ItemFeatures) > 0 {
 				features = item.GetFeatures()
 			}
 		} else {
@@ -206,13 +207,23 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 		algoGenerator.AddFeatures(item, features, userFeatures)
 		i++
 		if i%batchCount == 0 {
-			algoData := algoGenerator.GeneratorAlgoData()
+			var algoData IAlgoData
+			if context.Debug {
+				algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100)
+			} else {
+				algoData = algoGenerator.GeneratorAlgoData()
+			}
 			algoDataList = append(algoDataList, algoData)
 		}
 	}
 
 	if algoGenerator.HasFeatures() {
-		algoData := algoGenerator.GeneratorAlgoData()
+		var algoData IAlgoData
+		if context.Debug {
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100)
+		} else {
+			algoData = algoGenerator.GeneratorAlgoData()
+		}
 		algoDataList = append(algoDataList, algoData)
 	}
 
