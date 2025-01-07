@@ -1450,6 +1450,60 @@ func TestGreaterFilterOp(t *testing.T) {
 			},
 			Expect: false,
 		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2024-02-04 20:16:59",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2025-01-05 20:17:00",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greater",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2014-01-02",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2014-01-01 23:59:59",
+			},
+			Expect: true,
+		},
 	}
 
 	for _, case1 := range testcases {
@@ -1594,6 +1648,42 @@ func TestGreaterThanFilterOp(t *testing.T) {
 			},
 			UserProperties: map[string]interface{}{
 				"bar": 40,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2024-02-04 20:16:59",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "greaterThan",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2025-01-05 20:17:00",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
 			},
 			Expect: true,
 		},
@@ -1762,6 +1852,42 @@ func TestLessFilterOp(t *testing.T) {
 			},
 			Expect: true,
 		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2024-02-04 20:16:59",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "less",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2025-01-05 20:17:00",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
+			},
+			Expect: false,
+		},
 	}
 
 	for _, case1 := range testcases {
@@ -1926,6 +2052,60 @@ func TestLessThanFilterOp(t *testing.T) {
 				"bar": 45,
 			},
 			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2025-01-04 20:16:59",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2024-02-04 20:16:59",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Name:     "foo",
+					Domain:   "item",
+					Operator: "lessThan",
+					Type:     "time",
+					Value:    "user.bar",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "2025-01-05 20:17:00",
+			},
+			UserProperties: map[string]interface{}{
+				"bar": "2025-01-05 20:16:59",
+			},
+			Expect: false,
 		},
 	}
 
