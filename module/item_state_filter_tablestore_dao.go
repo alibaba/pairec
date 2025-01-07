@@ -6,11 +6,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/tablestoredb"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 )
 
 type ItemStateFilterTablestoreDao struct {
@@ -50,6 +50,7 @@ func (d *ItemStateFilterTablestoreDao) Filter(user *User, items []*Item) (ret []
 	maps := make(map[int][]interface{}, cpuCount)
 
 	index := 0
+	userFeatures := user.MakeUserFeatures2()
 	for i, item := range items {
 		maps[index%cpuCount] = append(maps[index%cpuCount], string(item.Id))
 		if (i+1)%requestCount == 0 {
@@ -115,8 +116,8 @@ func (d *ItemStateFilterTablestoreDao) Filter(user *User, items []*Item) (ret []
 										properties[column.ColumnName] = column.Value
 									}
 									if d.filterParam != nil {
-										result, err := d.filterParam.Evaluate(properties)
-										if err == nil && result == true {
+										result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
+										if err == nil && result {
 											fieldMap[id] = true
 										}
 									} else {

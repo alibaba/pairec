@@ -67,6 +67,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 	maps := make(map[int][]interface{}, cpuCount)
 	itemMap := make(map[ItemId]*Item, len(items))
 	index := 0
+	userFeatures := user.MakeUserFeatures2()
 	for i, item := range items {
 		itemId := string(item.Id)
 		if d.itmCache != nil {
@@ -74,7 +75,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 				properties := attrs.(map[string]interface{})
 				item.AddProperties(properties)
 				if d.filterParam != nil {
-					result, err := d.filterParam.Evaluate(properties)
+					result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 					if err == nil && result {
 						fields[itemId] = true
 					}
@@ -143,7 +144,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 								d.itmCache.Put(itemId, itemFeatures)
 							}
 							if d.filterParam != nil {
-								result, err := d.filterParam.Evaluate(itemFeatures)
+								result, err := d.filterParam.EvaluateByDomain(userFeatures, itemFeatures)
 								if err == nil && result {
 									fieldMap[itemId] = true
 								}
