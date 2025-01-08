@@ -664,6 +664,38 @@ func (p *GreaterFilterOp) DomainEvaluate(properties map[string]interface{}, user
 			right = utils.ToInt64(p.Value, 0)
 		}
 		return v1 > right, nil
+	case "time":
+		v1 := utils.ToString(left, "")
+		var right string
+		if p.DomainValue == "" {
+			right = utils.ToString(p.Value, "")
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "")
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "")
+		} else {
+			right = utils.ToString(p.Value, "")
+		}
+		leftTime, leftOk := utils.TryParseTime(v1)
+		if !leftOk {
+			return false, nil
+		}
+		rightTime, rightOk := utils.TryParseTime(right)
+		if !rightOk {
+			return false, nil
+		}
+		return leftTime.UnixNano() > rightTime.UnixNano(), nil
 	default:
 		return false, nil
 	}
@@ -806,6 +838,38 @@ func (p *GreaterThanFilterOp) DomainEvaluate(properties map[string]interface{}, 
 			right = utils.ToInt64(p.Value, 0)
 		}
 		return v1 >= right, nil
+	case "time":
+		v1 := utils.ToString(left, "")
+		var right string
+		if p.DomainValue == "" {
+			right = utils.ToString(p.Value, "")
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "")
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "")
+		} else {
+			right = utils.ToString(p.Value, "")
+		}
+		leftTime, leftOk := utils.TryParseTime(v1)
+		if !leftOk {
+			return false, nil
+		}
+		rightTime, rightOk := utils.TryParseTime(right)
+		if !rightOk {
+			return false, nil
+		}
+		return leftTime.UnixNano() >= rightTime.UnixNano(), nil
 	default:
 		return false, nil
 	}
@@ -948,6 +1012,38 @@ func (p *LessFilterOp) DomainEvaluate(properties map[string]interface{}, userPro
 			right = utils.ToInt64(p.Value, 0)
 		}
 		return v1 < right, nil
+	case "time":
+		v1 := utils.ToString(left, "")
+		var right string
+		if p.DomainValue == "" {
+			right = utils.ToString(p.Value, "")
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "")
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "")
+		} else {
+			right = utils.ToString(p.Value, "")
+		}
+		leftTime, leftOk := utils.TryParseTime(v1)
+		if !leftOk {
+			return false, nil
+		}
+		rightTime, rightOk := utils.TryParseTime(right)
+		if !rightOk {
+			return false, nil
+		}
+		return leftTime.UnixNano() < rightTime.UnixNano(), nil
 	default:
 		return false, nil
 	}
@@ -1090,6 +1186,38 @@ func (p *LessThanFilterOp) DomainEvaluate(properties map[string]interface{}, use
 			right = utils.ToInt64(p.Value, 0)
 		}
 		return v1 <= right, nil
+	case "time":
+		v1 := utils.ToString(left, "")
+		var right string
+		if p.DomainValue == "" {
+			right = utils.ToString(p.Value, "")
+		} else if strings.HasPrefix(p.DomainValue, "user.") {
+			val := p.DomainValue[5:]
+			right1, ok := userProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "")
+
+		} else if strings.HasPrefix(p.DomainValue, "item.") {
+			val := p.DomainValue[5:]
+			right1, ok := itemProperties[val]
+			if !ok {
+				return false, nil
+			}
+			right = utils.ToString(right1, "")
+		} else {
+			right = utils.ToString(p.Value, "")
+		}
+		leftTime, leftOk := utils.TryParseTime(v1)
+		if !leftOk {
+			return false, nil
+		}
+		rightTime, rightOk := utils.TryParseTime(right)
+		if !rightOk {
+			return false, nil
+		}
+		return leftTime.UnixNano() <= rightTime.UnixNano(), nil
 	default:
 		return false, nil
 	}

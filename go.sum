@@ -68,8 +68,8 @@ github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227 h1:NBH
 github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227/go.mod h1:k+nixj5x99h1pIn/7RyAxeMtig9PvnCFdDNzHduLqWU=
 github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8Ahwq4o+y5g=
 github.com/aliyun/aliyun-log-go-sdk v0.1.27/go.mod h1:aBG0R+MWRTgvlIODQkz+a3/RM9bQYKsmSbKdbIx4vpc=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.9-0.20241118072910-a31680317377 h1:Ib83cLpcyVVlu0VmFnrisMW3uV8V/Vlk1Mk7MTH7P6s=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.2.9-0.20241118072910-a31680317377/go.mod h1:hYOflFhW0iowuAXC3wDXzio0Y73P4zdIsBhJb67wMJg=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.1-0.20250108002338-26adc33508e8 h1:IEwhwW2s/2DD6xh1RnyHW3OuK1p7eXbqDMA5hz67Hmk=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.1-0.20250108002338-26adc33508e8/go.mod h1:kUGlPd5k1G1PFtt97rt4B5O1nHp7lhq7wQJWh5BQOVY=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.8-0.20241121075700-d79108b1097e h1:sux0dDaqjww6ITWg/idpacUtwSLkR6Bz2Q2mGM82B+M=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.8-0.20241121075700-d79108b1097e/go.mod h1:nYJ7Wp+sW/X3NAZBeJUyBGifcLTqIkNumq3lExpEG30=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7 h1:+d/mcgaxx1jaWtFN2WrBHy4XeM9IK5gmZvbbpVkhqHE=
