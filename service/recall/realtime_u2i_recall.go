@@ -60,7 +60,7 @@ func (r *RealTimeU2IRecall) GetCandidateItems(user *module.User, context *contex
 				itemIds += fmt.Sprintf("%s::%v", string(item.Id), item.Score) + ","
 			}
 			itemIds = itemIds[:len(itemIds)-1]
-			if err := r.cache.Put(key, itemIds, 1800*time.Second); err != nil {
+			if err := r.cache.Put(key, itemIds, time.Duration(r.cacheTime)*time.Second); err != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tmodule=RealTimeU2IRecall\terror=%v",
 					context.RecommendId, err))
 			}
