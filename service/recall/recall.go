@@ -119,7 +119,10 @@ func NewBaseRecall(config recconf.RecallConfig) *BaseRecall {
 		} else {
 			recall.cache = cache
 			recall.cachePrefix = config.CachePrefix
-			recall.cacheTime = config.CacheTime
+			recall.cacheTime = 1800
+			if config.CacheTime > 0 {
+				recall.cacheTime = config.CacheTime
+			}
 		}
 	}
 

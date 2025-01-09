@@ -446,6 +446,9 @@ type RealTimeUser2ItemDaoConfig struct {
 	X2ItemTable string
 	XKey        string
 	XDelimiter  string
+
+	// FeatureStore i2i feature view name
+	Item2ItemFeatureViewName string
 }
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig
@@ -463,6 +466,11 @@ type UserTriggerDaoConfig struct {
 	BeTimestampFeatureKeyName string
 	BeEventFeatureKeyName     string
 	BePlayTimeFeatureKeyName  string
+
+	ItemIdFieldName    string
+	TimestampFieldName string
+	EventFieldName     string
+	PlayTimeFieldName  string
 }
 type TriggerDiversityRuleConfig struct {
 	Dimensions []string

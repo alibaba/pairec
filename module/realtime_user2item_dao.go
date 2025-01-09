@@ -24,6 +24,8 @@ func NewRealTimeUser2ItemDao(config recconf.RecallConfig) RealTimeUser2ItemDao {
 		return NewRealtimeUser2ItemHologresDao(config)
 	} else if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdapterType == recconf.DataSource_Type_BE {
 		return NewRealtimeUser2ItemBeDao(config)
+	} else if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewRealtimeUser2ItemFeatureStoreDao(config)
 	} else {
 		panic("RealTimeUser2ItemDao not implement")
 	}
