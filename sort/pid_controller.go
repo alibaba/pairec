@@ -176,8 +176,8 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	if !enabled {
 		return 0, setValue
 	}
-	if setValue == 0 {
-		setValue = 0.5
+	if setValue < 1 {
+		setValue = 1
 	}
 	if itemOrExpId != "" {
 		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\tsetValue=%v", itemOrExpId, setValue))

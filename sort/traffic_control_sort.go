@@ -793,7 +793,7 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 			deltaRank += delta // 多个目标调控方向不一致时，需要扳手腕看谁力气大
 			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\titemId:%s, [targetId:%s/targetName:%s], origin pos=%d, traffic=%f, setValue=%f, percentage=%f,alpha=%f, delta rank=%f, traffic_control_id=%d", item.Id, targetId, controller.target.Name, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
 		}
-		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\tdelta rank:%v", deltaRank))
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\titem:%v\tdelta rank:%v", item.Id, deltaRank))
 		if deltaRank != 0.0 {
 			if deltaRank < 0 {
 				item.IncrAlgoScore("__delta_rank__", deltaRank)
