@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type ColdStartRecallHologresDao struct {
@@ -23,6 +23,7 @@ type ColdStartRecallHologresDao struct {
 	table         string
 	whereClause   string
 	itemFieldName string
+	orderBy       string
 
 	mu      sync.RWMutex
 	sqlStmt *sql.Stmt
@@ -44,6 +45,7 @@ func NewColdStartRecallHologresDao(config recconf.RecallConfig) *ColdStartRecall
 		timeInterval:  config.ColdStartDaoConf.TimeInterval,
 		whereClause:   config.ColdStartDaoConf.WhereClause,
 		itemFieldName: config.ColdStartDaoConf.PrimaryKey,
+		orderBy:       config.ColdStartDaoConf.OrderBy,
 	}
 	return dao
 }
@@ -59,7 +61,12 @@ func (d *ColdStartRecallHologresDao) ListItemsByUser(user *User, context *contex
 	if where != "" {
 		builder.Where(where)
 	}
-	builder.OrderBy("random()")
+	if d.orderBy == "" {
+		builder.OrderBy("random()")
+	} else {
+		builder.OrderBy(d.orderBy)
+	}
+
 	builder.Limit(d.recallCount)
 	sqlquery, args := builder.Build()
 	rows, err := d.db.Query(sqlquery, args...)
