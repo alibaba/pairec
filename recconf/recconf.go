@@ -435,6 +435,7 @@ type SqlDaoConfig struct {
 	WhereClause  string
 	PrimaryKey   string
 	SelectFields string
+	OrderBy      string
 }
 type RealTimeUser2ItemDaoConfig struct {
 	UserTriggerDaoConf    UserTriggerDaoConfig
