@@ -72,6 +72,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	var userFeatures map[string]interface{}
 
 	if rankConfig.Processor == eas.Eas_Processor_EASYREC {
+		algoGenerator.SetItemFeatures(rankConfig.ItemFeatures)
 		userFeatures = user.MakeUserFeatures2()
 	} else {
 		userFeatures = user.MakeUserFeatures()

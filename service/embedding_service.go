@@ -96,6 +96,7 @@ func (r *EmbeddingService) Rank(user *module.User, items []*module.Item, context
 	}
 
 	algoGenerator := rank.CreateAlgoDataGenerator(rankConfig.Processor, r.contextFeatures)
+	algoGenerator.SetItemFeatures(rankConfig.ItemFeatures)
 
 	if r.module == User_Embedding_Module {
 		userFeatures := user.MakeUserFeatures2()

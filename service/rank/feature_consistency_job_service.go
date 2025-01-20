@@ -337,6 +337,7 @@ func (r *FeatureConsistencyJobService) logRecallResultToDatahub(user *module.Use
 	} else {
 		message["user_embedding"] = userEmbedding
 		algoGenerator := CreateAlgoDataGenerator(recallAlgoType, nil)
+		algoGenerator.SetItemFeatures(nil)
 		item := module.NewItem("1")
 		algoGenerator.AddFeatures(item, nil, features)
 		algoData := algoGenerator.GeneratorAlgoDataDebugWithLevel(1)

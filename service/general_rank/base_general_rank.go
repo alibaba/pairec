@@ -113,6 +113,7 @@ func (r *BaseGeneralRank) doRankWithAlgo(user *module.User, items []*module.Item
 	algoDataList := make([]rank.IAlgoData, 0)
 	i := 0
 	algoGenerator := rank.CreateAlgoDataGenerator(r.rankConfig.Processor, r.rankConfig.ContextFeatures)
+	algoGenerator.SetItemFeatures(r.rankConfig.ItemFeatures)
 
 	userFeatures := user.MakeUserFeatures2()
 
