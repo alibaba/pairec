@@ -170,8 +170,8 @@ type EasyrecAlgoDataGenerator struct {
 	parseFeature          bool
 	itemFeatures          []*feature
 	userFeatures          map[string]interface{}
-	inputItemFeatrues     []*feature
-	inputeItemFeatureMap  map[string][]interface{}
+	inputItemFeatures     []*feature
+	inputItemFeatureMap   map[string][]interface{}
 	parseInputItemFeature bool
 }
 
@@ -198,7 +198,7 @@ func NewEasyrecAlgoDataGenerator(contextFeatures []string) *EasyrecAlgoDataGener
 // SetItemFeatures implements IAlgoDataGenerator.
 func (generator *EasyrecAlgoDataGenerator) SetItemFeatures(inputItemFeatures []string) {
 	if len(inputItemFeatures) > 0 {
-		generator.inputeItemFeatureMap = make(map[string][]interface{}, 8)
+		generator.inputItemFeatureMap = make(map[string][]interface{}, 8)
 		if inputItemFeatures[0] != "*" {
 			generator.parseInputItemFeature = true
 			for _, featureName := range inputItemFeatures {
@@ -206,7 +206,7 @@ func (generator *EasyrecAlgoDataGenerator) SetItemFeatures(inputItemFeatures []s
 					name:      featureName,
 					valueType: reflect.TypeOf(""),
 				}
-				generator.inputItemFeatrues = append(generator.inputItemFeatrues, feature)
+				generator.inputItemFeatures = append(generator.inputItemFeatures, feature)
 			}
 		}
 	} else {
@@ -241,7 +241,7 @@ func (g *EasyrecAlgoDataGenerator) AddFeatures(item *module.Item, itemFeatures m
 					name:      k,
 					valueType: reflect.TypeOf(v),
 				}
-				g.inputItemFeatrues = append(g.inputItemFeatrues, feature)
+				g.inputItemFeatures = append(g.inputItemFeatures, feature)
 			}
 		}
 		g.parseInputItemFeature = true
@@ -258,14 +258,13 @@ func (g *EasyrecAlgoDataGenerator) AddFeatures(item *module.Item, itemFeatures m
 			g.contextFeatures[f.name] = append(g.contextFeatures[f.name], f.defaultValue())
 		}
 	}
-	for _, f := range g.inputItemFeatrues {
+	for _, f := range g.inputItemFeatures {
 		if v, ok := itemFeatures[f.name]; ok {
-			g.inputeItemFeatureMap[f.name] = append(g.inputeItemFeatureMap[f.name], v)
+			g.inputItemFeatureMap[f.name] = append(g.inputItemFeatureMap[f.name], v)
 		} else {
-			g.inputeItemFeatureMap[f.name] = append(g.inputeItemFeatureMap[f.name], f.defaultValue())
+			g.inputItemFeatureMap[f.name] = append(g.inputItemFeatureMap[f.name], f.defaultValue())
 		}
 	}
-
 }
 
 func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
@@ -283,9 +282,9 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
 		builder.AddContextFeature(k, v)
 		g.contextFeatures[k] = g.contextFeatures[k][:0]
 	}
-	for k, v := range g.inputeItemFeatureMap {
+	for k, v := range g.inputItemFeatureMap {
 		builder.AddItemFeature(k, v)
-		g.inputeItemFeatureMap[k] = g.inputeItemFeatureMap[k][:0]
+		g.inputItemFeatureMap[k] = g.inputItemFeatureMap[k][:0]
 	}
 
 	algoData := &EasyrecAlgoData{
@@ -319,9 +318,9 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int) IA
 		builder.AddContextFeature(k, v)
 		g.contextFeatures[k] = g.contextFeatures[k][:0]
 	}
-	for k, v := range g.inputeItemFeatureMap {
+	for k, v := range g.inputItemFeatureMap {
 		builder.AddItemFeature(k, v)
-		g.inputeItemFeatureMap[k] = g.inputeItemFeatureMap[k][:0]
+		g.inputItemFeatureMap[k] = g.inputItemFeatureMap[k][:0]
 	}
 
 	algoData := &EasyrecAlgoData{

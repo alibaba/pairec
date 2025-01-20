@@ -177,9 +177,7 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	if setValue < 1 {
 		setValue = 1
 	}
-	if itemOrExpId != "" {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\tsetValue=%v", itemOrExpId, setValue))
-	}
+
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
 		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
