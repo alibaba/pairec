@@ -162,11 +162,9 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	if !p.online {
 		return 0, 0
 	}
-	if ctx.Debug {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s", itemOrExpId))
-	}
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && trafficOrPercent > 1.0 {
-		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, trafficOrPercent))
+		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, trafficOrPercent))
 		return 0, 0
 	}
 	if trafficOrPercent == 0 && !p.runWithZeroInput {
@@ -180,7 +178,7 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 		setValue = 1
 	}
 	if itemOrExpId != "" {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\tsetValue=%v", itemOrExpId, setValue))
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\tsetValue=%v", itemOrExpId, setValue))
 	}
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
@@ -209,12 +207,9 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	curTime := now.Unix()
 	var status = p.readPIDStatus(itemOrExpId, curTime)
 	timeDiff := curTime - status.LastTime
-	if ctx.Debug {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\ttimeDiff=%v", itemOrExpId, timeDiff))
-	}
 	// 时间差还在一个时间窗口内
 	if timeDiff < int64(p.timeWindow) && status.LastOutput != 0 {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\tthe time difference is still within the previous time window", itemOrExpId))
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\tuse last output", itemOrExpId))
 		return float64(status.LastOutput), setValue
 	}
 	if p.freezeMinutes > 0 {
@@ -223,7 +218,7 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 		curMinute := now.Minute()
 		elapseMinutes := curHour*60 + curMinute
 		if elapseMinutes < p.freezeMinutes {
-			ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\texit within the freezing time", itemOrExpId))
+			ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\texit within the freezing time", itemOrExpId))
 			return float64(status.LastOutput), setValue
 		}
 	}
@@ -245,9 +240,6 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 
 	status.ErrSum += err * float32(timeDiff)
 	dErr := (err - status.LastError) / float32(timeDiff)
-	if ctx.Debug {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\terr=%v\tlastErr=%v\tdErr=%v", itemOrExpId, err, status.LastError, dErr))
-	}
 	// Compute final output
 	output := p.kp*err + p.ki*status.ErrSum + p.kd*dErr
 
@@ -258,10 +250,8 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	if p.syncStatus {
 		go p.writePIDStatus(itemOrExpId) // 通过外部存储同步中间状态
 	}
-	if ctx.Debug {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\tdo with id\titemIdOrExpId=%s\toutput=%v", itemOrExpId, output))
-	}
-
+	ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\terr=%f,lastErr=%f,dErr=%f,output=%v",
+		itemOrExpId, err, status.LastError, dErr, output))
 	return float64(output), setValue
 }
 
@@ -270,16 +260,19 @@ func (p *PIDController) getTargetSetValue() (float64, bool) {
 	endTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.EndTime)
 	startTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.StartTime)
 	if endTime.Unix() < startTime.Unix() {
-		log.Warning(fmt.Sprintf("module=PIDController\tinvalid target end time and start time, targetId:%s\tstartTime:%v\tendTime:%v", p.target.TrafficControlTargetId, startTime, endTime))
+		log.Warning(fmt.Sprintf("module=PIDController\tinvalid target end time and start time, targetId:%s\tstartTime:%v\tendTime:%v",
+			p.target.TrafficControlTargetId, startTime, endTime))
 		return 0, false
 	}
 	now := time.Now().UTC().Add(time.Hour * 8)
 	if now.Unix() < startTime.Unix() {
-		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is before target start time, targetId:%s\tcurrentTime:%v\tstartTime:%v", p.target.TrafficControlTargetId, now, startTime))
+		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is before target start time, targetId:%s\tcurrentTime:%v\tstartTime:%v",
+			p.target.TrafficControlTargetId, now, startTime))
 		return 0, false
 	}
 	if now.Unix() > endTime.Unix() {
-		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is after target end time, targetId:%s\tcurrentTime:%v\tendTime:%v", p.target.TrafficControlTargetId, now, endTime))
+		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is after target end time, targetId:%s\tcurrentTime:%v\tendTime:%v",
+			p.target.TrafficControlTargetId, now, endTime))
 		return 0, false
 	}
 	loadTrafficControlTargetData(p.task.SceneName, p.timestamp)
@@ -290,11 +283,13 @@ func (p *PIDController) getTargetSetValue() (float64, bool) {
 	}
 	n := len(p.target.SplitParts.SetValues)
 	if n == 0 {
-		log.Error(fmt.Sprintf("module=PIDController\tthe size of target set values array is 0, targetId:%s", p.target.TrafficControlTargetId))
+		log.Error(fmt.Sprintf("module=PIDController\tthe size of target set values array is 0, targetId:%s",
+			p.target.TrafficControlTargetId))
 		return p.target.Value, false
 	}
 	if len(p.target.SplitParts.TimePoints) != n {
-		log.Error(fmt.Sprintf("module=PIDController\tthe size of target time points array is not equal to the size of target set values array, targetId:%s", p.target.TrafficControlTargetId))
+		log.Error(fmt.Sprintf("module=PIDController\tthe size of target time points array is not equal to the size of target set values array, targetId:%s",
+			p.target.TrafficControlTargetId))
 		return p.target.Value, false
 	}
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
@@ -411,7 +406,8 @@ func (p *PIDController) writePIDStatus(itemOrExpId string) {
 		pidStatus = status.(*PIDStatus)
 	}
 	if pidStatus == nil {
-		log.Error(fmt.Sprintf("module=PIDController\tno PID status to be written, <taksId:%s/targetId:%s>[targetName:%s] key=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey))
+		log.Error(fmt.Sprintf("module=PIDController\tno PID status to be written, <taksId:%s/targetId:%s>[targetName:%s] key=%s",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey))
 		return
 	}
 	data, err := json.Marshal(*pidStatus)
@@ -421,21 +417,25 @@ func (p *PIDController) writePIDStatus(itemOrExpId string) {
 	}
 	err = p.cache.Put(cacheKey, data, p.cacheTime)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\twrite PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s failed. err=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
+		log.Error(fmt.Sprintf("module=PIDController\twrite PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s failed. err=%v",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
 	} else {
-		log.Info(fmt.Sprintf("module=PIDController\twrite PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s, value=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, string(data)))
+		log.Info(fmt.Sprintf("module=PIDController\twrite PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s, value=%s",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, string(data)))
 	}
 }
 
 func (p *PIDController) GenerateItemExpress() {
 	targetExpression, err := ParseExpression(p.target.ItemConditionArray, p.target.ItemConditionExpress)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v", p.target.ItemConditionArray, p.target.ItemConditionExpress, err))
+		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v",
+			p.target.ItemConditionArray, p.target.ItemConditionExpress, err))
 		return
 	}
 	taskExpression, err := ParseExpression(p.task.ItemConditionArray, p.target.ItemConditionExpress)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v", p.task.UserConditionArray, p.task.UserConditionExpress, err))
+		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v",
+			p.task.UserConditionArray, p.task.UserConditionExpress, err))
 		return
 	}
 	if targetExpression != "" && taskExpression != "" {
