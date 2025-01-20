@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goburrow/cache"
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/algorithm/eas"
 	"github.com/alibaba/pairec/v2/algorithm/response"
@@ -14,6 +13,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/rank"
+	"github.com/goburrow/cache"
 )
 
 type UserVectorTrigger struct {
@@ -68,6 +68,7 @@ func (t *UserVectorTrigger) GetTriggerKey(user *module.User, context *context.Re
 		t.loadUserFeatures(user, context)
 		// second invoke eas model
 		algoGenerator := rank.CreateAlgoDataGenerator(t.recallAlgoType, nil)
+		algoGenerator.SetItemFeatures(nil)
 		algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
 		algoData := algoGenerator.GeneratorAlgoData()
 		algoRet, err := algorithm.Run(t.recallAlgo, algoData.GetFeatures())

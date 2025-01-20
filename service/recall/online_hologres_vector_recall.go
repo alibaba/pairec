@@ -111,6 +111,7 @@ func (r *OnlineHologresVectorRecall) GetCandidateItems(user *module.User, contex
 		r.loadUserFeatures(user, context)
 		// second invoke eas model
 		algoGenerator := rank.CreateAlgoDataGenerator(r.recallAlgoType, nil)
+		algoGenerator.SetItemFeatures(nil)
 		algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
 		algoData := algoGenerator.GeneratorAlgoData()
 		algoRet, err := algorithm.Run(r.recallAlgo, algoData.GetFeatures())

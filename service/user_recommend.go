@@ -175,18 +175,18 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 }
 
 func (r *UserRecommendService) mergePipelineItems(items []*module.Item, pipelineItems []*module.Item) []*module.Item {
-	itemMap := make(map[module.ItemId]bool, len(items))
-
+	itemMap := make(map[module.ItemId]*module.Item, len(items))
 	for _, item := range items {
-		itemMap[item.Id] = true
+		itemMap[item.Id] = item
 	}
-
+	// need to merge item properties of different pipelines
 	for _, item := range pipelineItems {
-		if _, ok := itemMap[item.Id]; !ok {
-			itemMap[item.Id] = true
+		if exist, ok := itemMap[item.Id]; ok {
+			exist.AddProperties(item.Properties)
+		} else {
+			itemMap[item.Id] = item
 			items = append(items, item)
 		}
 	}
-
 	return items
 }

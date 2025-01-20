@@ -169,9 +169,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		sortData.Data = items
 		return nil
 	}
-	if ctx.Debug {
-		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tsort\tglobal control has %d, single control has %d", len(globalControls), len(singleControls)))
-	}
+	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tglobal control num %d, single control num %d", len(globalControls), len(singleControls)))
 	wgCtrl := sync.WaitGroup{}
 	if len(singleControls) > 0 {
 		wgCtrl.Add(1)
@@ -189,6 +187,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		pageNo = 1
 	}
 	limitFirstPage := params.GetInt("limit_uplift_at_first_page", 0)
+	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tlimit_uplift_at_first_page=%d", limitFirstPage))
 	for i, item := range items {
 		finalDeltaRank := item.GetAlgoScore("__delta_rank__")
 		if finalDeltaRank != 0.0 {
@@ -462,9 +461,7 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 			targetOutput[targetId] = alpha
 		}
 	}
-	if ctx.Debug {
-		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\tafter compute in macro, target out put: %v", targetOutput))
-	}
+	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget output: %v", targetOutput))
 	// compute delta rank
 	begin = time.Now()
 	pageNo := utils.ToInt(ctx.GetParameter("pageNum"), 1)
@@ -531,9 +528,8 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 					}
 					if alpha, ok := targetOutput[targetId]; ok && alpha != 0 {
 						deltaRank := computeDeltaRank(controller, item, i, alpha, ctrlParams, ctx)
-						if ctx.Debug {
-							ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\titemId:%v\ttargetId: %s\tdelta rank:%v", item.Id, targetId, deltaRank))
-						}
+						ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\ttargetId: %s\titemId:%v, alpha=%f, delta rank:%v",
+							targetId, item.Id, alpha, deltaRank))
 						finalDeltaRank += deltaRank // 形成合力
 					}
 				}
@@ -546,9 +542,7 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 		}(b, candidates)
 	}
 	wg.Wait()
-	if ctx.Debug {
-		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget controlled count=%v", targetControlledNum))
-	}
+	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget controlled count=%v", targetControlledNum))
 	ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tmacro control\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
 }
 
@@ -618,7 +612,9 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				}
 				if controller.IsAllocateExpWise() && targetTraffic < controller.GetMinExpTraffic() {
 					// 用全局流量代替冷启动的实验流量
-					ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tflow control\t<taskId:%s/targetId:%s>[targetName:%s]\texp=%s\ttargetTraffic=%f change to global targetTraffic", taskId, targetId, controller.target.Name, expId, targetTraffic))
+					ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]"+
+						"\texp=%s\ttargetTraffic=%f change to global targetTraffic",
+						taskId, targetId, controller.target.Name, expId, targetTraffic))
 					binId = ""
 					if input, ok := allTargetTrafficMap[targetId]; ok {
 						targetTraffic = input.TargetTraffic
@@ -631,7 +627,9 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 
 				trafficPercentage := targetTraffic / taskTraffic
 				output, setValue = controller.DoWithId(trafficPercentage, binId, ctx)
-				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tflow control\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,percentage=%f,setValue=%f,output=%f,exp=%s", taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue/100, output, binId))
+				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\t"+
+					"traffic=%f, percentage=%f, setValue=%f, output=%f, exp=%s",
+					taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue/100, output, binId))
 				if targetTraffic > 0 {
 					hasTraffic = true
 				}
@@ -642,14 +640,17 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 					targetTraffic = float64(0)
 				}
 				output, setValue = controller.Do(targetTraffic, ctx)
-				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tflow control\t<taskId:%s/targetId:%s>[targetName:%s]\ttargetTraffic=%f,setValue=%f,output=%f", taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
+				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\t"+
+					"traffic=%f, setValue=%f, output=%f",
+					taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
 				if targetTraffic > 0 {
 					hasTraffic = true
 				}
 			}
 			select {
 			case <-gCtx.Done():
-				ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tflow control\ttargetTraffic controller timeout in goruntine: <taskId:%s/targetId:%s>[targetName:%s]", taskId, targetId, controller.target.Name))
+				ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\ttimeout in goruntine: <taskId:%s/targetId:%s>[targetName:%s]",
+					taskId, targetId, controller.target.Name))
 				return
 			case retCh <- struct {
 				string
@@ -742,10 +743,12 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 	}
 	params := ctx.ExperimentResult.GetExperimentParams()
 	maxUpliftCnt := params.GetInt("pid_max_uplift_item_cnt", 5)
+	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\tpid_max_uplift_item_cnt=%d", maxUpliftCnt))
 	upliftCnt := 0
 	maxScore := 0.0
 
-	controlNumberMap := make(map[string]int, 0) //Calculate the number of items control by each target,key:targetId; value:control item sum
+	//Calculate the number of items controlled by each target, key:targetId; value:control item sum
+	controlNumberMap := make(map[string]int)
 
 	for i, item := range items {
 		score := item.Score
@@ -791,10 +794,12 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 				}
 			}
 			deltaRank += delta // 多个目标调控方向不一致时，需要扳手腕看谁力气大
-			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\titemId:%s, [targetId:%s/targetName:%s], origin pos=%d, traffic=%f, setValue=%f, percentage=%f,alpha=%f, delta rank=%f, traffic_control_id=%d", item.Id, targetId, controller.target.Name, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
+			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t[targetId:%s/targetName:%s], itemId:%s, "+
+				"origin pos=%d, traffic=%f, setValue=%f, percentage=%f, alpha=%f, delta rank=%f, traffic_control_id=%d",
+				targetId, controller.target.Name, item.Id, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
 		}
-		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\titem:%v\tdelta rank:%v", item.Id, deltaRank))
 		if deltaRank != 0.0 {
+			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\titem:%v\tdelta rank:%v", item.Id, deltaRank))
 			if deltaRank < 0 {
 				item.IncrAlgoScore("__delta_rank__", deltaRank)
 			} else if upliftCnt < maxUpliftCnt { // uplift

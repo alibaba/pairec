@@ -103,6 +103,7 @@ func (r *FeatureReplyService) generalRank(user *module.User, items []*module.Ite
 	var userFeatures map[string]interface{}
 
 	if rankConfig.RankConf.Processor == eas.Eas_Processor_EASYREC {
+		algoGenerator.SetItemFeatures(rankConfig.RankConf.ItemFeatures)
 		userFeatures = user.MakeUserFeatures2()
 	} else {
 		userFeatures = user.MakeUserFeatures()

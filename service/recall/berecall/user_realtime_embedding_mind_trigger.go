@@ -93,6 +93,7 @@ func (t *UserRealtimeEmbeddingMindTrigger) GetTriggerKey(u *module.User, context
 	//plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingMindTrigger_loadfeature\tcost=%v", context.RecommendId, utils.CostTime(start)))
 
 	algoGenerator := rank.CreateAlgoDataGenerator(t.recallAlgoType, nil)
+	algoGenerator.SetItemFeatures(nil)
 	algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
 	algoData := algoGenerator.GeneratorAlgoDataDebugWithLevel(102)
 	easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)

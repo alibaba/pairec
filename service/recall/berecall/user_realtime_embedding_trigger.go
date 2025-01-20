@@ -90,6 +90,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 
 	userFeatures := user.MakeUserFeatures2()
 	algoGenerator := rank.CreateAlgoDataGenerator(t.recallAlgoType, nil)
+	algoGenerator.SetItemFeatures(nil)
 	algoGenerator.AddFeatures(nil, nil, userFeatures)
 	algoData := algoGenerator.GeneratorAlgoDataDebugWithLevel(102)
 	easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
