@@ -6,12 +6,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	alidatahub "github.com/aliyun/aliyun-datahub-sdk-go/datahub"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/hook"
+	alidatahub "github.com/aliyun/aliyun-datahub-sdk-go/datahub"
 )
 
 type Datahub struct {
@@ -149,7 +149,7 @@ func (d *Datahub) loopListShards() error {
 	for d.active {
 		ls, err := d.datahubApi.ListShard(d.projectName, d.topicName)
 		if err != nil {
-			log.Error(fmt.Sprintf("error=get shard list failed(%v)", err))
+			log.Error(fmt.Sprintf("project=%s\ttopic=%s\terror=get shard list failed(%v)", d.projectName, d.topicName, err))
 			i++
 			time.Sleep(time.Second * 10)
 			if i >= 10 {
