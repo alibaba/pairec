@@ -1,17 +1,19 @@
 package datahub
 
 import (
+	"encoding/base64"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	alidatahub "github.com/aliyun/aliyun-datahub-sdk-go/datahub"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/hook"
+	"github.com/alibaba/pairec/v2/utils/synclog"
+	alidatahub "github.com/aliyun/aliyun-datahub-sdk-go/datahub"
 )
 
 type Datahub struct {
@@ -26,8 +28,9 @@ type Datahub struct {
 	index        uint64
 	recordSchema *alidatahub.RecordSchema
 
-	active bool
-	name   string
+	active  bool
+	name    string
+	syncLog *synclog.SyncLog
 }
 
 var (
@@ -99,6 +102,14 @@ func (d *Datahub) Init() error {
 		d.recordSchema = topic.RecordSchema
 	}
 	d.active = true
+	dir := fmt.Sprintf("./tmp/%s/%s", d.projectName, d.topicName)
+	synclog := synclog.NewSyncLog(dir, d.consumeSyncLog)
+	if err := synclog.Init(); err != nil {
+		log.Error(fmt.Sprintf("project=%s\ttopic=%s\terror=init sync log error(%v)", d.projectName, d.topicName, err))
+		return err
+	}
+
+	d.syncLog = synclog
 
 	go d.loopListShards()
 
@@ -149,7 +160,7 @@ func (d *Datahub) loopListShards() error {
 	for d.active {
 		ls, err := d.datahubApi.ListShard(d.projectName, d.topicName)
 		if err != nil {
-			log.Error(fmt.Sprintf("error=get shard list failed(%v)", err))
+			log.Error(fmt.Sprintf("project=%s\ttopic=%s\terror=get shard list failed(%v)", d.projectName, d.topicName, err))
 			i++
 			time.Sleep(time.Second * 10)
 			if i >= 10 {
@@ -210,6 +221,13 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 
 	maxReTry := 3
 	retryNum := 0
+	retrySendMessage := func() {
+		for _, msg := range messages {
+			if err := d.syncLog.Write(NewSyncLogDatahubItem(msg)); err != nil {
+				log.Error(fmt.Sprintf("project=%s\ttopic=%s\tmsg=write sync log failed(%v)", d.projectName, d.topicName, err))
+			}
+		}
+	}
 	for retryNum < maxReTry {
 		result, err := d.datahubApi.PutRecords(d.projectName, d.topicName, records)
 		if err != nil {
@@ -218,16 +236,89 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 				time.Sleep(2 * time.Second)
 				continue
 			} else {
-				log.Error(fmt.Sprintf("put record failed(%v)", err))
+				log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed(%v)", d.projectName, d.topicName, err))
+				retrySendMessage()
 				return
 			}
 		}
 		if len(result.FailedRecords) > 0 {
-			log.Error(fmt.Sprintf("put successful num is %d, put records failed num is %d,msg=%s, code=%s\n", len(records)-result.FailedRecordCount, result.FailedRecordCount, result.FailedRecords[0].ErrorMessage, result.FailedRecords[0].ErrorCode))
+			log.Warning(fmt.Sprintf("put successful num is %d, put records failed num is %d,msg=%s, code=%s\n", len(records)-result.FailedRecordCount, result.FailedRecordCount, result.FailedRecords[0].ErrorMessage, result.FailedRecords[0].ErrorCode))
+			retrySendMessage()
 		}
 		break
 	}
 
+	if retryNum >= maxReTry {
+		log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed", d.projectName, d.topicName))
+		retrySendMessage()
+	}
+
+}
+func (d *Datahub) consumeSyncLog(data []byte) error {
+	datahubItem := NewSyncLogDatahubItem(nil)
+	if err := datahubItem.Parse(data); err != nil {
+		log.Error(fmt.Sprintf("parse datahub item failed(%v), data(%s), len:%d,project:%s, topic:%s", err, base64.StdEncoding.EncodeToString(data), len(data), d.projectName, d.topicName))
+		return nil
+	}
+
+	err := d.doSendSingleMessage(datahubItem.data)
+	if err != nil {
+		log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed(%v)", d.projectName, d.topicName, err))
+	}
+
+	return err
+}
+
+func (d *Datahub) doSendSingleMessage(message map[string]interface{}) error {
+	records := make([]alidatahub.IRecord, 0, 1)
+	shards := d.shards
+	for i := 0; i < 3; i++ {
+		if len(shards) > 0 {
+			break
+		}
+		shards = d.shards
+		time.Sleep(time.Second)
+	}
+	if len(shards) == 0 {
+		return fmt.Errorf("topic shards empty")
+	}
+	i := atomic.AddUint64(&d.index, 1)
+
+	shard := shards[(i)%uint64(len(shards))]
+	record := alidatahub.NewTupleRecord(d.recordSchema, 0)
+	record.ShardId = shard.ShardId
+	for k, v := range message {
+		record.SetValueByName(k, v)
+	}
+
+	records = append(records, record)
+
+	maxReTry := 3
+	retryNum := 0
+	for retryNum < maxReTry {
+		result, err := d.datahubApi.PutRecords(d.projectName, d.topicName, records)
+		if err != nil {
+			if _, ok := err.(*alidatahub.LimitExceededError); ok {
+				log.Error("maybe qps exceed limit,retry")
+				retryNum++
+				time.Sleep(2 * time.Second)
+				continue
+			} else {
+				return err
+			}
+		}
+		if len(result.FailedRecords) > 0 {
+			retryNum++
+			continue
+		}
+		break
+	}
+
+	if retryNum >= maxReTry {
+		return fmt.Errorf("put record failed")
+	}
+
+	return nil
 }
 
 func Load(config *recconf.RecommendConfig) {
