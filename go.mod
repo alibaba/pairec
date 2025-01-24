@@ -42,7 +42,7 @@ require (
 require (
 	fortio.org/assert v1.2.1
 	github.com/alibabacloud-go/opensearch-util v1.0.1
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.1-0.20250108002338-26adc33508e8
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.2-0.20250123235701-85862d61a9b0
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.8-0.20241121075700-d79108b1097e
 	github.com/aliyun/credentials-go v1.3.1
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
@@ -60,6 +60,7 @@ require (
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.6 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.0 // indirect
+	github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
@@ -76,10 +77,12 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/milvus-io/milvus-proto/go-api v0.0.0-20230105121931-9f9303dcc729 // indirect
 	github.com/opentracing/opentracing-go v1.2.1-0.20220228012449-10b1cf09e00b // indirect
+	github.com/pierrec/lz4/v4 v4.1.11 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/xinsnake/go-http-digest-auth-client v0.6.0 // indirect
 	golang.org/x/crypto v0.18.0 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
@@ -107,7 +110,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pierrec/lz4 v2.6.0+incompatible // indirect
-	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0
 	github.com/prometheus/procfs v0.9.0 // indirect
@@ -121,7 +124,7 @@ require (
 	github.com/valyala/fasthttp v1.43.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/net v0.20.0
-	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/sys v0.16.0
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
