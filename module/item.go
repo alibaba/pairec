@@ -301,5 +301,10 @@ func (t *Item) DeepClone() *Item {
 	item.RetrieveId = t.RetrieveId
 	item.ItemType = t.ItemType
 
+	algoScores := make(map[string]float64, len(t.algoScores))
+	for k, v := range t.algoScores {
+		algoScores[k] = v
+	}
+	item.algoScores = algoScores
 	return item
 }

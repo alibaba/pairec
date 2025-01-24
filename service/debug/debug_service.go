@@ -327,7 +327,11 @@ func (d *DebugService) WriteGeneralLog(user *module.User, items []*module.Item, 
 
 func (d *DebugService) WriteRankLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
 	if d.logFlag {
-		go d.doWriteRankLog(user, items, context)
+		newItems := make([]*module.Item, 0, len(items))
+		for _, item := range items {
+			newItems = append(newItems, item.DeepClone())
+		}
+		go d.doWriteRankLog(user, newItems, context)
 	}
 }
 
