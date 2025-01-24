@@ -118,7 +118,6 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 		return
 	}
 
-	fmt.Println(featureView.GetType())
 	for _, itemId := range d.itemIds {
 		item := NewItem(itemId)
 		item.RetrieveId = d.recallName
