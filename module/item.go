@@ -302,9 +302,11 @@ func (t *Item) DeepClone() *Item {
 	item.ItemType = t.ItemType
 
 	algoScores := make(map[string]float64, len(t.algoScores))
+	t.mutex.RLock()
 	for k, v := range t.algoScores {
 		algoScores[k] = v
 	}
+	t.mutex.RUnlock()
 	item.algoScores = algoScores
 	return item
 }
