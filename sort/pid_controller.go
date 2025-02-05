@@ -248,8 +248,8 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	if p.syncStatus {
 		go p.writePIDStatus(itemOrExpId) // 通过外部存储同步中间状态
 	}
-	ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\terr=%f,lastErr=%f,dErr=%f,output=%v",
-		itemOrExpId, err, status.LastError, dErr, output))
+	ctx.LogInfo(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,dErr=%f,output=%v",
+		p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, err, status.LastError, dErr, output))
 	return float64(output), setValue
 }
 
