@@ -49,6 +49,7 @@ type PIDController struct {
 	online           bool
 	syncStatus       bool // whether to sync pid status between instances
 	freezeMinutes    int  // use last output when time less than this at everyday morning
+	aheadMinutes     int  // get dynamic target value ahead of this minutes
 	runWithZeroInput bool
 }
 
@@ -128,6 +129,7 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		cacheTime:        time.Hour,
 		timestamp:        conf.Timestamp,
 		allocateExpWise:  conf.AllocateExperimentWise,
+		aheadMinutes:     conf.AheadMinutes,
 		online:           true,
 		runWithZeroInput: true,
 		syncStatus:       conf.SyncPIDStatus,
@@ -135,17 +137,19 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 	if conf.DefaultKi == 0 {
 		controller.ki = 1.0
 	}
-
 	if conf.DefaultKd == 0 {
 		controller.kd = 1.0
 	}
-
 	if conf.DefaultKp == 0 {
-		controller.kp = 2.0
+		controller.kp = 10.0
+	}
+	if conf.AheadMinutes < 1 {
+		controller.aheadMinutes = 1
 	}
 	controller.GenerateItemExpress()
-	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\ttaskId:%s\ttaskName=%s\ttargetId:%s\ttargetName:%s", expId, controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId, controller.target.Name))
-
+	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\ttaskId:%s\ttaskName=%s\ttargetId:%s\ttargetName:%s",
+		expId, controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId,
+		controller.target.Name))
 	return controller
 }
 
@@ -240,6 +244,9 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	dErr := (err - status.LastError) / float32(timeDiff)
 	// Compute final output
 	output := p.kp*err + p.ki*status.ErrSum + p.kd*dErr
+	ctx.LogInfo(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,dErr=%f,"+
+		"ErrSum=%f,input=%.6f,output=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, err,
+		status.LastError, dErr, status.ErrSum, trafficOrPercent, output))
 
 	// Keep track of state
 	status.LastOutput = output
@@ -248,8 +255,6 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	if p.syncStatus {
 		go p.writePIDStatus(itemOrExpId) // 通过外部存储同步中间状态
 	}
-	ctx.LogInfo(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,dErr=%f,output=%v",
-		p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, err, status.LastError, dErr, output))
 	return float64(output), setValue
 }
 
@@ -297,7 +302,7 @@ func (p *PIDController) getTargetSetValue() (float64, bool) {
 	// 获取当前时间点的setValue, 调控目标拆解到分钟级
 	curHour := now.Hour()
 	curMinute := now.Minute()
-	elapseMinutes := curHour*60 + curMinute + 1
+	elapseMinutes := curHour*60 + curMinute + p.aheadMinutes
 	morning := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
 	if p.target.StatisPeriod == constants.TrafficControlTargetStatisPeriodDaily {
 		tomorrow := morning.AddDate(0, 0, 1)
@@ -325,10 +330,16 @@ func (p *PIDController) getTargetSetValue() (float64, bool) {
 					startTimePoint = p.target.SplitParts.TimePoints[i-1]
 					timeSpan = timePoint - startTimePoint
 					base = float64(p.target.SplitParts.SetValues[i-1])
+					if base < 1.0 {
+						base = 1.0
+					}
 				}
 				timeProgress := float64(elapseMinutes-startTimePoint) / float64(timeSpan)
 				//  每一个时间段内，目标随时间线性增长
 				next := p.target.SplitParts.SetValues[i]
+				if next < 1.0 {
+					next = 1.0
+				}
 				return base + (float64(next)-base)*timeProgress, true
 			}
 		}
@@ -382,7 +393,8 @@ func (p *PIDController) readPIDStatus(itemOrExpId string, currentTimestamp int64
 		status := value.([]byte)
 		pid := PIDStatus{}
 		if err := json.Unmarshal(status, &pid); err != nil {
-			log.Error(fmt.Sprintf("module=PIDController\tread PID status <taskId:%s/targetId%s>[targetName:%s] key=%s failed. err=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
+			log.Error(fmt.Sprintf("module=PIDController\tread PID status <taskId:%s/targetId%s>[targetName:%s] key=%s failed. err=%v",
+				p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
 		} else {
 			if pid.LastTime > pidStatus.LastTime {
 				pidStatus.LastTime = pid.LastTime
@@ -466,7 +478,8 @@ func (p *PIDController) IsControlledItem(item *module.Item) bool {
 	}
 	expression, err := govaluate.NewEvaluableExpression(p.itemExpression)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tgenerate item expression field, itemId:%s,expression:%s, err:%v", item.Id, p.itemExpression, err))
+		log.Error(fmt.Sprintf("module=PIDController\tgenerate item expression field, itemId:%s,expression:%s, err:%v",
+			item.Id, p.itemExpression, err))
 		return false
 	}
 	properties := item.GetCloneFeatures()
@@ -513,7 +526,8 @@ func (p *PIDController) SetFreezeMinutes(minutes int) {
 
 func (p *PIDController) SetRunWithZeroInput(run bool) {
 	if run != p.runWithZeroInput {
-		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set runWithZeroInput=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, run))
+		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set runWithZeroInput=%v",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, run))
 		p.runWithZeroInput = run
 	}
 }
@@ -521,7 +535,8 @@ func (p *PIDController) SetRunWithZeroInput(run bool) {
 func (p *PIDController) SetOnline(online bool) {
 	if p.online != online {
 		p.online = online
-		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set online=%v", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.online))
+		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set online=%v",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.online))
 	}
 }
 
@@ -553,7 +568,8 @@ func (p *PIDController) SetParameters(kp, ki, kd float32) {
 			value.(*PIDStatus).LastOutput = 0.0
 			return true
 		})
-		log.Info(fmt.Sprintf("module=PIDController\tThe parameters of PIDController <taskId:%s/targetId:%s>[targetName:%s] changed to: kp=%f, ki=%f, kd=%f", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.kp, p.ki, p.kd))
+		log.Info(fmt.Sprintf("module=PIDController\tThe parameters of PIDController <taskId:%s/targetId:%s>[targetName:%s] changed to: kp=%f, ki=%f, kd=%f",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, p.kp, p.ki, p.kd))
 	}
 }
 
@@ -572,7 +588,8 @@ func (p *PIDController) SetErrDiscount(decay float64) {
 func (p *PIDController) SetUserExpress(expression string) {
 	p.userExpression = expression
 	if expression != "" {
-		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set userConditions=%s", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, expression))
+		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set userConditions=%s",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, expression))
 	}
 }
 
