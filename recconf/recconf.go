@@ -269,6 +269,7 @@ type PIDControllerConfig struct {
 	DefaultKi              float32
 	DefaultKd              float32
 	Timestamp              int64
+	AheadMinutes           int
 	BoostScoreConditions   []BoostScoreCondition
 }
 
