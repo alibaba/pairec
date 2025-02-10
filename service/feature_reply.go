@@ -214,6 +214,7 @@ func (r *FeatureReplyService) rank(user *module.User, items []*module.Item, cont
 
 	if rankConfig.Processor == eas.Eas_Processor_EASYREC {
 		userFeatures = user.MakeUserFeatures2()
+		algoGenerator.SetItemFeatures(rankConfig.ItemFeatures)
 	} else {
 		userFeatures = user.MakeUserFeatures()
 	}
