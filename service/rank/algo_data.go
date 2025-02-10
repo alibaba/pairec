@@ -177,9 +177,10 @@ type EasyrecAlgoDataGenerator struct {
 
 func NewEasyrecAlgoDataGenerator(contextFeatures []string) *EasyrecAlgoDataGenerator {
 	generator := &EasyrecAlgoDataGenerator{
-		requestItem:     make([]*module.Item, 0, 100),
-		contextFeatures: make(map[string][]interface{}, 8),
-		parseFeature:    true,
+		requestItem:         make([]*module.Item, 0, 100),
+		contextFeatures:     make(map[string][]interface{}, 8),
+		parseFeature:        true,
+		inputItemFeatureMap: make(map[string][]interface{}, 0),
 	}
 
 	if len(contextFeatures) > 0 {
