@@ -94,7 +94,7 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		return nil
 	}
 
-	timeWindow := 30
+	timeWindow := 1
 	if conf.TimeWindow > 0 {
 		timeWindow = conf.TimeWindow
 	}
@@ -150,6 +150,11 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\ttaskId:%s\ttaskName=%s\ttargetId:%s\ttargetName:%s",
 		expId, controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId,
 		controller.target.Name))
+	if !conf.SyncPIDStatus {
+		log.Warning(fmt.Sprintf("SyncPIDStatus should be set\ttaskId:%s\ttaskName=%s\ttargetId:%s\ttargetName:%s",
+			controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId,
+			controller.target.Name))
+	}
 	return controller
 }
 
@@ -224,13 +229,14 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 			return float64(status.LastOutput), setValue
 		}
 	}
-	if timeDiff < 1 {
-		timeDiff = 1
+	if timeDiff < int64(p.timeWindow) {
+		timeDiff = int64(p.timeWindow)
 	}
+	dt := float32(timeDiff) / float32(p.timeWindow)
 
 	// 时间过了几个时间窗口，要加上误差衰减系数
 	if p.errDiscount != 1.0 {
-		status.ErrSum *= float32(math.Pow(p.errDiscount, float64(timeDiff/int64(p.timeWindow))))
+		status.ErrSum *= float32(math.Pow(p.errDiscount, float64(dt)))
 	}
 
 	var err float32
@@ -239,14 +245,14 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	} else {
 		err = float32(1.0 - trafficOrPercent/setValue)
 	}
+	status.ErrSum += err * dt
+	dErr := (err - status.LastError) / dt
 
-	status.ErrSum += err * float32(timeDiff)
-	dErr := (err - status.LastError) / float32(timeDiff)
 	// Compute final output
 	output := p.kp*err + p.ki*status.ErrSum + p.kd*dErr
 	ctx.LogInfo(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,dErr=%f,"+
-		"ErrSum=%f,input=%.6f,output=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, err,
-		status.LastError, dErr, status.ErrSum, trafficOrPercent, output))
+		"ErrSum=%f,dt=%f,input=%.6f,output=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, err,
+		status.LastError, dErr, status.ErrSum, dt, trafficOrPercent, output))
 
 	// Keep track of state
 	status.LastOutput = output
