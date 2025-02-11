@@ -64,9 +64,9 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 	controller := PIDController{
 		task:             task,
 		target:           target,
-		kp:               float64(conf.DefaultKp),
-		ki:               float64(conf.DefaultKi),
-		kd:               float64(conf.DefaultKd),
+		kp:               conf.DefaultKp,
+		ki:               conf.DefaultKi,
+		kd:               conf.DefaultKd,
 		errDiscount:      1.0,
 		status:           &PIDStatus{},
 		timestamp:        conf.Timestamp,
@@ -85,6 +85,9 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 	}
 	if conf.DefaultKp == 0 {
 		controller.kp = 10.0
+	}
+	if conf.ErrDiscount > 0 {
+		controller.errDiscount = conf.ErrDiscount
 	}
 	if conf.AheadMinutes < 1 {
 		controller.aheadMinutes = 1
@@ -216,19 +219,14 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 
 	if p.freezeMinutes > 0 {
 		// 流量占比型任务凌晨刚开始的时候流量占比统计值不置信，直接输出前一天最后一次的调控信号
-		// 定义东八区时区
 		location, err := time.LoadLocation("Asia/Shanghai") // 北京采用Asia/Shanghai时区
-		if err != nil {
-			// 如果无法加载时区，默认使用本地时区
+		if err != nil {                                     // 如果无法加载时区，默认使用本地时区
 			location = time.Local
 		}
-
 		// 获取当前时间
 		now := time.Now().In(location)
-
 		// 获取当天的零点时间
 		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
-
 		// 计算当前时间与零点的差值
 		durationSinceStartOfDay := int(now.Sub(startOfDay).Minutes())
 		if durationSinceStartOfDay < p.freezeMinutes {
@@ -251,124 +249,26 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 	return status.lastOutput, setValue
 }
 
-/*
-func (p *PIDController) Do(trafficOrPercent float64, ctx *context.RecommendContext) (float64, float64) {
-	return p.DoWithId(trafficOrPercent, "", ctx)
-}
-
-func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, ctx *context.RecommendContext) (float64, float64) {
-	if !p.online {
-		return 0, 0
-	}
-	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && trafficOrPercent > 1.0 {
-		log.Error(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f",
-			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, trafficOrPercent))
-		return 0, 0
-	}
-	if trafficOrPercent == 0 && !p.runWithZeroInput {
-		return 0, 0
-	}
-	setValue, enabled := p.getTargetSetValue()
-	if !enabled {
-		return 0, setValue
-	}
-	if setValue < 1 {
-		setValue = 1
-	}
-
-	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
-		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
-		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
-			if trafficOrPercent >= (setValue / 100) {
-				return 0, setValue
-			}
-		} else {
-			if trafficOrPercent >= setValue {
-				return 0, setValue
-			}
-		}
-	}
-	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
-		if BetweenSlackInterval(trafficOrPercent, setValue/100, float64(p.target.ToleranceValue)/100) {
-			// when current input is between `setValue` and `setValue+SetVale Range`, turn off controller
-			return 0, setValue
-		}
-	} else {
-		if BetweenSlackInterval(trafficOrPercent, setValue, float64(p.target.ToleranceValue)) {
-			return 0, setValue
-		}
-	}
-
-	now := time.Now()
-	curTime := now.Unix()
-	var status = p.readPIDStatus(itemOrExpId, curTime)
-	timeDiff := curTime - status.LastTime
-	// 时间差还在一个时间窗口内
-	if timeDiff < int64(p.timeWindow) && status.LastOutput != 0 {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\tuse last output", itemOrExpId))
-		return float64(status.LastOutput), setValue
-	}
-	if p.freezeMinutes > 0 {
-		// 流量占比型任务凌晨刚开始的时候流量占比统计值不置信，直接输出前一天最后一次的调控信号
-		curHour := now.Hour()
-		curMinute := now.Minute()
-		elapseMinutes := curHour*60 + curMinute
-		if elapseMinutes < p.freezeMinutes {
-			ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\texit within the freezing time", itemOrExpId))
-			return float64(status.LastOutput), setValue
-		}
-	}
-	if timeDiff < int64(p.timeWindow) {
-		timeDiff = int64(p.timeWindow)
-	}
-	dt := float32(timeDiff) / float32(p.timeWindow)
-
-	// 时间过了几个时间窗口，要加上误差衰减系数
-	if p.errDiscount != 1.0 {
-		status.ErrSum *= float32(math.Pow(p.errDiscount, float64(dt)))
-	}
-
-	var err float32
-	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
-		err = float32(setValue/100.0 - trafficOrPercent)
-	} else {
-		err = float32(1.0 - trafficOrPercent/setValue)
-	}
-	status.ErrSum += err * dt
-	dErr := (err - status.LastError) / dt
-
-	// Compute final output
-	output := p.kp*err + p.ki*status.ErrSum + p.kd*dErr
-	ctx.LogInfo(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,dErr=%f,"+
-		"ErrSum=%f,dt=%f,input=%.6f,output=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, err,
-		status.LastError, dErr, status.ErrSum, dt, trafficOrPercent, output))
-
-	// Keep track of state
-	status.LastOutput = output
-	status.LastError = err
-	status.LastTime = curTime
-	if p.syncStatus {
-		go p.writePIDStatus(itemOrExpId) // 通过外部存储同步中间状态
-	}
-	return float64(output), setValue
-}
-*/
 // 获取被拆解的目标值
 func (p *PIDController) getTargetSetValue() (float64, bool) {
 	endTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.EndTime)
 	startTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.StartTime)
-	if endTime.Unix() < startTime.Unix() {
+	if endTime.Before(startTime) {
 		log.Warning(fmt.Sprintf("module=PIDController\tinvalid target end time and start time, targetId:%s\tstartTime:%v\tendTime:%v",
 			p.target.TrafficControlTargetId, startTime, endTime))
 		return 0, false
 	}
-	now := time.Now().UTC().Add(time.Hour * 8)
-	if now.Unix() < startTime.Unix() {
+	location, err := time.LoadLocation("Asia/Shanghai") // 北京采用Asia/Shanghai时区
+	if err != nil {                                     // 如果无法加载时区，默认使用本地时区
+		location = time.Local
+	}
+	now := time.Now().In(location) // 获取当前时间
+	if now.Before(startTime) {
 		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is before target start time, targetId:%s\tcurrentTime:%v\tstartTime:%v",
 			p.target.TrafficControlTargetId, now, startTime))
 		return 0, false
 	}
-	if now.Unix() > endTime.Unix() {
+	if now.After(endTime) {
 		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is after target end time, targetId:%s\tcurrentTime:%v\tendTime:%v",
 			p.target.TrafficControlTargetId, now, endTime))
 		return 0, false
@@ -464,87 +364,6 @@ func (p *PIDController) getPIDStatus(itemOrExpId string) *PIDStatus {
 	return pidStatus
 }
 
-/*
-func (p *PIDController) readPIDStatus(itemOrExpId string, currentTimestamp int64) *PIDStatus {
-	var pidStatus *PIDStatus
-	if itemOrExpId == "" {
-		pidStatus = p.status
-	} else if status, ok := p.itemStatusMap.Load(itemOrExpId); ok {
-		pidStatus = status.(*PIDStatus)
-	} else {
-		pidStatus = &PIDStatus{
-			LastTime:   time.Now().Unix(),
-			LastOutput: 0.0,
-			LastError:  0.0,
-			ErrSum:     0.0,
-		}
-		p.itemStatusMap.Store(itemOrExpId, pidStatus)
-		return pidStatus
-	}
-
-	if !p.syncStatus {
-		return pidStatus
-	}
-
-	timeInterval := int(currentTimestamp - pidStatus.LastTime)
-
-	if timeInterval < p.timeWindow {
-		return pidStatus
-	}
-
-	if currentTimestamp-serviceStartTimeStamp < 600 {
-		return pidStatus // 服务启动的10分钟内不读状态, 重启任务需清空状态
-	}
-
-	cacheKey := p.cachePrefix + p.target.TrafficControlTargetId + "_" + itemOrExpId
-	value := p.cache.Get(cacheKey)
-	if value != nil {
-		status := value.([]byte)
-		pid := PIDStatus{}
-		if err := json.Unmarshal(status, &pid); err != nil {
-			log.Error(fmt.Sprintf("module=PIDController\tread PID status <taskId:%s/targetId%s>[targetName:%s] key=%s failed. err=%v",
-				p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
-		} else {
-			if pid.LastTime > pidStatus.LastTime {
-				pidStatus.LastTime = pid.LastTime
-				pidStatus.ErrSum = pid.ErrSum
-				pidStatus.LastError = pid.LastError
-				pidStatus.LastOutput = pid.LastOutput
-			}
-		}
-	}
-	return pidStatus
-}
-
-func (p *PIDController) writePIDStatus(itemOrExpId string) {
-	cacheKey := p.cachePrefix + p.target.TrafficControlTargetId + "_" + itemOrExpId
-	var pidStatus *PIDStatus
-	if itemOrExpId == "" {
-		pidStatus = p.status
-	} else if status, ok := p.itemStatusMap.Load(itemOrExpId); ok {
-		pidStatus = status.(*PIDStatus)
-	}
-	if pidStatus == nil {
-		log.Error(fmt.Sprintf("module=PIDController\tno PID status to be written, <taksId:%s/targetId:%s>[targetName:%s] key=%s",
-			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey))
-		return
-	}
-	data, err := json.Marshal(*pidStatus)
-	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDControl\tPID status convert to string failed. err=%v", err))
-		return
-	}
-	err = p.cache.Put(cacheKey, data, p.cacheTime)
-	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\twrite PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s failed. err=%v",
-			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, err))
-	} else {
-		log.Info(fmt.Sprintf("module=PIDController\twrite PID status <taskId:%s/targetId:%s>[targetName:%s] key=%s, value=%s",
-			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, string(data)))
-	}
-}
-*/
-
 func (p *PIDController) GenerateItemExpress() {
 	targetExpression, err := ParseExpression(p.target.ItemConditionArray, p.target.ItemConditionExpress)
 	if err != nil {
@@ -596,7 +415,6 @@ func (p *PIDController) IsControlledItem(item *module.Item) bool {
 
 	result, err := expression.Evaluate(properties)
 	if err != nil {
-		//log.Warning(fmt.Sprintf("module=PIDController\tcompute item expression field, itemId:%s, err:%v", item.Id, err))
 		return false
 	}
 
@@ -683,12 +501,6 @@ func (p *PIDController) SetParameters(kp, ki, kd float64) {
 	}
 }
 
-//func (p *PIDController) SetTimeWindow(timeWindow int) {
-//	if timeWindow > 0 {
-//		p.timeWindow = timeWindow
-//	}
-//}
-
 func (p *PIDController) SetErrDiscount(decay float64) {
 	if decay > 0 {
 		p.errDiscount = decay
@@ -706,25 +518,6 @@ func (p *PIDController) SetUserExpress(expression string) {
 func (p *PIDController) SetStartPageNum(pageNum int) {
 	p.startPageNum = pageNum
 }
-
-//func ToString(task interface{}, excludes ...string) string {
-//	typeOfTask := reflect.TypeOf(task)
-//	valueOfTask := reflect.ValueOf(task)
-//	fields := make(map[string]interface{})
-//	for i := 0; i < typeOfTask.NumField(); i++ {
-//		fieldType := typeOfTask.Field(i)
-//		fieldName := fieldType.Name
-//		if utils.StringContains(excludes, []string{fieldName}) {
-//			continue
-//		}
-//		fieldValue := valueOfTask.Field(i)
-//		fields[fieldName] = fieldValue.Interface()
-//	}
-//	if jsonStr, err := json.Marshal(fields); err == nil {
-//		return string(jsonStr)
-//	}
-//	return fmt.Sprintf("%v", fields)
-//}
 
 func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 	var express string
