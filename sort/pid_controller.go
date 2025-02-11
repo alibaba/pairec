@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/constants"
-	"math"
 	"os"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -15,49 +13,44 @@ import (
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
-	"github.com/alibaba/pairec/v2/persist/cache"
-	"github.com/alibaba/pairec/v2/persist/redisdb"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
 )
 
-var pidStatusCacheRedis cache.Cache // If the engine has multiple instances, it is used to synchronize values between multiple instances
-var once sync.Once
 var targetMap map[string]model.TrafficControlTarget // key: targetId, value: target
-var serviceStartTimeStamp int64                     // engine start time stamp
 
 type PIDController struct {
 	task             *model.TrafficControlTask   // the meta info of current task
 	target           *model.TrafficControlTarget // the meta info of current target
-	kp               float32                     // The value for the proportional gain
-	ki               float32                     // The value for the integral gain
-	kd               float32                     // The value for the derivative gain
-	timeWindow       int                         // The time in seconds which the controller should wait before generating a new output value
+	kp               float64                     // The value for the proportional gain
+	ki               float64                     // The value for the integral gain
+	kd               float64                     // The value for the derivative gain
 	errDiscount      float64                     // the discount of err sum
 	status           *PIDStatus
-	itemStatusMap    sync.Map    // for single granularity or experiment wisely task, key is itemId or exp id, value is pidStatus
-	cache            cache.Cache // redis engine
-	cachePrefix      string
-	cacheTime        time.Duration
-	timestamp        int64   // set timestamp to this value to get task meta info of that time
-	allocateExpWise  bool    // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
-	minExpTraffic    float64 // the minimum traffic to activate the experimental control
-	userExpression   string  // the conditions of user
-	itemExpression   string  // the conditions of candidate items
-	startPageNum     int     // turn off pid controller when current pageNum < startPageNum
+	itemStatusMap    sync.Map // for single granularity or experiment wisely task, key is itemId or exp id, value is pidStatus
+	timestamp        int64    // set timestamp to this value to get task meta info of that time
+	allocateExpWise  bool     // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
+	minExpTraffic    float64  // the minimum traffic to activate the experimental control
+	userExpression   string   // the conditions of user
+	itemExpression   string   // the conditions of candidate items
+	startPageNum     int      // turn off pid controller when current pageNum < startPageNum
 	online           bool
-	syncStatus       bool // whether to sync pid status between instances
-	freezeMinutes    int  // use last output when time less than this at everyday morning
-	aheadMinutes     int  // get dynamic target value ahead of this minutes
+	freezeMinutes    int // use last output when time less than this at everyday morning
+	aheadMinutes     int // get dynamic target value ahead of this minutes
 	runWithZeroInput bool
+	integralMin      float64 // 积分项最小值
+	integralMax      float64 // 积分项最大值
 }
 
 type PIDStatus struct {
-	LastTime   int64
-	LastOutput float32 // the @ value in the formula
-	LastError  float32
-	ErrSum     float32
+	mu              sync.Mutex
+	integral        float64   // 积分项累积值
+	lastError       float64   // 上次计算的误差
+	lastMeasurement float64   // 上次测量的实际流量值
+	lastTime        time.Time // 上次测量时间
+	derivative      float64   // 微分项计算值
+	lastOutput      float64   // 上次输出的值
 }
 
 type Expression struct {
@@ -67,72 +60,22 @@ type Expression struct {
 }
 
 func NewPIDController(task *model.TrafficControlTask, target *model.TrafficControlTarget, conf *recconf.PIDControllerConfig, expId string) *PIDController {
-	once.Do(func() {
-		serviceStartTimeStamp = time.Now().Unix()
-		if conf.SyncPIDStatus {
-			redisConf, err := redisdb.GetRedisConf(conf.RedisName)
-			if err != nil {
-				log.Error(fmt.Sprintf("module=PIDController\terror=%v", err))
-				return
-			}
-			b, err := json.Marshal(redisConf)
-			if err != nil {
-				log.Error(fmt.Sprintf("module=PIDController\tMarshal redis conf failed, err=%v", err))
-				return
-			}
-			pidStatusCacheRedis, err = cache.NewCache("redis", string(b))
-			if err != nil {
-				log.Error(fmt.Sprintf("module=PIDController\tnew redis cache failed. error=%v", err))
-				return
-			}
-		}
-		loadTrafficControlTargetData(task.SceneName, conf.Timestamp)
-	})
-
-	if conf.SyncPIDStatus && pidStatusCacheRedis == nil {
-		log.Error("module=PIDController\tcreate pid controller failed because of init redis cache failed")
-		return nil
-	}
-
-	timeWindow := 1
-	if conf.TimeWindow > 0 {
-		timeWindow = conf.TimeWindow
-	}
-	cachePrefix := "_PID_"
-	if conf.RedisKeyPrefix != "" {
-		cachePrefix = conf.RedisKeyPrefix
-	}
-	runEnv := os.Getenv("PAIREC_ENVIRONMENT")
-	if runEnv != "" {
-		cachePrefix += runEnv + "_"
-	}
-	if expId != "" {
-		cachePrefix += expId + "_"
-	}
-	status := PIDStatus{
-		LastTime:   time.Now().Unix(),
-		LastOutput: 0.0,
-		LastError:  0.0,
-		ErrSum:     0.0,
-	}
-	controller := &PIDController{
+	loadTrafficControlTargetData(task.SceneName, conf.Timestamp)
+	controller := PIDController{
 		task:             task,
 		target:           target,
-		kp:               conf.DefaultKp,
-		ki:               conf.DefaultKi,
-		kd:               conf.DefaultKd,
-		timeWindow:       timeWindow,
+		kp:               float64(conf.DefaultKp),
+		ki:               float64(conf.DefaultKi),
+		kd:               float64(conf.DefaultKd),
 		errDiscount:      1.0,
-		status:           &status,
-		cache:            pidStatusCacheRedis,
-		cachePrefix:      cachePrefix,
-		cacheTime:        time.Hour,
+		status:           &PIDStatus{},
 		timestamp:        conf.Timestamp,
 		allocateExpWise:  conf.AllocateExperimentWise,
 		aheadMinutes:     conf.AheadMinutes,
 		online:           true,
 		runWithZeroInput: true,
-		syncStatus:       conf.SyncPIDStatus,
+		integralMin:      -100.0,
+		integralMax:      100.0,
 	}
 	if conf.DefaultKi == 0 {
 		controller.ki = 1.0
@@ -146,16 +89,17 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 	if conf.AheadMinutes < 1 {
 		controller.aheadMinutes = 1
 	}
+	if conf.IntegralMin < 0 {
+		controller.integralMin = conf.IntegralMin
+	}
+	if conf.IntegralMax > 0 {
+		controller.integralMax = conf.IntegralMax
+	}
 	controller.GenerateItemExpress()
 	log.Info(fmt.Sprintf("NewPIDController:\texp=%s\ttaskId:%s\ttaskName=%s\ttargetId:%s\ttargetName:%s",
 		expId, controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId,
 		controller.target.Name))
-	if !conf.SyncPIDStatus {
-		log.Warning(fmt.Sprintf("SyncPIDStatus should be set\ttaskId:%s\ttaskName=%s\ttargetId:%s\ttargetName:%s",
-			controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId,
-			controller.target.Name))
-	}
-	return controller
+	return &controller
 }
 
 func loadTrafficControlTargetData(sceneName string, timestamp int64) {
@@ -163,6 +107,151 @@ func loadTrafficControlTargetData(sceneName string, timestamp int64) {
 	targetMap = experimentClient.GetTrafficControlTargetData(runEnv, sceneName, timestamp)
 }
 
+// SetMeasurement 处理积分饱和问题: 当系统长时间偏离目标值时，积分项会累积很大的值，导致控制信号过大，系统恢复时会有较大的超调。
+// 处理每分钟一次的输入延迟和实时调用的矛盾: 根据测量时间间隔来计算积分项和微分项。
+func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, measureTime time.Time) {
+	var status = p.getPIDStatus(itemOrExpId)
+	if !measureTime.After(status.lastTime) {
+		return
+	}
+	setValue, enabled := p.getTargetSetValue()
+	if !enabled {
+		return
+	}
+	if setValue < 1 {
+		setValue = 1
+	}
+
+	var currentError float64
+	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+		currentError = setValue/100.0 - measurement
+	} else {
+		currentError = 1.0 - measurement/setValue
+	}
+
+	status.mu.Lock()
+	defer status.mu.Unlock()
+
+	if status.lastTime.IsZero() {
+		status.lastTime = measureTime
+		status.lastMeasurement = measurement
+		status.lastError = currentError
+		return
+	}
+
+	// 计算时间差（秒）
+	dt := measureTime.Sub(status.lastTime).Seconds()
+
+	// 计算并限制积分项
+	if p.errDiscount != 1.0 {
+		status.integral *= p.errDiscount
+	}
+	status.integral += currentError * dt
+	if status.integral > p.integralMax {
+		status.integral = p.integralMax
+	} else if status.integral < p.integralMin {
+		status.integral = p.integralMin
+	}
+
+	// 计算微分项
+	status.derivative = (currentError - status.lastError) / dt
+
+	// 更新状态记录
+	status.lastError = currentError
+	status.lastMeasurement = measurement
+	status.lastTime = measureTime
+
+	log.Info(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,"+
+		"derivative=%f,integral=%f,dt=%f,measure=%.6f", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId,
+		currentError, status.lastError, status.derivative, status.integral, dt, measurement))
+}
+
+func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContext) (float64, float64) {
+	if !p.online {
+		return 0, 0
+	}
+	var status = p.getPIDStatus(itemOrExpId)
+	status.mu.Lock()
+	defer status.mu.Unlock()
+
+	measure := status.lastMeasurement
+	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && measure > 1.0 {
+		ctx.LogError(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, measure))
+		return 0, 0
+	}
+	if measure == 0 && !p.runWithZeroInput {
+		return 0, 0
+	}
+
+	setValue, enabled := p.getTargetSetValue()
+	if !enabled {
+		return 0, setValue
+	}
+	if setValue < 1 {
+		setValue = 1
+	}
+	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
+		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
+		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+			if measure >= (setValue / 100) {
+				return 0, setValue
+			}
+		} else {
+			if measure >= setValue {
+				return 0, setValue
+			}
+		}
+	}
+	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+		if BetweenSlackInterval(measure, setValue/100, float64(p.target.ToleranceValue)/100) {
+			// when current input is between `setValue` and `setValue+SetVale Range`, turn off controller
+			return 0, setValue
+		}
+	} else {
+		if BetweenSlackInterval(measure, setValue, float64(p.target.ToleranceValue)) {
+			return 0, setValue
+		}
+	}
+
+	if p.freezeMinutes > 0 {
+		// 流量占比型任务凌晨刚开始的时候流量占比统计值不置信，直接输出前一天最后一次的调控信号
+		// 定义东八区时区
+		location, err := time.LoadLocation("Asia/Shanghai") // 北京采用Asia/Shanghai时区
+		if err != nil {
+			// 如果无法加载时区，默认使用本地时区
+			location = time.Local
+		}
+
+		// 获取当前时间
+		now := time.Now().In(location)
+
+		// 获取当天的零点时间
+		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+
+		// 计算当前时间与零点的差值
+		durationSinceStartOfDay := int(now.Sub(startOfDay).Minutes())
+		if durationSinceStartOfDay < p.freezeMinutes {
+			ctx.LogDebug(fmt.Sprintf("module=PIDController\titemIdOrExpId=%s\texit within the freezing time", itemOrExpId))
+			return status.lastOutput, setValue
+		}
+	}
+
+	var currentError float64
+	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+		currentError = setValue/100.0 - measure
+	} else {
+		currentError = 1.0 - measure/setValue
+	}
+
+	pTerm := p.kp * currentError
+	iTerm := p.ki * status.integral
+	dTerm := p.kd * status.derivative
+	status.lastOutput = pTerm + iTerm + dTerm
+	return status.lastOutput, setValue
+}
+
+/*
 func (p *PIDController) Do(trafficOrPercent float64, ctx *context.RecommendContext) (float64, float64) {
 	return p.DoWithId(trafficOrPercent, "", ctx)
 }
@@ -263,7 +352,7 @@ func (p *PIDController) DoWithId(trafficOrPercent float64, itemOrExpId string, c
 	}
 	return float64(output), setValue
 }
-
+*/
 // 获取被拆解的目标值
 func (p *PIDController) getTargetSetValue() (float64, bool) {
 	endTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.EndTime)
@@ -362,6 +451,20 @@ func (p *PIDController) getTargetSetValue() (float64, bool) {
 	}
 }
 
+func (p *PIDController) getPIDStatus(itemOrExpId string) *PIDStatus {
+	var pidStatus *PIDStatus
+	if itemOrExpId == "" {
+		pidStatus = p.status
+	} else if status, ok := p.itemStatusMap.Load(itemOrExpId); ok {
+		pidStatus = status.(*PIDStatus)
+	} else {
+		pidStatus = &PIDStatus{}
+		p.itemStatusMap.Store(itemOrExpId, pidStatus)
+	}
+	return pidStatus
+}
+
+/*
 func (p *PIDController) readPIDStatus(itemOrExpId string, currentTimestamp int64) *PIDStatus {
 	var pidStatus *PIDStatus
 	if itemOrExpId == "" {
@@ -440,6 +543,7 @@ func (p *PIDController) writePIDStatus(itemOrExpId string) {
 			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, cacheKey, string(data)))
 	}
 }
+*/
 
 func (p *PIDController) GenerateItemExpress() {
 	targetExpression, err := ParseExpression(p.target.ItemConditionArray, p.target.ItemConditionExpress)
@@ -554,7 +658,7 @@ func (p *PIDController) IsAllocateExpWise() bool {
 	return p.allocateExpWise
 }
 
-func (p *PIDController) SetParameters(kp, ki, kd float32) {
+func (p *PIDController) SetParameters(kp, ki, kd float64) {
 	changed := false
 	if p.kp != kp {
 		p.kp = kp
@@ -569,9 +673,9 @@ func (p *PIDController) SetParameters(kp, ki, kd float32) {
 		changed = true
 	}
 	if changed {
-		p.status.LastOutput = 0.0
+		p.status.lastOutput = 0.0
 		p.itemStatusMap.Range(func(key, value interface{}) bool {
-			value.(*PIDStatus).LastOutput = 0.0
+			value.(*PIDStatus).lastOutput = 0.0
 			return true
 		})
 		log.Info(fmt.Sprintf("module=PIDController\tThe parameters of PIDController <taskId:%s/targetId:%s>[targetName:%s] changed to: kp=%f, ki=%f, kd=%f",
@@ -579,11 +683,11 @@ func (p *PIDController) SetParameters(kp, ki, kd float32) {
 	}
 }
 
-func (p *PIDController) SetTimeWindow(timeWindow int) {
-	if timeWindow > 0 {
-		p.timeWindow = timeWindow
-	}
-}
+//func (p *PIDController) SetTimeWindow(timeWindow int) {
+//	if timeWindow > 0 {
+//		p.timeWindow = timeWindow
+//	}
+//}
 
 func (p *PIDController) SetErrDiscount(decay float64) {
 	if decay > 0 {
@@ -603,24 +707,24 @@ func (p *PIDController) SetStartPageNum(pageNum int) {
 	p.startPageNum = pageNum
 }
 
-func ToString(task interface{}, excludes ...string) string {
-	typeOfTask := reflect.TypeOf(task)
-	valueOfTask := reflect.ValueOf(task)
-	fields := make(map[string]interface{})
-	for i := 0; i < typeOfTask.NumField(); i++ {
-		fieldType := typeOfTask.Field(i)
-		fieldName := fieldType.Name
-		if utils.StringContains(excludes, []string{fieldName}) {
-			continue
-		}
-		fieldValue := valueOfTask.Field(i)
-		fields[fieldName] = fieldValue.Interface()
-	}
-	if jsonStr, err := json.Marshal(fields); err == nil {
-		return string(jsonStr)
-	}
-	return fmt.Sprintf("%v", fields)
-}
+//func ToString(task interface{}, excludes ...string) string {
+//	typeOfTask := reflect.TypeOf(task)
+//	valueOfTask := reflect.ValueOf(task)
+//	fields := make(map[string]interface{})
+//	for i := 0; i < typeOfTask.NumField(); i++ {
+//		fieldType := typeOfTask.Field(i)
+//		fieldName := fieldType.Name
+//		if utils.StringContains(excludes, []string{fieldName}) {
+//			continue
+//		}
+//		fieldValue := valueOfTask.Field(i)
+//		fields[fieldName] = fieldValue.Interface()
+//	}
+//	if jsonStr, err := json.Marshal(fields); err == nil {
+//		return string(jsonStr)
+//	}
+//	return fmt.Sprintf("%v", fields)
+//}
 
 func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 	var express string

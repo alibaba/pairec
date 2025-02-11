@@ -258,19 +258,21 @@ type AlgoConfig struct {
 }
 
 type PIDControllerConfig struct {
-	SyncPIDStatus          bool
+	//SyncPIDStatus          bool
 	AllocateExperimentWise bool
 	MaxItemCacheSize       int
 	MaxItemCacheTime       int
-	RedisName              string
-	RedisKeyPrefix         string
-	TimeWindow             int
-	DefaultKp              float32
-	DefaultKi              float32
-	DefaultKd              float32
-	Timestamp              int64
-	AheadMinutes           int
-	BoostScoreConditions   []BoostScoreCondition
+	//RedisName              string
+	//RedisKeyPrefix         string
+	//TimeWindow             int
+	DefaultKp            float32
+	DefaultKi            float32
+	DefaultKd            float32
+	Timestamp            int64
+	AheadMinutes         int
+	IntegralMin          float64
+	IntegralMax          float64
+	BoostScoreConditions []BoostScoreCondition
 }
 
 type LookupConfig struct {
