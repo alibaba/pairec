@@ -505,6 +505,12 @@ func (p *PIDController) SetIntegralThreshold(threshold float64) {
 	}
 }
 
+func (p *PIDController) SetErrorThreshold(threshold float64) {
+	if threshold > 0 {
+		p.errThreshold = threshold
+	}
+}
+
 func (p *PIDController) SetFreezeMinutes(minutes int) {
 	if 0 < minutes && minutes < 1440 {
 		p.freezeMinutes = minutes
