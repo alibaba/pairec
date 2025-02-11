@@ -268,6 +268,8 @@ type PIDControllerConfig struct {
 	AheadMinutes           int
 	IntegralMin            float64
 	IntegralMax            float64
+	IntegralThreshold      float64
+	ErrThreshold           float64
 	ErrDiscount            float64
 	BoostScoreConditions   []BoostScoreCondition
 }

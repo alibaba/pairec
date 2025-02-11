@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/constants"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -21,26 +22,28 @@ import (
 var targetMap map[string]model.TrafficControlTarget // key: targetId, value: target
 
 type PIDController struct {
-	task             *model.TrafficControlTask   // the meta info of current task
-	target           *model.TrafficControlTarget // the meta info of current target
-	kp               float64                     // The value for the proportional gain
-	ki               float64                     // The value for the integral gain
-	kd               float64                     // The value for the derivative gain
-	errDiscount      float64                     // the discount of err sum
-	status           *PIDStatus
-	itemStatusMap    sync.Map // for single granularity or experiment wisely task, key is itemId or exp id, value is pidStatus
-	timestamp        int64    // set timestamp to this value to get task meta info of that time
-	allocateExpWise  bool     // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
-	minExpTraffic    float64  // the minimum traffic to activate the experimental control
-	userExpression   string   // the conditions of user
-	itemExpression   string   // the conditions of candidate items
-	startPageNum     int      // turn off pid controller when current pageNum < startPageNum
-	online           bool
-	freezeMinutes    int // use last output when time less than this at everyday morning
-	aheadMinutes     int // get dynamic target value ahead of this minutes
-	runWithZeroInput bool
-	integralMin      float64 // 积分项最小值
-	integralMax      float64 // 积分项最大值
+	task              *model.TrafficControlTask   // the meta info of current task
+	target            *model.TrafficControlTarget // the meta info of current target
+	kp                float64                     // The value for the proportional gain
+	ki                float64                     // The value for the integral gain
+	kd                float64                     // The value for the derivative gain
+	errDiscount       float64                     // the discount of err sum
+	status            *PIDStatus
+	itemStatusMap     sync.Map // for single granularity or experiment wisely task, key is itemId or exp id, value is pidStatus
+	timestamp         int64    // set timestamp to this value to get task meta info of that time
+	allocateExpWise   bool     // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
+	minExpTraffic     float64  // the minimum traffic to activate the experimental control
+	userExpression    string   // the conditions of user
+	itemExpression    string   // the conditions of candidate items
+	startPageNum      int      // turn off pid controller when current pageNum < startPageNum
+	online            bool
+	freezeMinutes     int // use last output when time less than this at everyday morning
+	aheadMinutes      int // get dynamic target value ahead of this minutes
+	runWithZeroInput  bool
+	integralMin       float64 // 积分项最小值, 通常 integralMin = -integralMax
+	integralMax       float64 // 积分项最大值, 根据最大控制量需求计算： integralMax = (MaxOutput - Kp*MaxError) / Ki
+	integralThreshold float64 // 激活积分项的误差阈值，通常设为目标值的10%-20%
+	errThreshold      float64 // 变速积分阈值, 初始值设为目标值的20%-30%; 快速响应系统：较大阈值; 慢速系统：较小阈值
 }
 
 type PIDStatus struct {
@@ -51,6 +54,7 @@ type PIDStatus struct {
 	lastTime        time.Time // 上次测量时间
 	derivative      float64   // 微分项计算值
 	lastOutput      float64   // 上次输出的值
+	integralActive  bool      // 当前是否激活积分项
 }
 
 type Expression struct {
@@ -62,20 +66,22 @@ type Expression struct {
 func NewPIDController(task *model.TrafficControlTask, target *model.TrafficControlTarget, conf *recconf.PIDControllerConfig, expId string) *PIDController {
 	loadTrafficControlTargetData(task.SceneName, conf.Timestamp)
 	controller := PIDController{
-		task:             task,
-		target:           target,
-		kp:               conf.DefaultKp,
-		ki:               conf.DefaultKi,
-		kd:               conf.DefaultKd,
-		errDiscount:      1.0,
-		status:           &PIDStatus{},
-		timestamp:        conf.Timestamp,
-		allocateExpWise:  conf.AllocateExperimentWise,
-		aheadMinutes:     conf.AheadMinutes,
-		online:           true,
-		runWithZeroInput: true,
-		integralMin:      -100.0,
-		integralMax:      100.0,
+		task:              task,
+		target:            target,
+		kp:                conf.DefaultKp,
+		ki:                conf.DefaultKi,
+		kd:                conf.DefaultKd,
+		errDiscount:       1.0,
+		status:            &PIDStatus{integralActive: true},
+		timestamp:         conf.Timestamp,
+		allocateExpWise:   conf.AllocateExperimentWise,
+		aheadMinutes:      conf.AheadMinutes,
+		online:            true,
+		runWithZeroInput:  true,
+		integralMin:       -100.0,
+		integralMax:       100.0,
+		integralThreshold: conf.IntegralThreshold,
+		errThreshold:      conf.ErrThreshold,
 	}
 	if conf.DefaultKi == 0 {
 		controller.ki = 1.0
@@ -110,10 +116,29 @@ func loadTrafficControlTargetData(sceneName string, timestamp int64) {
 	targetMap = experimentClient.GetTrafficControlTargetData(runEnv, sceneName, timestamp)
 }
 
+// 变速积分函数（可根据需要修改插值算法）
+// 自动适应系统不同工作状态: 快速响应阶段：侧重比例微分作用; 精细调节阶段：增强积分作用
+func (p *PIDController) variableIntegralFactor(currentError float64) float64 {
+	if p.errThreshold == 0 {
+		return 1.0
+	}
+	absErr := math.Abs(currentError)
+	// return math.Exp(-absErr/pid.errThreshold) // 指数衰减型积分系数
+	if absErr > p.errThreshold {
+		return 0.0 // 完全禁用积分
+	}
+	// 线性插值：误差越小，积分系数越大
+	return 1.0 - absErr/p.errThreshold
+}
+
 // SetMeasurement 处理积分饱和问题: 当系统长时间偏离目标值时，积分项会累积很大的值，导致控制信号过大，系统恢复时会有较大的超调。
-// 处理每分钟一次的输入延迟和实时调用的矛盾: 根据测量时间间隔来计算积分项和微分项。
+// 1. 在每次测量更新时才进行积分项限制，防止长期误差累积；处理每分钟一次的输入延迟和实时调用的矛盾: 根据测量时间间隔来计算积分项和微分项。
+// 2. 通过设置integralMin和integralMax对积分项进行限幅
+// 3. 积分分离法机制: 在误差较大时关闭积分项，避免积分累积过快导致超调
+// 4. 变速积分机制: 根据误差的大小动态调整积分项的系数，从而平滑地控制积分的作用
 func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, measureTime time.Time) {
 	var status = p.getPIDStatus(itemOrExpId)
+	// measureTime 是流量上报时间（测量时间）
 	if !measureTime.After(status.lastTime) {
 		return
 	}
@@ -145,17 +170,33 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	// 计算时间差（秒）
 	dt := measureTime.Sub(status.lastTime).Seconds()
 
-	// 计算并限制积分项
 	if p.errDiscount != 1.0 {
 		status.integral *= p.errDiscount
 	}
-	status.integral += currentError * dt
+	// 计算变速积分系数
+	factor := p.variableIntegralFactor(currentError)
+	// 积分分离逻辑：仅在误差小于阈值时累积积分
+	if p.integralThreshold > 0 {
+		if math.Abs(currentError) <= p.integralThreshold {
+			status.integral += factor * currentError * dt
+			status.integralActive = true
+		} else { // 进入积分分离区，暂停积分累积
+			status.integralActive = false
+		}
+	} else {
+		status.integral += factor * currentError * dt
+	}
+	// 计算并限制积分项
 	if status.integral > p.integralMax {
 		status.integral = p.integralMax
 	} else if status.integral < p.integralMin {
 		status.integral = p.integralMin
 	}
 
+	// 避免除零错误
+	if dt < 1e-9 {
+		dt = 1e-9
+	}
 	// 计算微分项
 	status.derivative = (currentError - status.lastError) / dt
 
@@ -165,10 +206,11 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	status.lastTime = measureTime
 
 	log.Info(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,"+
-		"derivative=%f,integral=%f,dt=%f,measure=%.6f", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId,
-		currentError, status.lastError, status.derivative, status.integral, dt, measurement))
+		"derivative=%f,integral=%f,dt=%f,measure=%.6f,time=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId,
+		currentError, status.lastError, status.derivative, status.integral, dt, measurement, measureTime))
 }
 
+// Compute 测量值更新与实际控制分离设计，控制计算始终使用最新可用测量值和实时分解的目标值
 func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContext) (float64, float64) {
 	if !p.online {
 		return 0, 0
@@ -207,12 +249,20 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 		}
 	}
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
-		if BetweenSlackInterval(measure, setValue/100, float64(p.target.ToleranceValue)/100) {
+		delta := float64(p.target.ToleranceValue) / 100
+		if delta == 0 { // 添加死区控制：微小误差时不调整
+			delta = 0.001
+		}
+		if BetweenSlackInterval(measure, setValue/100, delta) {
 			// when current input is between `setValue` and `setValue+SetVale Range`, turn off controller
 			return 0, setValue
 		}
 	} else {
-		if BetweenSlackInterval(measure, setValue, float64(p.target.ToleranceValue)) {
+		delta := float64(p.target.ToleranceValue)
+		if delta == 0 { // 添加死区控制：微小误差时不调整
+			delta = setValue * 0.01
+		}
+		if BetweenSlackInterval(measure, setValue, delta) {
 			return 0, setValue
 		}
 	}
@@ -243,8 +293,11 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 	}
 
 	pTerm := p.kp * currentError
-	iTerm := p.ki * status.integral
 	dTerm := p.kd * status.derivative
+	var iTerm float64
+	if status.integralActive { // 积分项（根据激活状态决定是否使用）
+		iTerm = p.ki * status.integral
+	}
 	status.lastOutput = pTerm + iTerm + dTerm
 	return status.lastOutput, setValue
 }
@@ -358,7 +411,7 @@ func (p *PIDController) getPIDStatus(itemOrExpId string) *PIDStatus {
 	} else if status, ok := p.itemStatusMap.Load(itemOrExpId); ok {
 		pidStatus = status.(*PIDStatus)
 	} else {
-		pidStatus = &PIDStatus{}
+		pidStatus = &PIDStatus{integralActive: true}
 		p.itemStatusMap.Store(itemOrExpId, pidStatus)
 	}
 	return pidStatus
@@ -444,6 +497,12 @@ func (p *PIDController) GetMinExpTraffic() float64 {
 
 func (p *PIDController) SetMinExpTraffic(traffic float64) {
 	p.minExpTraffic = traffic
+}
+
+func (p *PIDController) SetIntegralThreshold(threshold float64) {
+	if threshold > 0 {
+		p.integralThreshold = threshold
+	}
 }
 
 func (p *PIDController) SetFreezeMinutes(minutes int) {

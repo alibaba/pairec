@@ -1034,6 +1034,9 @@ func setHyperParams(controllers map[string]*PIDController, ctx *context.Recommen
 					kd = _kd.(float64)
 				}
 				c.SetParameters(kp, ki, kd)
+				if threshold, exist := dict["integral_threshold"]; exist {
+					c.SetIntegralThreshold(threshold.(float64))
+				}
 				if discount, exist := dict["err_discount"]; exist {
 					c.SetErrDiscount(discount.(float64))
 				}
