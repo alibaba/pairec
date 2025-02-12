@@ -298,18 +298,16 @@ func loadTargetItemTraffic(ctx *context.RecommendContext, items []*module.Item, 
 		itemIds[i] = string(item.Id)
 	}
 
-	targetIdMap := make(map[string]bool)
-	for targetId := range controllerMap {
-		targetIdMap[targetId] = true
-	}
-
 	// sdk 可能会返回已过期的Target下Item的历史流量，这样的话取最大值就是不对的
 	result := make(map[string]map[string]float64) // key1: targetId, key2:expId, value: traffic
 	runEnv := os.Getenv("PAIREC_ENVIRONMENT")
 	traffics := experimentClient.GetTrafficControlTargetTraffic(runEnv, scene, itemIds...)
 	hasTraffic := false
+	measureTime := time.Now().Truncate(time.Second)
 	for _, traffic := range traffics {
-		if !targetIdMap[traffic.TrafficControlTargetId] {
+		if ctrl, ok := controllerMap[traffic.TrafficControlTargetId]; ok {
+			ctrl.SetMeasurement(traffic.ItemOrExpId, traffic.TargetTraffic, measureTime)
+		} else {
 			continue
 		}
 
@@ -622,10 +620,12 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				}
 
 				trafficPercentage := targetTraffic / taskTraffic
-				output, setValue = controller.DoWithId(trafficPercentage, binId, ctx)
+				measureTime := time.Now().Truncate(time.Second)
+				controller.SetMeasurement(binId, trafficPercentage, measureTime)
+				output, setValue = controller.Compute(binId, ctx)
 				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\t"+
-					"traffic=%.0f, percentage=%f, setValue=%f, output=%f, exp=%s",
-					taskId, targetId, controller.target.Name, targetTraffic, trafficPercentage, setValue/100, output, binId))
+					"traffic=%.0f, percentage=%f, setValue=%f, output=%f, exp=%s", taskId, targetId,
+					controller.target.Name, targetTraffic, trafficPercentage, setValue/100, output, binId))
 				if targetTraffic > 0 {
 					hasTraffic = true
 				}
@@ -635,7 +635,9 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				} else {
 					targetTraffic = float64(0)
 				}
-				output, setValue = controller.Do(targetTraffic, ctx)
+				measureTime := time.Now().Truncate(time.Second)
+				controller.SetMeasurement("", targetTraffic, measureTime)
+				output, setValue = controller.Compute("", ctx)
 				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\t"+
 					"traffic=%.0f, setValue=%f, output=%f",
 					taskId, targetId, controller.target.Name, targetTraffic, setValue, output))
@@ -765,7 +767,7 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 					traffic = value
 				}
 			}
-			alpha, setValue := controller.DoWithId(traffic, string(item.Id), ctx)
+			alpha, setValue := controller.Compute(string(item.Id), ctx)
 			delta := alpha
 			pos, _ := item.IntProperty("_ORIGIN_POSITION_")
 			ctrlId := pos
@@ -976,7 +978,7 @@ func setHyperParams(controllers map[string]*PIDController, ctx *context.Recommen
 	}
 	if values, ok := hyperParams.(map[string]interface{}); ok {
 		hasDefaultValue := false
-		var defaultKp, defaultKi, defaultKd, defaultSampleTime, defaultErrDiscount float64
+		var defaultKp, defaultKi, defaultKd, defaultErrDiscount float64
 		var defaultStartPageNo = 0
 		if args, exist := values["default"]; exist {
 			if dict, good := args.(map[string]interface{}); good {
@@ -990,9 +992,6 @@ func setHyperParams(controllers map[string]*PIDController, ctx *context.Recommen
 				if _kd, okay := dict["kd"]; okay {
 					defaultKd = _kd.(float64)
 				}
-				if _t, okay := dict["sample_time"]; okay {
-					defaultSampleTime = _t.(float64)
-				}
 				if _d, okay := dict["err_discount"]; okay {
 					defaultErrDiscount = _d.(float64)
 				}
@@ -1005,10 +1004,9 @@ func setHyperParams(controllers map[string]*PIDController, ctx *context.Recommen
 			for _, c := range controllers {
 				if _, okay := values[c.target.TrafficControlTargetId]; !okay {
 					if defaultKp != 0 {
-						c.SetParameters(float32(defaultKp), float32(defaultKi), float32(defaultKd))
+						c.SetParameters(defaultKp, defaultKi, defaultKd)
 					}
 					c.SetStartPageNum(defaultStartPageNo)
-					c.SetTimeWindow(int(defaultSampleTime))
 					c.SetErrDiscount(defaultErrDiscount)
 				}
 			}
@@ -1021,11 +1019,11 @@ func setHyperParams(controllers map[string]*PIDController, ctx *context.Recommen
 				dict, good := args.(map[string]interface{})
 				if !good {
 					if hasDefaultValue {
-						c.SetParameters(float32(defaultKp), float32(defaultKi), float32(defaultKd))
+						c.SetParameters(defaultKp, defaultKi, defaultKd)
 					}
 					continue
 				}
-				var kp, ki, kd, sampleTime float64
+				var kp, ki, kd float64
 				if _kp, exist := dict["kp"]; exist {
 					kp = _kp.(float64)
 				}
@@ -1035,10 +1033,12 @@ func setHyperParams(controllers map[string]*PIDController, ctx *context.Recommen
 				if _kd, exist := dict["kd"]; exist {
 					kd = _kd.(float64)
 				}
-				c.SetParameters(float32(kp), float32(ki), float32(kd))
-				if _sampleTime, exist := dict["sample_time"]; exist {
-					sampleTime = _sampleTime.(float64)
-					c.SetTimeWindow(int(sampleTime))
+				c.SetParameters(kp, ki, kd)
+				if threshold, exist := dict["integral_threshold"]; exist {
+					c.SetIntegralThreshold(threshold.(float64))
+				}
+				if threshold, exist := dict["err_threshold"]; exist {
+					c.SetErrorThreshold(threshold.(float64))
 				}
 				if discount, exist := dict["err_discount"]; exist {
 					c.SetErrDiscount(discount.(float64))
