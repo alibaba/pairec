@@ -520,6 +520,10 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 
 				if finalDeltaRank != 0.0 {
 					item.IncrAlgoScore("__delta_rank__", finalDeltaRank)
+					controlId, _ := item.IntProperty("__traffic_control_id__")
+					if controlId == 0 && finalDeltaRank < 1.0 {
+						item.AddProperty("__traffic_control_id__", item.GetProperty("_ORIGIN_POSITION_"))
+					}
 				}
 			}
 			<-ch
@@ -572,8 +576,8 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 		go func(gCtx gocontext.Context, targetId string, controller *PIDController) {
 			defer func() {
 				if err := recover(); err != nil {
-					//stack := string(debug.Stack())
-					log.Warning(fmt.Sprintf("traffic control timeout in background: <taskId:%s/targetId:%s>[targetName:%s]", controller.task.TrafficControlTaskId, targetId, controller.target.Name))
+					log.Warning(fmt.Sprintf("traffic control timeout in background: <taskId:%s/targetId:%s>[targetName:%s]",
+						controller.task.TrafficControlTaskId, targetId, controller.target.Name))
 				}
 			}()
 			taskId := controller.task.TrafficControlTaskId
@@ -760,7 +764,6 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 			alpha, setValue := controller.Compute(string(item.Id), ctx)
 			delta := alpha
 			pos, _ := item.IntProperty("_ORIGIN_POSITION_")
-			ctrlId := pos
 			if alpha > 0 { // uplift
 				if i == 0 {
 					delta *= math.E
@@ -775,15 +778,11 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 					}
 					delta *= expTable[idx]
 				}
-				if pos > ctx.Size {
-					item.AddProperty("__traffic_control_id__", 0)
-					ctrlId = 0
-				}
 			}
 			deltaRank += delta // 多个目标调控方向不一致时，需要扳手腕看谁力气大
 			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t[targetId:%s/targetName:%s], itemId:%s, "+
-				"origin pos=%d, traffic=%.0f, setValue=%f, percentage=%f, alpha=%f, delta rank=%f, traffic_control_id=%d",
-				targetId, controller.target.Name, item.Id, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
+				"origin pos=%d, traffic=%.0f, setValue=%f, percentage=%f, alpha=%f, delta rank=%f",
+				targetId, controller.target.Name, item.Id, pos, traffic, setValue, traffic/setValue, alpha, delta))
 		}
 		if deltaRank != 0.0 {
 			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\titem:%v\tdelta rank:%v", item.Id, deltaRank))
@@ -792,6 +791,10 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 			} else if upliftCnt < maxUpliftCnt { // uplift
 				item.IncrAlgoScore("__delta_rank__", deltaRank)
 				upliftCnt++
+				pos, _ := item.IntProperty("_ORIGIN_POSITION_")
+				if pos > ctx.Size && deltaRank >= 1.0 {
+					item.AddProperty("__traffic_control_id__", 0)
+				}
 			}
 		}
 	}
