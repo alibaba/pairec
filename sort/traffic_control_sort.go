@@ -839,7 +839,7 @@ func computeDeltaRank(c *PIDController, item *module.Item, rank int, alpha float
 		}
 		controlId, _ := item.IntProperty("__traffic_control_id__")
 		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tcompute delta rank\titem:%s\t[targetId:%s/targetName:%s],"+
-			"score proportion=%.3f,norm_score=%.3f, alpha=%.6f, origin pos=%d, delta rank=%.6f, traffic_control_id=%d",
+			"score proportion=%.3f,norm_score=%.3f, alpha=%.6f, origin pos=%d, delta rank=%.6f, traffic_control_id=%d [uplift]",
 			item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, itemScore, alpha, rank+1, deltaRank, controlId))
 	}
 	return deltaRank
