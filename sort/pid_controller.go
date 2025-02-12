@@ -6,6 +6,7 @@ import (
 	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/constants"
 	"math"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -228,9 +229,15 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	// 计算微分项
 	status.derivative = (currentError - status.lastError) / dt
 
-	log.Info(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,"+
-		"derivative=%f,integral=%f,dt=%.2f,measure=%.6f,time=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId,
-		currentError, status.lastError, status.derivative, status.integral, dt, measurement, measureTime))
+	logProb := 1.0
+	if p.task.ControlGranularity == constants.TrafficControlTaskControlGranularitySingle {
+		logProb = 0.1
+	}
+	if rand.Float64() < logProb {
+		log.Info(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,"+
+			"derivative=%f,integral=%f,dt=%.2f,measure=%.6f,time=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId,
+			currentError, status.lastError, status.derivative, status.integral, dt, measurement, measureTime))
+	}
 
 	// 更新状态记录
 	status.lastError = currentError
