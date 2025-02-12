@@ -223,7 +223,8 @@ func (p *TrafficControlSort) loadTrafficControlTaskMetaData(expId string) map[st
 	for i, task := range tasks {
 		taskUserExpress, err := ParseExpression(task.UserConditionArray, task.UserConditionExpress)
 		if err != nil {
-			log.Error(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s", task.UserConditionArray, task.UserConditionExpress))
+			log.Error(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s",
+				task.UserConditionArray, task.UserConditionExpress))
 		}
 		for _, value := range task.TrafficControlTargets {
 			target := value

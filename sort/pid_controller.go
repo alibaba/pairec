@@ -24,6 +24,8 @@ var targetMap map[string]model.TrafficControlTarget // key: targetId, value: tar
 type PIDController struct {
 	task              *model.TrafficControlTask   // the meta info of current task
 	target            *model.TrafficControlTarget // the meta info of current target
+	startTime         time.Time                   // the start time of current control target
+	endTime           time.Time                   // the end time of current control target
 	kp                float64                     // The value for the proportional gain
 	ki                float64                     // The value for the integral gain
 	kd                float64                     // The value for the derivative gain
@@ -65,9 +67,18 @@ type Expression struct {
 
 func NewPIDController(task *model.TrafficControlTask, target *model.TrafficControlTarget, conf *recconf.PIDControllerConfig, expId string) *PIDController {
 	loadTrafficControlTargetData(task.SceneName, conf.Timestamp)
+	endTime, _ := time.Parse("2006-01-02T15:04:05+08:00", target.EndTime)
+	startTime, _ := time.Parse("2006-01-02T15:04:05+08:00", target.StartTime)
+	if endTime.Before(startTime) {
+		log.Warning(fmt.Sprintf("module=PIDController\tinvalid target end time and start time, targetId:%s\tstartTime:%v\tendTime:%v",
+			target.TrafficControlTargetId, startTime, endTime))
+		return nil
+	}
 	controller := PIDController{
 		task:              task,
 		target:            target,
+		startTime:         startTime,
+		endTime:           endTime,
 		kp:                conf.DefaultKp,
 		ki:                conf.DefaultKi,
 		kd:                conf.DefaultKd,
@@ -142,6 +153,8 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	if !measureTime.After(status.lastTime) {
 		return
 	}
+	// update target info
+	loadTrafficControlTargetData(p.task.SceneName, p.timestamp)
 	setValue, enabled := p.getTargetSetValue()
 	if !enabled {
 		return
@@ -149,18 +162,30 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	if setValue < 1 {
 		setValue = 1
 	}
-
+	var achieved bool
+	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
+		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回
+		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+			if measurement >= (setValue / 100) {
+				achieved = true
+			}
+		} else if measurement >= setValue {
+			achieved = true
+		}
+	}
 	var currentError float64
-	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
-		currentError = setValue/100.0 - measurement
-	} else {
-		currentError = 1.0 - measurement/setValue
+	if !achieved {
+		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+			currentError = setValue/100.0 - measurement
+		} else {
+			currentError = 1.0 - measurement/setValue
+		}
 	}
 
 	status.mu.Lock()
 	defer status.mu.Unlock()
 
-	if status.lastTime.IsZero() {
+	if achieved || status.lastTime.IsZero() {
 		status.lastTime = measureTime
 		status.lastMeasurement = measurement
 		status.lastError = currentError
@@ -304,29 +329,21 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 
 // 获取被拆解的目标值
 func (p *PIDController) getTargetSetValue() (float64, bool) {
-	endTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.EndTime)
-	startTime, _ := time.Parse("2006-01-02T15:04:05+08:00", p.target.StartTime)
-	if endTime.Before(startTime) {
-		log.Warning(fmt.Sprintf("module=PIDController\tinvalid target end time and start time, targetId:%s\tstartTime:%v\tendTime:%v",
-			p.target.TrafficControlTargetId, startTime, endTime))
-		return 0, false
-	}
 	location, err := time.LoadLocation("Asia/Shanghai") // 北京采用Asia/Shanghai时区
 	if err != nil {                                     // 如果无法加载时区，默认使用本地时区
 		location = time.Local
 	}
 	now := time.Now().In(location) // 获取当前时间
-	if now.Before(startTime) {
+	if now.Before(p.startTime) {
 		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is before target start time, targetId:%s\tcurrentTime:%v\tstartTime:%v",
-			p.target.TrafficControlTargetId, now, startTime))
+			p.target.TrafficControlTargetId, now, p.startTime))
 		return 0, false
 	}
-	if now.After(endTime) {
+	if now.After(p.endTime) {
 		log.Warning(fmt.Sprintf("module=PIDController\tcurrent time is after target end time, targetId:%s\tcurrentTime:%v\tendTime:%v",
-			p.target.TrafficControlTargetId, now, endTime))
+			p.target.TrafficControlTargetId, now, p.endTime))
 		return 0, false
 	}
-	loadTrafficControlTargetData(p.task.SceneName, p.timestamp)
 	if target, ok := targetMap[p.target.TrafficControlTargetId]; ok {
 		p.target = &target
 	} else {
@@ -355,11 +372,11 @@ func (p *PIDController) getTargetSetValue() (float64, bool) {
 	if p.target.StatisPeriod == constants.TrafficControlTargetStatisPeriodDaily {
 		tomorrow := morning.AddDate(0, 0, 1)
 		start, end := morning, tomorrow
-		if startTime.After(morning) {
-			start = startTime
+		if p.startTime.After(morning) {
+			start = p.startTime
 		}
-		if endTime.Before(tomorrow) {
-			end = endTime
+		if p.endTime.Before(tomorrow) {
+			end = p.endTime
 		}
 		duration := end.Sub(start)
 		if duration < time.Hour*24 {
@@ -393,9 +410,9 @@ func (p *PIDController) getTargetSetValue() (float64, bool) {
 		}
 		return float64(p.target.SplitParts.SetValues[n-1]), true
 	} else if p.target.StatisPeriod == "Hour" {
-		if startTime.After(morning) {
-			beginHour := startTime.Hour()
-			beginMinute := startTime.Minute()
+		if p.startTime.After(morning) {
+			beginHour := p.startTime.Hour()
+			beginMinute := p.startTime.Minute()
 			elapseMinutes -= beginHour*60 + beginMinute
 		}
 		return p.target.Value * float64(elapseMinutes) / 60.0, true
