@@ -84,19 +84,19 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		errThreshold:      conf.ErrThreshold,
 	}
 	if conf.DefaultKi == 0 {
-		controller.ki = 1.0
+		controller.ki = 10.0
 	}
 	if conf.DefaultKd == 0 {
-		controller.kd = 1.0
+		controller.kd = 10.0
 	}
 	if conf.DefaultKp == 0 {
-		controller.kp = 10.0
+		controller.kp = 1000.0
 	}
 	if conf.ErrDiscount > 0 {
 		controller.errDiscount = conf.ErrDiscount
 	}
 	if conf.AheadMinutes < 1 {
-		controller.aheadMinutes = 1
+		controller.aheadMinutes = 5
 	}
 	if conf.IntegralMin < 0 {
 		controller.integralMin = conf.IntegralMin
@@ -200,14 +200,14 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	// 计算微分项
 	status.derivative = (currentError - status.lastError) / dt
 
+	log.Info(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,"+
+		"derivative=%f,integral=%f,dt=%.2f,measure=%.6f,time=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId,
+		currentError, status.lastError, status.derivative, status.integral, dt, measurement, measureTime))
+
 	// 更新状态记录
 	status.lastError = currentError
 	status.lastMeasurement = measurement
 	status.lastTime = measureTime
-
-	log.Info(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemIdOrExpId=%s\terr=%f,lastErr=%f,"+
-		"derivative=%f,integral=%f,dt=%f,measure=%.6f,time=%v", p.target.TrafficControlTargetId, p.target.Name, itemOrExpId,
-		currentError, status.lastError, status.derivative, status.integral, dt, measurement, measureTime))
 }
 
 // Compute 测量值更新与实际控制分离设计，控制计算始终使用最新可用测量值和实时分解的目标值
