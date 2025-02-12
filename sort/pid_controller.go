@@ -50,6 +50,7 @@ type PIDController struct {
 
 type PIDStatus struct {
 	mu              sync.Mutex
+	setValue        float64   // 调控目标值
 	integral        float64   // 积分项累积值
 	lastError       float64   // 上次计算的误差
 	lastMeasurement float64   // 上次测量的实际流量值
@@ -162,10 +163,11 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	if setValue < 1 {
 		setValue = 1
 	}
+	isPercentageTask := p.task.ControlType == constants.TrafficControlTaskControlTypePercent
 	var achieved bool
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回
-		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+		if isPercentageTask {
 			if measurement >= (setValue / 100) {
 				achieved = true
 			}
@@ -175,7 +177,7 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	}
 	var currentError float64
 	if !achieved {
-		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+		if isPercentageTask {
 			currentError = setValue/100.0 - measurement
 		} else {
 			currentError = 1.0 - measurement/setValue
@@ -189,6 +191,7 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 		status.lastTime = measureTime
 		status.lastMeasurement = measurement
 		status.lastError = currentError
+		status.setValue = setValue
 		return
 	}
 
@@ -233,6 +236,7 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 	status.lastError = currentError
 	status.lastMeasurement = measurement
 	status.lastTime = measureTime
+	status.setValue = setValue
 }
 
 // Compute 测量值更新与实际控制分离设计，控制计算始终使用最新可用测量值和实时分解的目标值
@@ -244,8 +248,9 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 	status.mu.Lock()
 	defer status.mu.Unlock()
 
+	isPercentageTask := p.task.ControlType == constants.TrafficControlTaskControlTypePercent
 	measure := status.lastMeasurement
-	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent && measure > 1.0 {
+	if isPercentageTask && measure > 1.0 {
 		ctx.LogError(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f",
 			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, measure))
 		return 0, 0
@@ -254,16 +259,24 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 		return 0, 0
 	}
 
-	setValue, enabled := p.getTargetSetValue()
-	if !enabled {
-		return 0, setValue
+	var setValue float64
+	if isPercentageTask || time.Now().Sub(status.lastTime) < time.Duration(30)*time.Second {
+		setValue = status.setValue
+	} else {
+		value, enabled := p.getTargetSetValue()
+		if !enabled {
+			return 0, value
+		}
+		if value < 1 {
+			setValue = 1
+		} else {
+			setValue = value
+		}
 	}
-	if setValue < 1 {
-		setValue = 1
-	}
+
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
-		if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+		if isPercentageTask {
 			if measure >= (setValue / 100) {
 				return 0, setValue
 			}
@@ -273,7 +286,8 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 			}
 		}
 	}
-	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+	// 处理死控区域
+	if isPercentageTask {
 		delta := float64(p.target.ToleranceValue) / 100
 		if delta == 0 { // 添加死区控制：微小误差时不调整
 			delta = 0.001
@@ -311,7 +325,7 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 	}
 
 	var currentError float64
-	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
+	if isPercentageTask {
 		currentError = setValue/100.0 - measure
 	} else {
 		currentError = 1.0 - measure/setValue
