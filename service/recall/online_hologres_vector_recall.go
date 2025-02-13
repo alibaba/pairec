@@ -97,6 +97,11 @@ func (r *OnlineHologresVectorRecall) loadUserFeatures(user *module.User, context
 	wg.Wait()
 
 }
+
+var (
+	mockItem = module.NewItem("mock")
+)
+
 func (r *OnlineHologresVectorRecall) GetCandidateItems(user *module.User, context *context.RecommendContext) (ret []*module.Item) {
 	start := time.Now()
 
@@ -112,7 +117,7 @@ func (r *OnlineHologresVectorRecall) GetCandidateItems(user *module.User, contex
 		// second invoke eas model
 		algoGenerator := rank.CreateAlgoDataGenerator(r.recallAlgoType, nil)
 		algoGenerator.SetItemFeatures(nil)
-		algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
+		algoGenerator.AddFeatures(mockItem, nil, user.MakeUserFeatures2())
 		algoData := algoGenerator.GeneratorAlgoData()
 		algoRet, err := algorithm.Run(r.recallAlgo, algoData.GetFeatures())
 		if err != nil {
@@ -149,8 +154,8 @@ func (r *OnlineHologresVectorRecall) GetCandidateItems(user *module.User, contex
 				item.RetrieveId = r.modelName
 				ret = append(ret, item)
 			}
-			context.LogInfo(fmt.Sprintf("module=OnlineHologresVectorRecall\tname=%s\thit cache\tcount=%d\tcost=%d",
-				r.modelName, len(ret), utils.CostTime(start)))
+			context.LogInfo(fmt.Sprintf("requestId=%s\tmodule=OnlineHologresVectorRecall\tname=%s\thit cache\tcount=%d\tcost=%d",
+				context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 			return
 		}
 	}
@@ -163,7 +168,7 @@ func (r *OnlineHologresVectorRecall) GetCandidateItems(user *module.User, contex
 		r.mu.Lock()
 		if r.dbStmt == nil {
 			if context.Debug {
-				context.LogInfo("module=OnlineHologresVectorRecall\tsql=" + r.sql)
+				context.LogInfo(fmt.Sprintf("requestId=%s\tmodule=OnlineHologresVectorRecall\tsql=%s", context.RecommendId, r.sql))
 			}
 			stmt, err := r.db.Prepare(r.sql)
 			if err != nil {
