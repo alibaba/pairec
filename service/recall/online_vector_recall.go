@@ -24,6 +24,7 @@ import (
 const (
 	VectorAlgoType_EasyRec      = "easyrec"
 	VectorAlgoType_TorchRec_TDM = "torchrec_tdm"
+	VectorAlgoType_TorchRec     = "torchrec_vector"
 )
 
 type OnlineVectorRecall struct {
@@ -107,7 +108,7 @@ func (r *OnlineVectorRecall) GetCandidateItems(user *module.User, context *conte
 	} else {
 		// eas model invoke success
 		if result, ok := algoRet.([]response.AlgoResponse); ok && len(result) > 0 {
-			if r.vectorAlgoType == VectorAlgoType_TorchRec_TDM {
+			if r.vectorAlgoType == VectorAlgoType_TorchRec_TDM || r.vectorAlgoType == VectorAlgoType_TorchRec {
 				if userEmbResponse, ok := result[0].(*eas.TorchrecEmbeddingItemsResponse); ok {
 					embeddingInfos := userEmbResponse.GetEmbeddingItems()
 					ret = make([]*module.Item, 0, len(embeddingInfos))
