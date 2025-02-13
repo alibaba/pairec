@@ -259,8 +259,6 @@ type AlgoConfig struct {
 
 type PIDControllerConfig struct {
 	AllocateExperimentWise bool
-	MaxItemCacheSize       int
-	MaxItemCacheTime       int
 	DefaultKp              float64
 	DefaultKi              float64
 	DefaultKd              float64

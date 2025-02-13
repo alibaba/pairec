@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +22,6 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/experiments"
-	"github.com/goburrow/cache"
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/stat/sampleuv"
 )
@@ -31,7 +31,6 @@ type TrafficControlSort struct {
 	config          *recconf.PIDControllerConfig
 	exp2controllers map[string]map[string]*PIDController // key1: expId; key2: targetId
 	controllerLock  sync.RWMutex
-	itemCache       cache.Cache
 	cloneInstances  map[string]*TrafficControlSort
 	boostScoreSort  *BoostScoreSort
 	context         *context.RecommendContext
@@ -72,19 +71,9 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 		log.Warning("module=TrafficControlSort\tget experiment client failed.")
 	}
 	conf := config.PIDConf
-
-	maxCacheSize := 100000
-	if conf.MaxItemCacheSize > 0 {
-		maxCacheSize = conf.MaxItemCacheSize
-	}
-	minCacheTime := 3600
-	if conf.MaxItemCacheTime > 0 {
-		minCacheTime = conf.MaxItemCacheTime
-	}
 	trafficControlSort := TrafficControlSort{
 		config:          &conf,
 		exp2controllers: make(map[string]map[string]*PIDController),
-		itemCache:       cache.New(cache.WithMaximumSize(maxCacheSize), cache.WithExpireAfterWrite(time.Duration(minCacheTime)*time.Second)),
 		name:            config.Name,
 		cloneInstances:  make(map[string]*TrafficControlSort),
 	}
@@ -234,7 +223,8 @@ func (p *TrafficControlSort) loadTrafficControlTaskMetaData(expId string) map[st
 	for i, task := range tasks {
 		taskUserExpress, err := ParseExpression(task.UserConditionArray, task.UserConditionExpress)
 		if err != nil {
-			log.Error(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s", task.UserConditionArray, task.UserConditionExpress))
+			log.Error(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s",
+				task.UserConditionArray, task.UserConditionExpress))
 		}
 		for _, value := range task.TrafficControlTargets {
 			target := value
@@ -280,7 +270,8 @@ func (p *TrafficControlSort) loadTrafficControlTaskMetaData(expId string) map[st
 	p.controllerLock.Lock()
 	p.exp2controllers[expId] = controllerMap
 	p.controllerLock.Unlock()
-	log.Info(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tload %d Traffic Control Task for exp=%s.", timestamp, len(controllerMap), expId))
+	log.Info(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tload %d Traffic Control Task for exp=%s.",
+		timestamp, len(controllerMap), expId))
 	return controllerMap
 }
 
@@ -530,14 +521,18 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 
 				if finalDeltaRank != 0.0 {
 					item.IncrAlgoScore("__delta_rank__", finalDeltaRank)
+					controlId, _ := item.IntProperty("__traffic_control_id__")
+					if controlId == 0 && finalDeltaRank < 1.0 {
+						item.AddProperty("__traffic_control_id__", item.GetProperty("_ORIGIN_POSITION_"))
+					}
 				}
 			}
 			<-ch
 		}(b, candidates)
 	}
 	wg.Wait()
-	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget controlled count=%v", targetControlledNum))
-	ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tmacro control\tcount=%d\tcost=%d", len(items), utils.CostTime(begin)))
+	ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tmacro control\tcount=%d\tcost=%d\tcontrolled target=%v",
+		len(items), utils.CostTime(begin), targetControlledNum))
 }
 
 // FlowControl 非单品（整体）目标流量调控，返回各个目标的调控力度
@@ -582,8 +577,8 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 		go func(gCtx gocontext.Context, targetId string, controller *PIDController) {
 			defer func() {
 				if err := recover(); err != nil {
-					//stack := string(debug.Stack())
-					log.Warning(fmt.Sprintf("traffic control timeout in background: <taskId:%s/targetId:%s>[targetName:%s]", controller.task.TrafficControlTaskId, targetId, controller.target.Name))
+					log.Warning(fmt.Sprintf("traffic control timeout in background: <taskId:%s/targetId:%s>[targetName:%s]",
+						controller.task.TrafficControlTaskId, targetId, controller.target.Name))
 				}
 			}()
 			taskId := controller.task.TrafficControlTaskId
@@ -770,7 +765,6 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 			alpha, setValue := controller.Compute(string(item.Id), ctx)
 			delta := alpha
 			pos, _ := item.IntProperty("_ORIGIN_POSITION_")
-			ctrlId := pos
 			if alpha > 0 { // uplift
 				if i == 0 {
 					delta *= math.E
@@ -785,15 +779,11 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 					}
 					delta *= expTable[idx]
 				}
-				if pos > ctx.Size {
-					item.AddProperty("__traffic_control_id__", 0)
-					ctrlId = 0
-				}
 			}
 			deltaRank += delta // 多个目标调控方向不一致时，需要扳手腕看谁力气大
 			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t[targetId:%s/targetName:%s], itemId:%s, "+
-				"origin pos=%d, traffic=%.0f, setValue=%f, percentage=%f, alpha=%f, delta rank=%f, traffic_control_id=%d",
-				targetId, controller.target.Name, item.Id, pos, traffic, setValue, traffic/setValue, alpha, delta, ctrlId))
+				"origin pos=%d, traffic=%.0f, setValue=%f, percentage=%f, alpha=%f, delta rank=%f",
+				targetId, controller.target.Name, item.Id, pos, traffic, setValue, traffic/setValue, alpha, delta))
 		}
 		if deltaRank != 0.0 {
 			ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\titem:%v\tdelta rank:%v", item.Id, deltaRank))
@@ -802,6 +792,10 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 			} else if upliftCnt < maxUpliftCnt { // uplift
 				item.IncrAlgoScore("__delta_rank__", deltaRank)
 				upliftCnt++
+				pos, _ := item.IntProperty("_ORIGIN_POSITION_")
+				if pos > ctx.Size && deltaRank >= 1.0 {
+					item.AddProperty("__traffic_control_id__", 0)
+				}
 			}
 		}
 	}
@@ -826,7 +820,7 @@ func computeDeltaRank(c *PIDController, item *module.Item, rank int, alpha float
 		rho := args.eta * (1.0 - tanh(scoreWeight))
 		deltaRank *= sigmoid(float64(rank), rho)
 		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tcompute delta rank\titem %s [%s/%s], "+
-			"score proportion=%.3f, rho=%.3f, alpha=%.6f, origin pos=%d, delta rank=%.6f",
+			"score proportion=%.3f, rho=%.3f, alpha=%.6f, origin pos=%d, delta rank=%.6f [pull down]",
 			item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, rho, alpha, rank+1, deltaRank))
 	} else { // uplift
 		deltaRank *= itemScore // item.Score 越大，提权越多；用来在不同提取目标间竞争
@@ -835,10 +829,11 @@ func computeDeltaRank(c *PIDController, item *module.Item, rank int, alpha float
 			multiple := (scoreWeight - 0.3) * 10
 			distinctStartPos += int(multiple * float64(ctx.Size))
 		}
-		if rank > distinctStartPos {
+		if rank > distinctStartPos && deltaRank >= 1.0 {
 			needNewCtrlId := args.needNewCtrlId[c.target.TrafficControlTargetId] || c.target.SplitParts.SetValues[0]/100 > int64(args.newCtrlIdThreshold)
-			if c.task.ControlType == "Percent" && needNewCtrlId {
-				item.AddProperty("__traffic_control_id__", c.target.TrafficControlTargetId) //改成负的
+			if c.task.ControlType == constants.TrafficControlTaskControlTypePercent && needNewCtrlId {
+				targetId, _ := strconv.Atoi(c.target.TrafficControlTargetId)
+				item.AddProperty("__traffic_control_id__", -targetId) //改成负的
 			} else {
 				controlId, _ := item.IntProperty("__traffic_control_id__")
 				if controlId > 0 { // 已经被别的controller置为负数时不再更新为0
@@ -848,7 +843,7 @@ func computeDeltaRank(c *PIDController, item *module.Item, rank int, alpha float
 		}
 		controlId, _ := item.IntProperty("__traffic_control_id__")
 		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tcompute delta rank\titem:%s\t[targetId:%s/targetName:%s],"+
-			"score proportion=%.3f,norm_score=%.3f, alpha=%.6f, origin pos=%d, delta rank=%.6f, traffic_control_id=%d",
+			"score proportion=%.3f,norm_score=%.3f, alpha=%.6f, origin pos=%d, delta rank=%.6f, traffic_control_id=%d [uplift]",
 			item.Id, c.target.TrafficControlTargetId, c.target.Name, scoreWeight, itemScore, alpha, rank+1, deltaRank, controlId))
 	}
 	return deltaRank
