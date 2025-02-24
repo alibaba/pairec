@@ -125,7 +125,7 @@ func (s *FeatureService) LoadFeatures(user *module.User, items []*module.Item, c
 		metrics.LoadFeatureDurSecs.WithLabelValues(sceneName, "", "before_rank").Observe(time.Since(start).Seconds())
 	}
 
-	log.Info(fmt.Sprintf("requestId=%s\tmodule=LoadFeatures\tcost=%d", context.RecommendId, utils.CostTime(start)))
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=LoadFeatures\tscene=%s\tcost=%d", context.RecommendId, sceneName, utils.CostTime(start)))
 
 	return items
 }
