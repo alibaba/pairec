@@ -249,6 +249,8 @@ func (p *PIDController) SetMeasurement(itemOrExpId string, measurement float64, 
 // Compute 测量值更新与实际控制分离设计，控制计算始终使用最新可用测量值和实时分解的目标值
 func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContext) (float64, float64) {
 	if !p.online {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] offline",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name))
 		return 0, 0
 	}
 	var status = p.getPIDStatus(itemOrExpId)
@@ -258,11 +260,13 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 	isPercentageTask := p.task.ControlType == constants.TrafficControlTaskControlTypePercent
 	measure := status.lastMeasurement
 	if isPercentageTask && measure > 1.0 {
-		ctx.LogError(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId%s>[targetName:%s] value=%f",
+		ctx.LogError(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId:%s>[targetName:%s] value=%f",
 			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, measure))
 		return 0, 0
 	}
 	if measure == 0 && !p.runWithZeroInput {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] input value is 0",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name))
 		return 0, 0
 	}
 
@@ -272,6 +276,8 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 	} else {
 		value, enabled := p.getTargetSetValue()
 		if !enabled {
+			ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] disable",
+				p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name))
 			return 0, value
 		}
 		if value < 1 {
@@ -285,10 +291,14 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
 		if isPercentageTask {
 			if measure >= (setValue / 100) {
+				ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, achieved",
+					p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId))
 				return 0, setValue
 			}
 		} else {
 			if measure >= setValue {
+				ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, achieved",
+					p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId))
 				return 0, setValue
 			}
 		}
@@ -301,6 +311,8 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 		}
 		if BetweenSlackInterval(measure, setValue/100, delta) {
 			// when current input is between `setValue` and `setValue+SetVale Range`, turn off controller
+			ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, between slack interval",
+				p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId))
 			return 0, setValue
 		}
 	} else {
@@ -309,6 +321,8 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 			delta = setValue * 0.01
 		}
 		if BetweenSlackInterval(measure, setValue, delta) {
+			ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, between slack interval",
+				p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId))
 			return 0, setValue
 		}
 	}
@@ -345,6 +359,10 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 		iTerm = p.ki * status.integral
 	}
 	status.lastOutput = pTerm + iTerm + dTerm
+	if status.lastOutput == 0 {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, measure=%f, err=%.6f, output=0",
+			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, measure, currentError))
+	}
 	return status.lastOutput, setValue
 }
 
