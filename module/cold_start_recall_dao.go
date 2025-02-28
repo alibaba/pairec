@@ -12,6 +12,8 @@ type ColdStartRecallDao interface {
 func NewColdStartRecallDao(config recconf.RecallConfig) ColdStartRecallDao {
 	if config.ColdStartDaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
 		return NewColdStartRecallHologresDao(config)
+	} else if config.ColdStartDaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewColdStartRecallFeatureStoreDao(config)
 	}
 
 	panic("not found ColdStartRecallDao implement")
