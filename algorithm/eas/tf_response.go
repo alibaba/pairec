@@ -61,3 +61,40 @@ func tfResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
 	}
 	return
 }
+
+func tfUseEmbResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*tf_predict_protos.PredictResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	for _, arrayProto := range resp.GetOutputs() {
+		if arrayProto.GetDtype() == tf_predict_protos.ArrayDataType_DT_STRING {
+			if len(arrayProto.GetStringVal()) > 0 {
+				ret = append(ret, &TFUserEmbResponse{userEmb: string(arrayProto.GetStringVal()[0])})
+				return
+			}
+		}
+
+	}
+	return
+}
+
+type TFUserEmbResponse struct {
+	userEmb string
+}
+
+func (r *TFUserEmbResponse) GetScore() float64 {
+	return 0
+}
+
+func (r *TFUserEmbResponse) GetScoreMap() map[string]float64 {
+	return nil
+}
+
+func (r *TFUserEmbResponse) GetModuleType() bool {
+	return false
+}
+func (r *TFUserEmbResponse) GetUserEmb() string {
+	return r.userEmb
+}
