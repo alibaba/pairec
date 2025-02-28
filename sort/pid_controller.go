@@ -61,6 +61,25 @@ type PIDStatus struct {
 	integralActive  bool      // 当前是否激活积分项
 }
 
+func (s *PIDStatus) GetMeasurement() float64 {
+	if s.lastTime.IsZero() {
+		return 0
+	}
+	location, err := time.LoadLocation("Asia/Shanghai") // 北京采用Asia/Shanghai时区
+	if err != nil {                                     // 如果无法加载时区，默认使用本地时区
+		location = time.Local
+	}
+	now := time.Now().In(location) // 获取当前时间
+	last := s.lastTime.In(location)
+	if now.Day() != last.Day() {
+		return 0
+	}
+	if now.Sub(last) >= time.Hour*24 {
+		return 0
+	}
+	return s.lastMeasurement
+}
+
 type Expression struct {
 	Field  string      `json:"field"`
 	Option string      `json:"option"`
@@ -258,7 +277,7 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 	defer status.mu.Unlock()
 
 	isPercentageTask := p.task.ControlType == constants.TrafficControlTaskControlTypePercent
-	measure := status.lastMeasurement
+	measure := status.GetMeasurement()
 	if isPercentageTask && measure > 1.0 {
 		ctx.LogError(fmt.Sprintf("module=PIDController\tinvalid traffic percentage <taskId:%s/targetId:%s>[targetName:%s] value=%f",
 			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, measure))
@@ -291,14 +310,14 @@ func (p *PIDController) Compute(itemOrExpId string, ctx *context.RecommendContex
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
 		if isPercentageTask {
 			if measure >= (setValue / 100) {
-				ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, achieved",
-					p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId))
+				ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, measure=%.6f, achieved",
+					p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, measure))
 				return 0, setValue
 			}
 		} else {
 			if measure >= setValue {
-				ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, achieved",
-					p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId))
+				ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] item_or_exp=%s, measure=%.2f, achieved",
+					p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemOrExpId, measure))
 				return 0, setValue
 			}
 		}
