@@ -63,6 +63,9 @@ func (d *ItemCollaborativeFeatureStoreDao) ListItemsByItem(user *User, context *
 		ids = utils.ToString(itemIds, "")
 	} else if itemIds, exist := features[0]["similar_item_ids"]; exist {
 		ids = utils.ToString(itemIds, "")
+	} else {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFeatureStoreDao\trecallName=%s\terror=not found item_ids or similar_item_ids field", context.RecommendId, d.recallName))
+		return
 	}
 	idList := strings.Split(ids, ",")
 	for _, id := range idList {
