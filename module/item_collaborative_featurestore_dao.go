@@ -48,7 +48,7 @@ func (d *ItemCollaborativeFeatureStoreDao) ListItemsByItem(user *User, context *
 		return
 	}
 
-	features, err := featureView.GetOnlineFeatures([]any{item_id}, []string{"item_ids"}, map[string]string{})
+	features, err := featureView.GetOnlineFeatures([]any{item_id}, []string{"*"}, map[string]string{})
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFeatureStoreDao\trecallName=%s\terror=%v", context.RecommendId, d.recallName, err))
 		return
@@ -58,8 +58,16 @@ func (d *ItemCollaborativeFeatureStoreDao) ListItemsByItem(user *User, context *
 	}
 
 	itemIds := make([]string, 0, d.recallCount)
-	ids := features[0]["item_ids"]
-	idList := strings.Split(utils.ToString(ids, ""), ",")
+	var ids string
+	if itemIds, exist := features[0]["item_ids"]; exist {
+		ids = utils.ToString(itemIds, "")
+	} else if itemIds, exist := features[0]["similar_item_ids"]; exist {
+		ids = utils.ToString(itemIds, "")
+	} else {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFeatureStoreDao\trecallName=%s\terror=not found item_ids or similar_item_ids field", context.RecommendId, d.recallName))
+		return
+	}
+	idList := strings.Split(ids, ",")
 	for _, id := range idList {
 		if len(id) > 0 {
 			itemIds = append(itemIds, id)
