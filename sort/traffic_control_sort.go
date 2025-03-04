@@ -294,10 +294,9 @@ func loadTargetItemTraffic(ctx *context.RecommendContext, items []*module.Item, 
 	runEnv := os.Getenv("PAIREC_ENVIRONMENT")
 	traffics := experimentClient.GetTrafficControlTargetTraffic(runEnv, scene, itemIds...)
 	hasTraffic := false
-	measureTime := time.Now().Truncate(time.Second)
 	for _, traffic := range traffics {
 		if ctrl, ok := controllerMap[traffic.TrafficControlTargetId]; ok {
-			ctrl.SetMeasurement(traffic.ItemOrExpId, traffic.TargetTraffic, measureTime)
+			ctrl.SetMeasurement(traffic.ItemOrExpId, traffic.TargetTraffic, traffic.RecordTime)
 		} else {
 			continue
 		}
@@ -585,6 +584,7 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 			var targetTraffic, taskTraffic, output, setValue float64
 			var binId = ""
 			var trafficMap map[string]experiments.TrafficControlTargetTraffic
+			var measureTime time.Time
 			if controller.task.ControlType == constants.TrafficControlTaskControlTypePercent {
 				if controller.IsAllocateExpWise() {
 					trafficMap = expTargetTrafficMap
@@ -595,9 +595,11 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				if input, ok := trafficMap[targetId]; ok {
 					targetTraffic = input.TargetTraffic
 					taskTraffic = input.TaskTraffic
+					measureTime = input.RecordTime
 				} else {
 					targetTraffic = float64(0)
 					taskTraffic = float64(1)
+					measureTime = time.Now().Truncate(time.Second)
 				}
 				if controller.IsAllocateExpWise() && targetTraffic < controller.GetMinExpTraffic() {
 					// 用全局流量代替冷启动的实验流量
@@ -615,7 +617,6 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 				}
 
 				trafficPercentage := targetTraffic / taskTraffic
-				measureTime := time.Now().Truncate(time.Second)
 				controller.SetMeasurement(binId, trafficPercentage, measureTime)
 				output, setValue = controller.Compute(binId, ctx)
 				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\t"+
@@ -627,10 +628,11 @@ func FlowControl(controllerMap map[string]*PIDController, ctx *context.Recommend
 			} else {
 				if input, ok := allTargetTrafficMap[targetId]; ok {
 					targetTraffic = input.TargetTraffic
+					measureTime = input.RecordTime
 				} else {
 					targetTraffic = float64(0)
+					measureTime = time.Now().Truncate(time.Second)
 				}
-				measureTime := time.Now().Truncate(time.Second)
 				controller.SetMeasurement("", targetTraffic, measureTime)
 				output, setValue = controller.Compute("", ctx)
 				ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\t<taskId:%s/targetId:%s>[targetName:%s]\t"+
