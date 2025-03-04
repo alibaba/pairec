@@ -3,6 +3,7 @@ package module
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -25,8 +26,9 @@ type ColdStartRecallHologresDao struct {
 	itemFieldName string
 	orderBy       string
 
-	mu      sync.RWMutex
-	sqlStmt *sql.Stmt
+	mu          sync.RWMutex
+	sqlStmt     *sql.Stmt
+	whereParams []string
 }
 
 func NewColdStartRecallHologresDao(config recconf.RecallConfig) *ColdStartRecallHologresDao {
@@ -47,6 +49,18 @@ func NewColdStartRecallHologresDao(config recconf.RecallConfig) *ColdStartRecall
 		itemFieldName: config.ColdStartDaoConf.PrimaryKey,
 		orderBy:       config.ColdStartDaoConf.OrderBy,
 	}
+	if dao.whereClause != "" {
+		re := regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_.]*)\}`)
+
+		matches := re.FindAllStringSubmatch(dao.whereClause, -1)
+
+		for _, match := range matches {
+			if len(match) > 1 {
+				dao.whereParams = append(dao.whereParams, match[1])
+			}
+		}
+
+	}
 	return dao
 }
 
@@ -55,10 +69,8 @@ func (d *ColdStartRecallHologresDao) ListItemsByUser(user *User, context *contex
 	builder.Select(d.itemFieldName)
 	builder.From(d.table)
 
-	where := d.whereClause
-	createTime := time.Now().Add(time.Duration(-1*d.timeInterval) * time.Second)
-	where = strings.ReplaceAll(where, "${time}", "'"+createTime.Format(time.RFC3339)+"'")
-	if where != "" {
+	if d.whereClause != "" {
+		where := d.parseWhere(d.whereClause, user, context)
 		builder.Where(where)
 	}
 	if d.orderBy == "" {
@@ -69,9 +81,13 @@ func (d *ColdStartRecallHologresDao) ListItemsByUser(user *User, context *contex
 
 	builder.Limit(d.recallCount)
 	sqlquery, args := builder.Build()
+	if context.Debug {
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=ColdStartRecallHologresDao\tsql=%s\targs=%v", context.RecommendId, sqlquery, args))
+	}
+
 	rows, err := d.db.Query(sqlquery, args...)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=ColdStartRecallHologresDao\terror=%v", err))
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=ColdStartRecallHologresDao\terror=%v", context.RecommendId, err))
 		return
 	}
 	itemIds := make([]string, 0, d.recallCount)
@@ -95,4 +111,40 @@ func (d *ColdStartRecallHologresDao) ListItemsByUser(user *User, context *contex
 	}
 
 	return
+}
+
+func (d *ColdStartRecallHologresDao) parseWhere(whereSql string, user *User, context *context.RecommendContext) string {
+	where := whereSql
+	contextFeatures := context.GetParameter("features").(map[string]interface{})
+	for _, param := range d.whereParams {
+		if param == "time" { // time
+			createTime := time.Now().Add(time.Duration(-1*d.timeInterval) * time.Second)
+			where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("'%s'", createTime.Format(time.RFC3339)))
+		} else if strings.HasPrefix(param, "context.features.") { // context features from api param features
+			key := strings.TrimPrefix(param, "context.features.")
+			if value, ok := contextFeatures[key]; ok {
+				switch value.(type) {
+				case string:
+					where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("'%s'", value))
+				default:
+					where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("%v", value))
+				}
+			}
+		} else if strings.HasPrefix(param, "user.") {
+			key := strings.TrimPrefix(param, "user.")
+
+			value := user.GetProperty(key)
+			if value != nil {
+				switch value.(type) {
+				case string:
+					where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("'%s'", value))
+				default:
+					where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("%v", value))
+				}
+			}
+
+		}
+	}
+
+	return where
 }
