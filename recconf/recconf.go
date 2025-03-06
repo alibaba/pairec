@@ -791,6 +791,7 @@ type AdjustCountConfig struct {
 	RecallName string
 	Count      int
 	Type       string
+	Expression string
 }
 type CallBackConfig struct {
 	DataSource      DataSourceConfig
