@@ -38,12 +38,12 @@ type HologresVectorRecallV2 struct {
 	timeInterval         int
 }
 
-func NewHologresVectorRecallV2(config recconf.RecallConfig) *HologresVectorRecall {
+func NewHologresVectorRecallV2(config recconf.RecallConfig) *HologresVectorRecallV2 {
 	hologres, err := holo.GetPostgres(config.VectorDaoConf.HologresName)
 	if err != nil {
 		panic(err)
 	}
-	recall := &HologresVectorRecall{
+	recall := &HologresVectorRecallV2{
 		BaseRecall:           NewBaseRecall(config),
 		db:                   hologres.DB,
 		dao:                  module.NewVectorDao(config),
@@ -66,13 +66,13 @@ func NewHologresVectorRecallV2(config recconf.RecallConfig) *HologresVectorRecal
 		cache.WithMaximumSize(10000),
 		cache.WithExpireAfterAccess(time.Duration(recall.cacheTime+100)*time.Second),
 	)
-	go func(recall *HologresVectorRecall) {
+	go func(recall *HologresVectorRecallV2) {
 		partition := "{partition}"
 		for {
 			hologresName := config.VectorDaoConf.HologresName
 			table := config.VectorDaoConf.PartitionInfoTable
 			field := config.VectorDaoConf.PartitionInfoField
-			if config.RecallType == "HologresVectorRecall" && table != "" && field != "" {
+			if config.RecallType == "HologresVectorRecallV2" && table != "" && field != "" {
 				newPartition := module.FetchPartition(hologresName, table, field)
 				if newPartition != "" && newPartition != partition {
 					recall.table = strings.Replace(recall.table, partition, newPartition, -1)
