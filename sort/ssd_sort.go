@@ -400,7 +400,13 @@ func (s *SSDSort) SSDWithSlidingWindow(items []*module.Item, ctx *context.Recomm
 	indices = append(indices, idx)
 	volume := gamma
 	if !s.useSSDStar {
-		volume *= floats.Norm(items[idx].Embedding, 2)
+		l2norm := floats.Norm(items[idx].Embedding, 2)
+		if math.IsNaN(l2norm) || math.IsInf(l2norm, 0) {
+			ctx.LogError(fmt.Sprintf("module=SSDSort\tinvalid embedding of item %s: %v",
+				items[idx].Id, items[idx].Embedding))
+		} else {
+			volume *= l2norm
+		}
 	}
 	B := utils.NewCycleQueue(windowSize)
 	P := utils.NewCycleQueue(windowSize)
@@ -431,6 +437,11 @@ func (s *SSDSort) SSDWithSlidingWindow(items []*module.Item, ctx *context.Recomm
 			}
 			projections[j] = floats.Dot(items[j].Embedding, items[idx].Embedding)
 			projections[j] /= floats.Dot(items[idx].Embedding, items[idx].Embedding)
+			if math.IsNaN(projections[j]) || math.IsInf(projections[j], 0) {
+				projections[j] = 1.0
+				ctx.LogWarning(fmt.Sprintf("module=SSDSort\tinvalid projection of item %s on item %x",
+					items[j].Id, items[idx].Id))
+			}
 			scaledEmbI := mat.NewVecDense(dim, nil)
 			scaledEmbI.ScaleVec(projections[j], embI)
 			floats.Sub(items[j].Embedding, scaledEmbI.RawVector().Data)
@@ -444,14 +455,27 @@ func (s *SSDSort) SSDWithSlidingWindow(items []*module.Item, ctx *context.Recomm
 			if _, ok := selected[i]; ok {
 				qualities[i] = -math.MaxFloat64
 			} else {
-				qualities[i] = r + volume*floats.Norm(items[i].Embedding, 2)
+				l2norm := floats.Norm(items[i].Embedding, 2)
+				if math.IsNaN(l2norm) || math.IsInf(l2norm, 0) {
+					ctx.LogError(fmt.Sprintf("module=SSDSort\tinvalid embedding of item %s: %v",
+						items[i].Id, items[i].Embedding))
+					qualities[i] = r + volume*0.5
+				} else {
+					qualities[i] = r + volume*l2norm
+				}
 			}
 		}
 		idx = floats.MaxIdx(qualities)
 		selected[idx] = true
 		indices = append(indices, idx)
 		if !s.useSSDStar {
-			volume *= floats.Norm(items[idx].Embedding, 2)
+			l2norm := floats.Norm(items[idx].Embedding, 2)
+			if math.IsNaN(l2norm) || math.IsInf(l2norm, 0) {
+				ctx.LogError(fmt.Sprintf("module=SSDSort\tinvalid embedding of item %s: %v",
+					items[idx].Id, items[idx].Embedding))
+			} else {
+				volume *= l2norm
+			}
 		}
 	}
 	result := make([]*module.Item, 0, T)
