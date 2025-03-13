@@ -10,16 +10,20 @@ import (
 )
 
 type MultiRecallMixSort struct {
-	remainItem bool
-	size       int
-	mixRules   []recconf.MixSortConfig
+	name           string
+	remainItem     bool
+	size           int
+	mixRules       []recconf.MixSortConfig
+	cloneInstances map[string]*MultiRecallMixSort
 }
 
 func NewMultiRecallMixSort(config recconf.SortConfig) *MultiRecallMixSort {
 	sort := MultiRecallMixSort{
-		remainItem: config.RemainItem,
-		mixRules:   config.MixSortRules,
-		size:       config.Size,
+		name:           config.Name,
+		remainItem:     config.RemainItem,
+		mixRules:       config.MixSortRules,
+		size:           config.Size,
+		cloneInstances: make(map[string]*MultiRecallMixSort),
 	}
 
 	return &sort
