@@ -15,6 +15,7 @@ import (
 	plog "github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/rank"
 	"github.com/alibaba/pairec/v2/utils"
 )
@@ -28,10 +29,13 @@ type EmbeddingService struct {
 	RecommendService
 	module          string // user or item
 	contextFeatures []string
+	featureService  *feature.FeatureService
 }
 
 func NewEmbeddingService() *EmbeddingService {
-	service := EmbeddingService{}
+	service := EmbeddingService{
+		featureService: feature.DefaultFeatureService(),
+	}
 	return &service
 }
 
@@ -67,6 +71,9 @@ func (r *EmbeddingService) Recommend(context *context.RecommendContext) ([]float
 		items = append(items, item)
 		r.module = Item_Embedding_Module
 	}
+
+	// load features
+	items = r.featureService.LoadFeatures(user, items, context)
 
 	embeddings, err := r.Rank(user, items, context)
 	go r.recordLog(user, items, context, embeddings)
