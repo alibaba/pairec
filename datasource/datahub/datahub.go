@@ -242,8 +242,8 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 			}
 		}
 		if len(result.FailedRecords) > 0 {
-			log.Warning(fmt.Sprintf("put successful num is %d, put records failed num is %d,msg=%s, code=%s\n", len(records)-result.FailedRecordCount, result.FailedRecordCount, result.FailedRecords[0].ErrorMessage, result.FailedRecords[0].ErrorCode))
-			retrySendMessage()
+			log.Error(fmt.Sprintf("put successful num is %d, put records failed num is %d,msg=%s\tcode=%sproject=%s\ttopic=%s\n",
+				len(records)-result.FailedRecordCount, result.FailedRecordCount, result.FailedRecords[0].ErrorMessage, result.FailedRecords[0].ErrorCode, d.projectName, d.topicName))
 		}
 		break
 	}
@@ -263,10 +263,10 @@ func (d *Datahub) consumeSyncLog(data []byte) error {
 
 	err := d.doSendSingleMessage(datahubItem.data)
 	if err != nil {
-		log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed(%v)", d.projectName, d.topicName, err))
+		log.Error(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed(%v)", d.projectName, d.topicName, err))
 	}
 
-	return err
+	return nil
 }
 
 func (d *Datahub) doSendSingleMessage(message map[string]interface{}) error {
@@ -293,7 +293,7 @@ func (d *Datahub) doSendSingleMessage(message map[string]interface{}) error {
 
 	records = append(records, record)
 
-	maxReTry := 3
+	maxReTry := 2
 	retryNum := 0
 	for retryNum < maxReTry {
 		result, err := d.datahubApi.PutRecords(d.projectName, d.topicName, records)
