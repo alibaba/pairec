@@ -7,6 +7,7 @@ import (
 
 type UserGroupHotRecallDao interface {
 	ListItemsByUser(user *User, context *context.RecommendContext) []*Item
+	TriggerValue(user *User) string
 }
 
 func NewUserGroupHotRecallDao(config recconf.RecallConfig) UserGroupHotRecallDao {

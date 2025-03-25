@@ -7,12 +7,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type UserGroupHotRecallHologresDao struct {
@@ -130,4 +130,8 @@ func (d *UserGroupHotRecallHologresDao) ListItemsByUser(user *User, context *con
 	}
 
 	return
+}
+
+func (d *UserGroupHotRecallHologresDao) TriggerValue(user *User) string {
+	return d.trigger.GetValue(user.MakeUserFeatures2())
 }
