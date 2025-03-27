@@ -140,6 +140,26 @@ func AddAlgo(conf recconf.AlgoConfig) {
 	}
 	algoFactory.algorithms[conf.Name] = algo
 }
+func AddAlgoWithSign(conf recconf.AlgoConfig) {
+	algoFactory.mutex.Lock()
+	defer algoFactory.mutex.Unlock()
+	var signStr string
+	sign, _ := json.Marshal(conf)
+	signStr = utils.Md5(string(sign))
+	_, found := algoFactory.algorithms[conf.Name]
+	if found {
+		if signStr == algoFactory.algorithmSigns[conf.Name] {
+			return
+		}
+	}
+	algo, err := algoFactory.initAlgo(conf)
+	if err != nil {
+		log.Error(err.Error())
+		return
+	}
+	algoFactory.algorithms[conf.Name] = algo
+	algoFactory.algorithmSigns[conf.Name] = signStr
+}
 
 func RegisterAlgorithm(name string, algo IAlgorithm) {
 	algoFactory.mutex.Lock()

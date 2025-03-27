@@ -262,7 +262,7 @@ func (r *FeatureReplyService) rank(user *module.User, items []*module.Item, cont
 						if algoConfig.EasConf.ResponseFuncName != "" {
 							algoConfig.EasConf.ResponseFuncName += "Debug"
 						}
-						algorithm.AddAlgo(algoConfig)
+						algorithm.AddAlgoWithSign(algoConfig)
 						break
 					}
 				}
