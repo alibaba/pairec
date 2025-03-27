@@ -196,7 +196,7 @@ func (r *FeatureConsistencyJobService) LogSampleResult(user *module.User, items 
 			}
 
 			if r.checkFeatureConsistencyJobForRunning(job, user, items, context) {
-				log.Info(fmt.Sprintf("requestId=%s\tevent=logRankResult\tname=%s", context.RecommendId, job.JobName))
+				log.Info(fmt.Sprintf("requestId=%s\tevent=LogSampleResult\tname=%s", context.RecommendId, job.JobName))
 				r.logRankResultToPaiConfigServer(user, items, context, job)
 			}
 		}
