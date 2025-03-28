@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +35,18 @@ const (
 	DssmO2o = "dssm_o2o"
 	MindO2o = "mind_o2o"
 )
+
+var serviceName string
+
+func init() {
+	serviceName = os.Getenv("SERVICE_NAME")
+
+	// serviceName: name@region => name
+	ss := strings.Split(serviceName, "@")
+	if len(ss) > 1 {
+		serviceName = strings.Join(ss[:len(ss)-1], "")
+	}
+}
 
 type FeatureConsistencyJobService struct {
 	mutex  sync.Mutex
@@ -110,6 +123,10 @@ func (r *FeatureConsistencyJobService) LogRankResult(user *module.User, items []
 		jobs := abtest.GetExperimentClient().GetSceneParams(scene).GetFeatureConsistencyJobs()
 
 		for _, job := range jobs {
+			if job.ModelType == "rank_sample" {
+				continue
+			}
+
 			if r.checkFeatureConsistencyJobForRunning(job, user, items, context) {
 				log.Info(fmt.Sprintf("requestId=%s\tevent=logRankResult\tname=%s", context.RecommendId, job.JobName))
 				r.logRankResultToPaiConfigServer(user, items, context, job)
@@ -168,6 +185,24 @@ func (r *FeatureConsistencyJobService) checkFeatureConsistencyJobForRunning(job 
 	return false
 }
 
+func (r *FeatureConsistencyJobService) LogSampleResult(user *module.User, items []*module.Item, context *context.RecommendContext) {
+	if abtest.GetExperimentClient() != nil {
+		scene := context.Param.GetParameter("scene").(string)
+		jobs := abtest.GetExperimentClient().GetSceneParams(scene).GetFeatureConsistencyJobs()
+
+		for _, job := range jobs {
+			if job.ModelType != "rank_sample" {
+				continue
+			}
+
+			if r.checkFeatureConsistencyJobForRunning(job, user, items, context) {
+				log.Info(fmt.Sprintf("requestId=%s\tevent=LogSampleResult\tname=%s", context.RecommendId, job.JobName))
+				r.logRankResultToPaiConfigServer(user, items, context, job)
+			}
+		}
+	}
+}
+
 func (r *FeatureConsistencyJobService) findRankAlgoNames(scene string, context *context.RecommendContext) []string {
 	// find rank config
 	var rankConfig recconf.RankConfig
@@ -204,6 +239,10 @@ func (r *FeatureConsistencyJobService) logRankResultToPaiConfigServer(user *modu
 	backflowData.LogRequestTime = time.Now().UnixMilli()
 	backflowData.LogUserId = string(user.Id)
 	backflowData.UserFeatures = userDataStr
+
+	if job.ModelType == "rank_sample" {
+		backflowData.ServiceName = serviceName
+	}
 
 	i := 0
 	var itemIds []string

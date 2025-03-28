@@ -21,20 +21,22 @@ import (
 
 type UserRecommendService struct {
 	RecommendService
-	recallService      *RecallService
-	generalRankService *general_rank.GeneralRankService
-	rankService        *rank.RankService
-	userFeatureService *feature.UserFeatureService
-	featureService     *feature.FeatureService
+	recallService                *RecallService
+	generalRankService           *general_rank.GeneralRankService
+	rankService                  *rank.RankService
+	userFeatureService           *feature.UserFeatureService
+	featureService               *feature.FeatureService
+	featureConsistencyJobService *rank.FeatureConsistencyJobService
 }
 
 func NewUserRecommendService() *UserRecommendService {
 	service := UserRecommendService{
-		recallService:      &RecallService{},
-		rankService:        rank.DefaultRankService(),
-		userFeatureService: feature.DefaultUserFeatureService(),
-		featureService:     feature.DefaultFeatureService(),
-		generalRankService: general_rank.DefaultGeneralRankService(),
+		recallService:                &RecallService{},
+		rankService:                  rank.DefaultRankService(),
+		userFeatureService:           feature.DefaultUserFeatureService(),
+		featureService:               feature.DefaultFeatureService(),
+		featureConsistencyJobService: new(rank.FeatureConsistencyJobService),
+		generalRankService:           general_rank.DefaultGeneralRankService(),
 	}
 	return &service
 }
@@ -160,6 +162,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 
 	items = items[:size]
 	go feature_log.FeatureLog(user, items, context)
+	go r.featureConsistencyJobService.LogSampleResult(user, items, context)
 	debugService.WriteRecommendLog(user, items, context)
 	// asynchronous clean hook func
 	for _, hf := range hook.RecommendCleanHooks {
