@@ -116,3 +116,7 @@ func (d *UserGroupHotRecallFeatureStoreDao) ListItemsByUser(user *User, context 
 
 	return
 }
+
+func (d *UserGroupHotRecallFeatureStoreDao) TriggerValue(user *User) string {
+	return d.trigger.GetValue(user.MakeUserFeatures2())
+}

@@ -139,10 +139,23 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 		list := strings.Split(ids, ",")
 		for _, str := range list {
 			strs := strings.Split(str, ":")
-			if len(strs) == 2 && len(strs[0]) > 0 && strs[0] != "null" {
+			if strs[0] == "" || strs[0] == "null" {
+				continue
+			}
+			if len(strs) == 2 {
 				item := NewItem(strs[0])
 				item.RetrieveId = d.recallName
 				if tmpScore, err := strconv.ParseFloat(strings.TrimSpace(strs[1]), 64); err == nil {
+					item.Score = tmpScore * preferScore
+				} else {
+					item.Score = preferScore
+				}
+
+				ret = append(ret, item)
+			} else if len(strs) == 3 { // compatible format itemid1:recall1:score1
+				item := NewItem(strs[0])
+				item.RetrieveId = d.recallName
+				if tmpScore, err := strconv.ParseFloat(strings.TrimSpace(strs[2]), 64); err == nil {
 					item.Score = tmpScore * preferScore
 				} else {
 					item.Score = preferScore

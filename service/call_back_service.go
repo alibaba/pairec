@@ -219,7 +219,7 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 						if algoConfig.EasConf.ResponseFuncName != "" {
 							algoConfig.EasConf.ResponseFuncName += "Debug"
 						}
-						algorithm.AddAlgo(algoConfig)
+						algorithm.AddAlgoWithSign(algoConfig)
 						break
 					}
 				}

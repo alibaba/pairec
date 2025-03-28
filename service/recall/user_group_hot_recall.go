@@ -29,7 +29,8 @@ func NewUserGroupHotRecall(config recconf.RecallConfig) *UserGroupHotRecall {
 func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *context.RecommendContext) (ret []*module.Item) {
 	start := time.Now()
 	if r.cache != nil {
-		key := r.cachePrefix + string(user.Id)
+		triggerValue := r.userGroupHotRecallDao.TriggerValue(user)
+		key := r.cachePrefix + triggerValue
 		cacheRet := r.cache.Get(key)
 		switch itemStr := cacheRet.(type) {
 		case []uint8:
@@ -79,7 +80,8 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 	ret = r.userGroupHotRecallDao.ListItemsByUser(user, context)
 	if r.cache != nil && len(ret) > 0 {
 		go func() {
-			key := r.cachePrefix + string(user.Id)
+			triggerValue := r.userGroupHotRecallDao.TriggerValue(user)
+			key := r.cachePrefix + triggerValue
 			var itemIds string
 			for _, item := range ret {
 				itemIds += fmt.Sprintf("%s::%v", string(item.Id), item.Score) + ","
