@@ -46,6 +46,28 @@ func GetTypeOf(value interface{}) string {
 		return "string"
 	case float64:
 		return "float64"
+	case bool:
+		return "bool"
+	case []int:
+		return "list<int>"
+	case []int32:
+		return "list<int>"
+	case []int64:
+		return "list<int64>"
+	case []float32:
+		return "list<float>"
+	case []float64:
+		return "list<double>"
+	case []string:
+		return "list<string>"
+	/**
+	case map[string]string:
+		return "map<string,string>"
+	case map[string]int:
+		return "map<string,int>"
+	case map[string]int64:
+		return "map<string,int64>"
+	**/
 	default:
 		return "none"
 	}
@@ -62,9 +84,41 @@ func GetValueByType(value interface{}, vtype string) interface{} {
 		return ToInt64(value, 0)
 	case "bigint":
 		return ToInt64(value, 0)
+	case "bool":
+		return ToBool(value, false)
+	case "list<string>":
+		return ToStringArray(value)
+	case "list<int>":
+		return ToIntArray(value)
+	case "list<int64>":
+		if vals, ok := value.([]any); ok {
+			values := make([]int64, 0, len(vals))
+			for _, v := range vals {
+				values = append(values, ToInt64(v, 0))
+			}
+			return values
+		}
+	case "list<double>":
+		if vals, ok := value.([]any); ok {
+			values := make([]float64, 0, len(vals))
+			for _, v := range vals {
+				values = append(values, ToFloat(v, 0))
+			}
+			return values
+		}
+	case "list<float>":
+		if vals, ok := value.([]any); ok {
+			values := make([]float32, 0, len(vals))
+			for _, v := range vals {
+				values = append(values, ToFloat32(v, 0))
+			}
+			return values
+		}
 	default:
 		return value
 	}
+
+	return value
 }
 
 func IndexOf(a []string, e string) int {

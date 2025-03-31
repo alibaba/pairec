@@ -43,6 +43,7 @@ func (r *FeatureReplyService) FeatureReply(userFeatures string, itemFeatures, it
 
 		for name, feature := range features {
 			userProperties[name] = utils.GetValueByType(feature.Value, feature.Type)
+			//fmt.Printf("%v, %T\n", userProperties[name], userProperties[name])
 		}
 	}
 
