@@ -60,14 +60,48 @@ func GetTypeOf(value interface{}) string {
 		return "list<double>"
 	case []string:
 		return "list<string>"
-	/**
+	case [][]float32:
+		return "list<list<float>>"
+	case [][]float64:
+		return "list<list<double>>"
 	case map[string]string:
 		return "map<string,string>"
 	case map[string]int:
 		return "map<string,int>"
+	case map[string]int32:
+		return "map<string,int>"
 	case map[string]int64:
 		return "map<string,int64>"
-	**/
+	case map[string]float32:
+		return "map<string,float>"
+	case map[string]float64:
+		return "map<string,double>"
+	case map[int]int:
+		return "map<int,int>"
+	case map[int]int32:
+		return "map<int,int>"
+	case map[int32]int32:
+		return "map<int,int>"
+	case map[int]int64:
+		return "map<int,int64>"
+	case map[int]float32:
+		return "map<int,float>"
+	case map[int]float64:
+		return "map<int,double>"
+	case map[int]string:
+		return "map<int,string>"
+	case map[int64]int64:
+		return "map<int64,int64>"
+	case map[int64]int:
+		return "map<int64,int>"
+	case map[int64]int32:
+		return "map<int64,int>"
+	case map[int64]float32:
+		return "map<int64,float>"
+	case map[int64]float64:
+		return "map<int64,double>"
+	case map[int64]string:
+		return "map<int64,string>"
 	default:
 		return "none"
 	}
@@ -111,6 +145,156 @@ func GetValueByType(value interface{}, vtype string) interface{} {
 			values := make([]float32, 0, len(vals))
 			for _, v := range vals {
 				values = append(values, ToFloat32(v, 0))
+			}
+			return values
+		}
+	case "list<list<float>>":
+		if vals, ok := value.([]any); ok {
+			values := make([][]float32, 0, len(vals))
+			for _, vlist := range vals {
+				if lists, ok := vlist.([]any); ok {
+					list := make([]float32, 0, len(lists))
+					for _, v := range lists {
+						list = append(list, ToFloat32(v, 0))
+					}
+					values = append(values, list)
+				}
+			}
+
+			return values
+		}
+	case "list<list<double>>":
+		if vals, ok := value.([]any); ok {
+			values := make([][]float64, 0, len(vals))
+			for _, vlist := range vals {
+				if lists, ok := vlist.([]any); ok {
+					list := make([]float64, 0, len(lists))
+					for _, v := range lists {
+						list = append(list, ToFloat(v, 0))
+					}
+					values = append(values, list)
+				}
+			}
+
+			return values
+		}
+	case "map<string,string>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[string]string, len(vals))
+			for k, v := range vals {
+				values[k] = ToString(v, "")
+			}
+			return values
+		}
+	case "map<string,int>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[string]int, len(vals))
+			for k, v := range vals {
+				values[k] = ToInt(v, 0)
+			}
+			return values
+		}
+	case "map<string,int64>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[string]int64, len(vals))
+			for k, v := range vals {
+				values[k] = ToInt64(v, 0)
+			}
+			return values
+		}
+	case "map<string,float>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[string]float32, len(vals))
+			for k, v := range vals {
+				values[k] = ToFloat32(v, 0)
+			}
+			return values
+		}
+	case "map<string,double>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[string]float64, len(vals))
+			for k, v := range vals {
+				values[k] = ToFloat(v, 0)
+			}
+			return values
+		}
+	case "map<int,int>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int]int, len(vals))
+			for k, v := range vals {
+				values[ToInt(k, 0)] = ToInt(v, 0)
+			}
+			return values
+		}
+	case "map<int,int64>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int]int64, len(vals))
+			for k, v := range vals {
+				values[ToInt(k, 0)] = ToInt64(v, 0)
+			}
+			return values
+		}
+	case "map<int,double>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int]float64, len(vals))
+			for k, v := range vals {
+				values[ToInt(k, 0)] = ToFloat(v, 0)
+			}
+			return values
+		}
+	case "map<int,float>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int]float32, len(vals))
+			for k, v := range vals {
+				values[ToInt(k, 0)] = ToFloat32(v, 0)
+			}
+			return values
+		}
+	case "map<int,string>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int]string, len(vals))
+			for k, v := range vals {
+				values[ToInt(k, 0)] = ToString(v, "")
+			}
+			return values
+		}
+	case "map<int64,int>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int64]int, len(vals))
+			for k, v := range vals {
+				values[ToInt64(k, 0)] = ToInt(v, 0)
+			}
+			return values
+		}
+	case "map<int64,int64>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int64]int64, len(vals))
+			for k, v := range vals {
+				values[ToInt64(k, 0)] = ToInt64(v, 0)
+			}
+			return values
+		}
+	case "map<int64,double>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int64]float64, len(vals))
+			for k, v := range vals {
+				values[ToInt64(k, 0)] = ToFloat(v, 0)
+			}
+			return values
+		}
+	case "map<int64,float>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int64]float32, len(vals))
+			for k, v := range vals {
+				values[ToInt64(k, 0)] = ToFloat32(v, 0)
+			}
+			return values
+		}
+	case "map<int64,string>":
+		if vals, ok := value.(map[string]any); ok {
+			values := make(map[int64]string, len(vals))
+			for k, v := range vals {
+				values[ToInt64(k, 0)] = ToString(v, "")
 			}
 			return values
 		}
