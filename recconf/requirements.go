@@ -23,12 +23,22 @@ func (r Requirements) Add(modType string, modName string, constraints ...Constra
 
 func (r Requirements) Check(modules map[ModuleIndex]any) error {
 	for requireModuleIndex, constraints := range r {
+		jsonPath := modJsonPath[requireModuleIndex.Type]
+
 		if requireModule, ok := modules[requireModuleIndex]; !ok {
-			return fmt.Errorf("requirements not met: %s [%s]", requireModuleIndex.Name, requireModuleIndex.Type)
+			if jsonPath != "" {
+				return fmt.Errorf("%s (%s name) is not defined in %s", requireModuleIndex.Name, requireModuleIndex.Type, jsonPath)
+			}
+
+			return fmt.Errorf("%s (%s name) is undefined", requireModuleIndex.Name, requireModuleIndex.Type)
 		} else {
 			for _, constraint := range constraints {
 				if err := constraint(requireModule); err != nil {
-					return fmt.Errorf("%s [%s] does not satisfy the constraints: %s",
+					if jsonPath != "" {
+						return fmt.Errorf("%s (%s name in %s) does not satisfy the requirement, details: %s",
+							requireModuleIndex.Name, requireModuleIndex.Type, jsonPath, err.Error())
+					}
+					return fmt.Errorf("%s (%s name) does not satisfy the requirement, details: %s",
 						requireModuleIndex.Name, requireModuleIndex.Type, err.Error())
 				}
 			}

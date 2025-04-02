@@ -1,5 +1,29 @@
 package recconf
 
+var modJsonPath = map[string]string{
+	HologresConfig{}.ModuleType():     "HologresConfs",
+	TableStoreConfig{}.ModuleType():   "TableStoreConfs",
+	RedisConfig{}.ModuleType():        "RedisConfs",
+	MysqlConfig{}.ModuleType():        "MysqlConfs",
+	HBaseConfig{}.ModuleType():        "HBaseConfs",
+	FeatureStoreConfig{}.ModuleType(): "FeatureStoreConfs",
+	BEConfig{}.ModuleType():           "BEConfs",
+	ClickHouseConfig{}.ModuleType():   "ClickHouseConfs",
+	LindormConfig{}.ModuleType():      "LindormConfs",
+	GraphConfig{}.ModuleType():        "GraphConfs",
+	HBaseThriftConfig{}.ModuleType():  "HBaseThriftConfs",
+	RecallConfig{}.ModuleType():       "RecallConfs",
+	FilterConfig{}.ModuleType():       "FilterConfs",
+	AlgoConfig{}.ModuleType():         "AlgoConfs",
+	SortConfig{}.ModuleType():         "SortConfs",
+	SceneRecallConfig{}.ModuleType():  "SceneConfs",
+	SceneFilterConfig{}.ModuleType():  "FilterNames",
+	GeneralRankConfig{}.ModuleType():  "GeneralRankConfs",
+	SceneFeatureConfig{}.ModuleType(): "FeatureConfs",
+	RankConfig{}.ModuleType():         "RankConf",
+	SceneSortConfig{}.ModuleType():    "SortNames",
+}
+
 type ModuleIndex struct {
 	Type string
 	Name string
