@@ -13,7 +13,6 @@ import (
 type User2ItemCustomFilterFeatureStoreDao struct {
 	fsClient *fs.FSClient
 	table    string
-	//cache    cache.Cache
 }
 
 func NewUser2ItemCustomFilterFeatureStoreDao(config recconf.FilterConfig) *User2ItemCustomFilterFeatureStoreDao {
@@ -26,16 +25,7 @@ func NewUser2ItemCustomFilterFeatureStoreDao(config recconf.FilterConfig) *User2
 		fsClient: fsclient,
 		table:    config.DaoConf.FeatureStoreViewName,
 	}
-	/**
-	if config.ItemStateCacheSize > 0 {
-		cacheTime := 3600
-		if config.ItemStateCacheTime > 0 {
-			cacheTime = config.ItemStateCacheTime
-		}
-		dao.cache = cache.New(cache.WithMaximumSize(config.ItemStateCacheSize),
-			cache.WithExpireAfterAccess(time.Second*time.Duration(cacheTime)))
-	}
-			**/
+
 	return dao
 }
 
