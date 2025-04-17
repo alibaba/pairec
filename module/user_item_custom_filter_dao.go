@@ -16,7 +16,8 @@ func NewUser2ItemCustomFilterDao(config recconf.FilterConfig) User2ItemCustomFil
 		return NewUser2ItemCustomFilterTableStoreDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
 		return NewUser2ItemCustomFilterHologresDao(config)
+	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		return NewUser2ItemCustomFilterFeatureStoreDao(config)
 	}
-
 	panic(fmt.Sprintf("User2ItemCustomFilterDao:not found, name:%s", config.Name))
 }
