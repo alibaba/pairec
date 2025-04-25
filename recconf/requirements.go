@@ -56,6 +56,20 @@ func (conf RecallConfig) Requirements() Requirements {
 	requirements := newRequirements()
 
 	addDaoRequirements(conf.DaoConf, requirements)
+	addDaoRequirements(conf.UserCollaborativeDaoConf.DaoConfig, requirements)
+	addDaoRequirements(conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.SqlDaoConfig.DaoConfig, requirements)
+	addDaoRequirements(conf.VectorDaoConf.DaoConfig, requirements)
+	for _, featureConf := range conf.UserFeatureConfs {
+		addDaoRequirements(featureConf.FeatureDaoConf.DaoConfig, requirements)
+	}
+	if conf.GraphConf.GraphName != "" {
+		requirements.Add(GraphConfig{}.ModuleType(), conf.GraphConf.GraphName)
+	}
+	addDaoRequirements(conf.ColdStartDaoConf.DaoConfig, requirements)
+	addDaoRequirements(conf.ItemCollaborativeDaoConf.DaoConfig, requirements)
+	if conf.OpenSearchConf.OpenSearchName != "" {
+		requirements.Add(OpenSearchConfig{}.ModuleType(), conf.OpenSearchConf.OpenSearchName)
+	}
 
 	return requirements
 }

@@ -12,6 +12,7 @@ var modJsonPath = map[string]string{
 	LindormConfig{}.ModuleType():      "LindormConfs",
 	GraphConfig{}.ModuleType():        "GraphConfs",
 	HBaseThriftConfig{}.ModuleType():  "HBaseThriftConfs",
+	OpenSearchConfig{}.ModuleType():   "OpenSearchConfs",
 	RecallConfig{}.ModuleType():       "RecallConfs",
 	FilterConfig{}.ModuleType():       "FilterConfs",
 	AlgoConfig{}.ModuleType():         "AlgoConfs",
@@ -170,6 +171,10 @@ func (conf LindormConfig) ModuleType() string {
 
 func (conf GraphConfig) ModuleType() string {
 	return "GraphConf"
+}
+
+func (conf OpenSearchConfig) ModuleType() string {
+	return "OpenSearchConf"
 }
 
 func (conf RecallConfig) ModuleType() string {
