@@ -42,9 +42,9 @@ require (
 require (
 	fortio.org/assert v1.2.1
 	github.com/alibabacloud-go/opensearch-util v1.0.1
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.2
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.8-0.20250321011503-fc2fc2f4d3ba
-	github.com/aliyun/credentials-go v1.3.1
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.3-0.20250425042041-e85dd5f3dee6
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.8-0.20250424093335-55b7b4793287
+	github.com/aliyun/credentials-go v1.4.6
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
 	github.com/google/uuid v1.3.0
@@ -89,7 +89,7 @@ require (
 )
 
 require (
-	github.com/alibabacloud-go/debug v1.0.0 // indirect
+	github.com/alibabacloud-go/debug v1.0.1 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antihax/optional v1.0.0 // indirect
 	github.com/apache/thrift v0.14.1
