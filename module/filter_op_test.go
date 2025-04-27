@@ -2125,3 +2125,290 @@ func TestLessThanFilterOp(t *testing.T) {
 	}
 
 }
+
+func TestBoolFilterOp(t *testing.T) {
+
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "or",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Operator: "equal",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "42",
+						},
+						{
+							Operator: "equal",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "43",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "or",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "lessThan",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "40",
+						},
+						{
+							Domain:   "item",
+							Operator: "lessThan",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "41",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "and",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "lessThan",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "40",
+						},
+						{
+							Domain:   "item",
+							Operator: "lessThan",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "41",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "or",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "lessThan",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "40",
+						},
+						{
+							Domain:   "item",
+							Operator: "in",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "user.list",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "or",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "lessThan",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "40",
+						},
+						{
+							Domain:   "item",
+							Operator: "in",
+							Type:     "string",
+							Name:     "foo",
+							Value:    "user.list",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"foo": "42",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []string{"41", "43.5", "42", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "or",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "is_null",
+							Type:     "string",
+							Name:     "valid_list",
+						},
+						{
+							Name:     "valid_list",
+							Domain:   "item",
+							Operator: "contains",
+							Type:     "[]string",
+							Value:    "user.list",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"valid_list": []string{"42", "42.5", "43"},
+			},
+			UserProperties: map[string]interface{}{
+				"list": []any{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "or",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "is_null",
+							Type:     "string",
+							Name:     "valid_list",
+						},
+						{
+							Name:     "valid_list",
+							Domain:   "item",
+							Operator: "contains",
+							Type:     "[]string",
+							Value:    "user.list",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{},
+			UserProperties: map[string]interface{}{
+				"list": []any{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "and",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "is_null",
+							Type:     "string",
+							Name:     "valid_list",
+						},
+						{
+							Name:     "valid_list",
+							Domain:   "item",
+							Operator: "contains",
+							Type:     "[]string",
+							Value:    "user.list",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{},
+			UserProperties: map[string]interface{}{
+				"list": []any{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "and",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "is_null",
+							Type:     "string",
+							Name:     "valid_list",
+						},
+						{
+							Name:     "valid_list",
+							Domain:   "item",
+							Operator: "contains",
+							Type:     "[]string",
+							Value:    "user.list",
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"valid_list": []string{"42", "43"},
+			},
+			UserProperties: map[string]interface{}{
+				"list": []any{"41", "43.5", "42.5"},
+			},
+			Expect: false,
+		},
+	}
+
+	for _, case1 := range testcases {
+		filterParam := NewFilterParamWithConfig(case1.Config)
+
+		result, err := filterParam.EvaluateByDomain(case1.UserProperties, case1.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != case1.Expect {
+			t.Error(case1, "result error", result, case1.Expect)
+		}
+
+	}
+
+}
