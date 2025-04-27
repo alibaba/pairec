@@ -1626,20 +1626,16 @@ func (p *IsNotNullFilterOp) OpDomain() string {
 }
 
 type BoolFilterOp struct {
-	Type        string
-	filterParam *FilterParam
+	filterParam   *FilterParam
+	isOrCondition bool
 }
 
 func NewBoolFilterOp(config recconf.FilterParamConfig) *BoolFilterOp {
 
 	boolFilterOp := &BoolFilterOp{}
 	v := utils.ToString(config.Type, "")
-	if v == "or" {
-		boolFilterOp.Type = "or"
-	} else if v == "and" {
-		boolFilterOp.Type = "and"
-	} else {
-		boolFilterOp.Type = "or"
+	if v == "" || strings.ToLower(v) == "or" {
+		boolFilterOp.isOrCondition = true
 	}
 
 	fp := NewFilterParamWithConfig(config.Configs)
@@ -1656,7 +1652,7 @@ func (p *BoolFilterOp) Evaluate(properties map[string]interface{}) (bool, error)
 		if err != nil {
 			return false, err
 		}
-		if p.Type == "or" {
+		if p.isOrCondition {
 			if ret {
 				return true, nil
 			}
@@ -1666,7 +1662,7 @@ func (p *BoolFilterOp) Evaluate(properties map[string]interface{}) (bool, error)
 			}
 		}
 	}
-	if p.Type == "or" {
+	if p.isOrCondition {
 		return false, nil
 	} else {
 		return true, nil
@@ -1685,7 +1681,7 @@ func (p *BoolFilterOp) DomainEvaluate(properties map[string]interface{}, userPro
 				if err != nil {
 					return false, err
 				}
-				if p.Type == "or" {
+				if p.isOrCondition {
 					if ret {
 						return true, nil
 					}
@@ -1699,7 +1695,7 @@ func (p *BoolFilterOp) DomainEvaluate(properties map[string]interface{}, userPro
 				if err != nil {
 					return false, err
 				}
-				if p.Type == "or" {
+				if p.isOrCondition {
 					if ret {
 						return true, nil
 					}
@@ -1716,7 +1712,7 @@ func (p *BoolFilterOp) DomainEvaluate(properties map[string]interface{}, userPro
 				if err != nil {
 					return false, err
 				}
-				if p.Type == "or" {
+				if p.isOrCondition {
 					if ret {
 						return true, nil
 					}
@@ -1730,7 +1726,7 @@ func (p *BoolFilterOp) DomainEvaluate(properties map[string]interface{}, userPro
 				if err != nil {
 					return false, err
 				}
-				if p.Type == "or" {
+				if p.isOrCondition {
 					if ret {
 						return true, nil
 					}
@@ -1745,7 +1741,7 @@ func (p *BoolFilterOp) DomainEvaluate(properties map[string]interface{}, userPro
 
 		}
 	}
-	if p.Type == "or" {
+	if p.isOrCondition {
 		return false, nil
 	} else {
 		return true, nil
