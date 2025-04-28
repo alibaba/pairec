@@ -681,6 +681,7 @@ type FilterConfig struct {
 	ShuffleItem               bool
 	WriteLog                  bool
 	ClearLogIfNotEnoughScene  string
+	OnlyLogUserExposeFlag     bool
 	Dimension                 string
 	ScoreWeight               float64
 	GroupMinNum               int

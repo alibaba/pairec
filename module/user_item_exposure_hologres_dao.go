@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 /** create table ddl
@@ -47,6 +47,7 @@ type User2ItemExposureHologresDao struct {
 	generateItemDataFuncName string
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
+	onlyLogUserExposeFlag    bool
 }
 
 func NewUser2ItemExposureHologresDao(config recconf.FilterConfig) *User2ItemExposureHologresDao {
@@ -56,6 +57,7 @@ func NewUser2ItemExposureHologresDao(config recconf.FilterConfig) *User2ItemExpo
 		generateItemDataFuncName: config.GenerateItemDataFuncName,
 		writeLogExcludeScenes:    make(map[string]bool),
 		clearLogScene:            config.ClearLogIfNotEnoughScene,
+		onlyLogUserExposeFlag:    config.OnlyLogUserExposeFlag,
 	}
 	hologres, err := holo.GetPostgres(config.DaoConf.HologresName)
 	if err != nil {
@@ -175,13 +177,24 @@ func (d *User2ItemExposureHologresDao) FilterByHistory(uid UID, items []*Item) (
 
 		}
 	}
+	if d.onlyLogUserExposeFlag {
+		for _, item := range items {
+			itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
+			if _, ok := fiterIds[itemData]; ok {
+				item.AddProperty("_is_exposure_", 1)
+			}
+		}
 
-	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
-		if _, ok := fiterIds[itemData]; !ok {
-			ret = append(ret, item)
+		ret = items
+	} else {
+		for _, item := range items {
+			itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
+			if _, ok := fiterIds[itemData]; !ok {
+				ret = append(ret, item)
+			}
 		}
 	}
+
 	return
 }
 

@@ -19,6 +19,7 @@ type User2ItemExposureFeatureStoreDao struct {
 	generateItemDataFuncName string
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
+	onlyLogUserExposeFlag    bool
 }
 
 func NewUser2ItemExposureFeatureStoreDao(config recconf.FilterConfig) *User2ItemExposureFeatureStoreDao {
@@ -33,6 +34,7 @@ func NewUser2ItemExposureFeatureStoreDao(config recconf.FilterConfig) *User2Item
 		writeLogExcludeScenes:    make(map[string]bool),
 		clearLogScene:            config.ClearLogIfNotEnoughScene,
 		fsClient:                 fsclient,
+		onlyLogUserExposeFlag:    config.OnlyLogUserExposeFlag,
 	}
 	dao.table = config.DaoConf.FeatureStoreViewName
 
@@ -113,11 +115,22 @@ func (d *User2ItemExposureFeatureStoreDao) FilterByHistory(uid UID, items []*Ite
 		return
 	}
 
-	ret = make([]*Item, 0, len(items))
-	for i, test := range tests {
-		if !test {
-			ret = append(ret, items[i])
+	// only log flag, not filter item
+	if d.onlyLogUserExposeFlag {
+		for i, test := range tests {
+			if test {
+				items[i].AddProperty("_is_exposure_", 1)
+			}
 		}
+		ret = items
+	} else {
+		ret = make([]*Item, 0, len(items))
+		for i, test := range tests {
+			if !test {
+				ret = append(ret, items[i])
+			}
+		}
+
 	}
 
 	return
