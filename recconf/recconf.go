@@ -766,6 +766,7 @@ type FilterParamConfig struct {
 	Operator string
 	Type     string // string, int, int64
 	Value    interface{}
+	Configs  []FilterParamConfig
 }
 type BoostScoreCondition struct {
 	Expression string

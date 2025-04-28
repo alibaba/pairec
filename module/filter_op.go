@@ -479,6 +479,8 @@ func NewFilterParamWithConfig(configs []recconf.FilterParamConfig) *FilterParam 
 			p.operators = append(p.operators, NewIsNullFilterOp(config))
 		} else if config.Operator == "is_not_null" {
 			p.operators = append(p.operators, NewIsNotNullFilterOp(config))
+		} else if config.Operator == "bool" {
+			p.operators = append(p.operators, NewBoolFilterOp(config))
 		}
 	}
 
@@ -1621,4 +1623,131 @@ func (p *IsNotNullFilterOp) Evaluate(properties map[string]interface{}) (bool, e
 
 func (p *IsNotNullFilterOp) OpDomain() string {
 	return p.Domain
+}
+
+type BoolFilterOp struct {
+	filterParam   *FilterParam
+	isOrCondition bool
+}
+
+func NewBoolFilterOp(config recconf.FilterParamConfig) *BoolFilterOp {
+
+	boolFilterOp := &BoolFilterOp{}
+	v := utils.ToString(config.Type, "")
+	if v == "" || strings.ToLower(v) == "or" {
+		boolFilterOp.isOrCondition = true
+	}
+
+	fp := NewFilterParamWithConfig(config.Configs)
+	boolFilterOp.filterParam = fp
+	return boolFilterOp
+}
+
+func (p *BoolFilterOp) Evaluate(properties map[string]interface{}) (bool, error) {
+	if p.filterParam == nil {
+		return false, nil
+	}
+	for _, op := range p.filterParam.operators {
+		ret, err := op.Evaluate(properties)
+		if err != nil {
+			return false, err
+		}
+		if p.isOrCondition {
+			if ret {
+				return true, nil
+			}
+		} else {
+			if !ret {
+				return false, nil
+			}
+		}
+	}
+	if p.isOrCondition {
+		return false, nil
+	} else {
+		return true, nil
+	}
+}
+
+func (p *BoolFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+
+	if p.filterParam == nil {
+		return false, nil
+	}
+	for _, op := range p.filterParam.operators {
+		if domainFilterOp, ok := op.(FilterByDomainOp); ok {
+			if domainFilterOp.OpDomain() == ITEM {
+				ret, err := domainFilterOp.DomainEvaluate(itemProperties, userProperties, itemProperties)
+				if err != nil {
+					return false, err
+				}
+				if p.isOrCondition {
+					if ret {
+						return true, nil
+					}
+				} else {
+					if !ret {
+						return false, nil
+					}
+				}
+			} else if domainFilterOp.OpDomain() == USER {
+				ret, err := domainFilterOp.DomainEvaluate(userProperties, userProperties, itemProperties)
+				if err != nil {
+					return false, err
+				}
+				if p.isOrCondition {
+					if ret {
+						return true, nil
+					}
+				} else {
+					if !ret {
+						return false, nil
+					}
+				}
+			}
+
+		} else {
+			if op.OpDomain() == ITEM {
+				ret, err := op.Evaluate(itemProperties)
+				if err != nil {
+					return false, err
+				}
+				if p.isOrCondition {
+					if ret {
+						return true, nil
+					}
+				} else {
+					if !ret {
+						return false, nil
+					}
+				}
+			} else if op.OpDomain() == USER {
+				ret, err := op.Evaluate(userProperties)
+				if err != nil {
+					return false, err
+				}
+				if p.isOrCondition {
+					if ret {
+						return true, nil
+					}
+				} else {
+					if !ret {
+						return false, nil
+					}
+				}
+			} else {
+				return false, fmt.Errorf("not support this domain:%s", op.OpDomain())
+			}
+
+		}
+	}
+	if p.isOrCondition {
+		return false, nil
+	} else {
+		return true, nil
+	}
+}
+
+func (p *BoolFilterOp) OpDomain() string {
+	return ITEM
 }

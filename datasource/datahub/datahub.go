@@ -79,7 +79,16 @@ func NewDatahub(accessId, accessKey, endpoint, project, topic string, schemas []
 }
 
 func (d *Datahub) Init() error {
-	account := alidatahub.NewAliyunAccount(d.accessId, d.accessKey)
+	var account alidatahub.Account
+	var err error
+	if d.accessId == "" || d.accessKey == "" {
+		account, err = NewAklessAccount()
+		if err != nil {
+			return err
+		}
+	} else {
+		account = alidatahub.NewAliyunAccount(d.accessId, d.accessKey)
+	}
 	config := alidatahub.NewDefaultConfig()
 	config.CompressorType = alidatahub.DEFLATE
 	config.EnableBinary = false

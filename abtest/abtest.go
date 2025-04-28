@@ -35,12 +35,14 @@ func LoadFromEnvironment() {
 	if instanceId == "" {
 		panic("env INSTANCE_ID empty")
 	}
-	if accessId == "" {
-		panic("env AccessKey empty")
-	}
-	if accessSecret == "" {
-		panic("env AccessSecret empty")
-	}
+	/*
+		if accessId == "" {
+			panic("env AccessKey empty")
+		}
+		if accessSecret == "" {
+			panic("env AccessSecret empty")
+		}
+	*/
 
 	l := log.ABTestLogger{}
 	opts := []experiments.ClientOption{experiments.WithLogger(experiments.LoggerFunc(l.Infof)), experiments.WithErrorLogger(experiments.LoggerFunc(l.Errorf))}
