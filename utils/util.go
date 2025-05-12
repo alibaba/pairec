@@ -103,6 +103,7 @@ func GetTypeOf(value interface{}) string {
 	case map[int64]string:
 		return "map<int64,string>"
 	default:
+		fmt.Printf("value:%v, type:%T", value, value)
 		return "none"
 	}
 }
