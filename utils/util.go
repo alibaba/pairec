@@ -103,7 +103,7 @@ func GetTypeOf(value interface{}) string {
 	case map[int64]string:
 		return "map<int64,string>"
 	default:
-		fmt.Printf("value:%v, type:%T", value, value)
+		fmt.Printf("ConvertFeatures not find tyep info, value:%v, type:%T\n", value, value)
 		return "none"
 	}
 }
