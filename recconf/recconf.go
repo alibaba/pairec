@@ -639,8 +639,15 @@ type SceneConfig struct {
 	Categories []string
 }
 type CategoryConfig struct {
-	RecallNames []string
+	RecallNames    []string
+	FallbackConfig *FallbackConfig
 }
+
+type FallbackConfig struct {
+	Timeout int
+	DaoConfig
+}
+
 type RankConfig struct {
 	RankAlgoList    []string
 	RankScore       string

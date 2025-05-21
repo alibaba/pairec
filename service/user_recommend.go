@@ -5,12 +5,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/pairec/v2/log/feature_log"
-
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/log/feature_log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/service/debug"
+	"github.com/alibaba/pairec/v2/service/fallback"
 	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/general_rank"
 	"github.com/alibaba/pairec/v2/service/hook"
@@ -192,4 +192,34 @@ func (r *UserRecommendService) mergePipelineItems(items []*module.Item, pipeline
 		}
 	}
 	return items
+}
+
+func (r *UserRecommendService) TryRecommendWithFallback(context *context.RecommendContext) []*module.Item {
+	scene, _ := context.Param.GetParameter("scene").(string)
+
+	f := fallback.DefaultFallbackService().GetFallback(scene)
+	if f == nil {
+		return r.Recommend(context)
+	}
+
+	fallbackTimer := f.GetTimer()
+
+	tryResult := make(chan []*module.Item, 1)
+
+	go func() {
+		tryResult <- r.Recommend(context)
+	}()
+
+	select {
+	case <-fallbackTimer.C:
+		return f.Recommend(context)
+	case ret := <-tryResult:
+		fallbackTimer.Stop()
+
+		if len(ret) < context.Size {
+			return f.Recommend(context)
+		} else {
+			return ret
+		}
+	}
 }
