@@ -12,6 +12,7 @@ import (
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/utils"
 )
 
@@ -42,6 +43,8 @@ func (r *FeatureStoreFallback) GetTimer() *time.Timer {
 }
 
 func (r *FeatureStoreFallback) Recommend(context *context.RecommendContext) []*module.Item {
+	start := time.Now()
+
 	contextItemsMap := make(map[module.ItemId]*module.Item)
 
 	if context.GetParameter("item_list") != nil {
@@ -162,6 +165,13 @@ func (r *FeatureStoreFallback) Recommend(context *context.RecommendContext) []*m
 	ret := make([]*module.Item, 0, len(firstPriorityItems)+len(secondPriorityItems)+len(remainingItems))
 	ret = append(firstPriorityItems, secondPriorityItems...)
 	ret = append(ret, remainingItems...)
+
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=fallback\tcost=%d", context.RecommendId, utils.CostTime(start)))
+
+	if metrics.Enabled() {
+		scene, _ := context.Param.GetParameter("scene").(string)
+		metrics.FallbackTotal.WithLabelValues(scene).Inc()
+	}
 
 	if len(ret) > context.Size {
 		return ret[:context.Size]
