@@ -48,13 +48,27 @@ func Load(config *recconf.RecommendConfig) {
 		if conf.HologresPort > 0 {
 			hologresPort = conf.HologresPort
 		}
-		l := log.FeatureStoreLogger{}
-		client, err := featurestore.NewFeatureStoreClient(conf.RegionId, conf.AccessId, conf.AccessKey, conf.ProjectName,
-			featurestore.WithLogger(featurestore.LoggerFunc(l.Infof)),
-			featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
-			featurestore.WithFeatureDBLogin(conf.FeatureDBUsername, conf.FeatureDBPassword),
-			featurestore.WithHologresPort(hologresPort),
+		var (
+			client *featurestore.FeatureStoreClient
+			err    error
 		)
+		l := log.FeatureStoreLogger{}
+		if conf.HologresUsername == "" || conf.HologresPassword == "" {
+			client, err = featurestore.NewFeatureStoreClient(conf.RegionId, conf.AccessId, conf.AccessKey, conf.ProjectName,
+				featurestore.WithLogger(featurestore.LoggerFunc(l.Infof)),
+				featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
+				featurestore.WithFeatureDBLogin(conf.FeatureDBUsername, conf.FeatureDBPassword),
+				featurestore.WithHologresPort(hologresPort),
+			)
+		} else {
+			client, err = featurestore.NewFeatureStoreClient(conf.RegionId, conf.AccessId, conf.AccessKey, conf.ProjectName,
+				featurestore.WithLogger(featurestore.LoggerFunc(l.Infof)),
+				featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
+				featurestore.WithFeatureDBLogin(conf.FeatureDBUsername, conf.FeatureDBPassword),
+				featurestore.WithHologresPort(hologresPort),
+				featurestore.WithHologresLogin(conf.HologresUsername, conf.HologresPassword),
+			)
+		}
 
 		if err != nil {
 			panic(err)

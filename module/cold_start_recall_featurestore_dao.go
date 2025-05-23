@@ -1,9 +1,11 @@
 package module
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
-	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -11,18 +13,21 @@ import (
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/goburrow/cache"
 )
 
 type ColdStartRecallFeatureStoreDao struct {
 	fsClient     *fs.FSClient
 	recallCount  int
-	timeInterval int
 	recallName   string
 	table        string
-	whereClause  string
 	ch           chan string
 	itemIds      []string
 	lastScanTime time.Time // last scan data time
+	fields       []string
+	filterParam  *FilterParam
+	cache        cache.Cache
+	itemCache    cache.Cache
 }
 
 func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRecallFeatureStoreDao {
@@ -33,18 +38,25 @@ func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRe
 	}
 
 	dao := &ColdStartRecallFeatureStoreDao{
-		fsClient:     fsclient,
-		recallCount:  config.RecallCount,
-		table:        config.ColdStartDaoConf.FeatureStoreViewName,
-		recallName:   config.Name,
-		timeInterval: config.ColdStartDaoConf.TimeInterval,
-		whereClause:  config.ColdStartDaoConf.WhereClause,
-		ch:           make(chan string, 1000),
-		itemIds:      make([]string, 0, 1024),
+		fsClient:    fsclient,
+		recallCount: config.RecallCount,
+		table:       config.ColdStartDaoConf.FeatureStoreViewName,
+		recallName:  config.Name,
+		ch:          make(chan string, 1000),
+		itemIds:     make([]string, 0, 1024),
+
+		cache:     cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Minute)),
+		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(10*time.Minute)),
 	}
 	featureView := dao.fsClient.GetProject().GetFeatureView(dao.table)
 	if featureView == nil {
 		panic(fmt.Sprintf("featureView not found, table:%s", dao.table))
+	}
+	if len(config.FilterParams) > 0 {
+		dao.filterParam = NewFilterParamWithConfig(config.FilterParams)
+		for _, filerParam := range config.FilterParams {
+			dao.fields = append(dao.fields, filerParam.Name)
+		}
 	}
 	go dao.initItemData()
 	if featureView.GetType() == "Stream" {
@@ -58,17 +70,22 @@ func (d *ColdStartRecallFeatureStoreDao) initItemData() {
 		log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\terror=featureView not found, table:%s", d.recallName, d.table))
 		return
 	}
-	where := d.whereClause
-	createTime := time.Now().Add(time.Duration(-1*d.timeInterval) * time.Second)
-	where = strings.ReplaceAll(where, "${time}", utils.ToString(createTime.Unix(), "0"))
+
 	var (
 		ids []string
 		err error
 	)
-	if featureView.GetType() == "Batch" {
-		ids, err = featureView.ScanAndIterateData(where, nil)
-	} else {
-		ids, err = featureView.ScanAndIterateData(where, d.ch)
+	for i := 0; i < 5; i++ {
+		if featureView.GetType() == "Batch" {
+			ids, err = featureView.ScanAndIterateData("", nil)
+		} else {
+			ids, err = featureView.ScanAndIterateData("", d.ch)
+		}
+
+		if err == nil {
+			break
+		}
+		time.Sleep(10 * time.Second)
 	}
 	d.lastScanTime = time.Now()
 	if err != nil {
@@ -77,6 +94,7 @@ func (d *ColdStartRecallFeatureStoreDao) initItemData() {
 	}
 
 	d.itemIds = ids
+	go d.fetchItemData(d.itemIds)
 }
 func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 	ticker := time.NewTicker(time.Minute)
@@ -93,8 +111,10 @@ func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 				newItemIds = append(newItemIds, id)
 			}
 		}
+		d.fetchItemData(ids)
 		ids = ids[:0]
 		d.itemIds = newItemIds
+		d.lastScanTime = time.Now()
 	}
 	for id := range d.ch {
 		ids = append(ids, id)
@@ -112,42 +132,163 @@ func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 }
 
 func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
-	featureView := d.fsClient.GetProject().GetFeatureView(d.table)
-	if featureView == nil {
-		log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\terror=featureView not found, table:%s", d.recallName, d.table))
-		return
+	var cacheKey string
+	if d.filterParam != nil {
+		contextFeatures := context.GetParameter("features").(map[string]interface{})
+		if d, err := json.Marshal(contextFeatures); err == nil {
+			cacheKey = string(d)
+
+		}
+	} else {
+		cacheKey = string(user.Id)
+	}
+	if cacheValue, ok := d.cache.GetIfPresent(cacheKey); ok {
+		if items, ok := cacheValue.([]*Item); ok {
+			return items
+		}
 	}
 
-	for _, itemId := range d.itemIds {
-		item := NewItem(itemId)
-		item.RetrieveId = d.recallName
-		ret = append(ret, item)
+	if d.filterParam == nil {
+		//itemIds := d.itemIds
+		itemIds := make([]string, len(d.itemIds))
+		copy(itemIds, d.itemIds)
+		rand.Shuffle(len(itemIds), func(i, j int) {
+			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
+		})
+		if len(itemIds) > d.recallCount {
+			itemIds = itemIds[:d.recallCount]
+		}
+		for _, itemId := range itemIds {
+			item := NewItem(itemId)
+			item.RetrieveId = d.recallName
+			ret = append(ret, item)
+		}
+	} else {
+
+		itemIds := make([]string, len(d.itemIds))
+		copy(itemIds, d.itemIds)
+		rand.Shuffle(len(itemIds), func(i, j int) {
+			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
+		})
+
+		userFeatures := user.MakeUserFeatures2()
+		for _, id := range itemIds {
+			cacheValue, ok := d.itemCache.GetIfPresent(id)
+			if ok {
+				if r, err := d.filterParam.EvaluateByDomain(userFeatures, cacheValue.(map[string]any)); err == nil && r {
+					item := NewItem(id)
+					item.RetrieveId = d.recallName
+					ret = append(ret, item)
+					if len(ret) >= d.recallCount {
+						break
+					}
+				}
+			}
+		}
+
 	}
 
 	go func() {
-		if time.Since(d.lastScanTime) <= time.Duration(30)*time.Minute {
+		if time.Since(d.lastScanTime) <= time.Duration(60)*time.Minute {
 			return
 		}
 		d.lastScanTime = time.Now()
-		where := d.whereClause
-		createTime := time.Now().Add(time.Duration(-1*d.timeInterval) * time.Second)
-		where = strings.ReplaceAll(where, "${time}", utils.ToString(createTime.Unix(), "0"))
-		ids, err := featureView.ScanAndIterateData(where, nil)
-		if err != nil {
-			log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\terror=%v", err))
-			return
-		}
 
-		d.itemIds = ids
+		go func() {
+			featureView := d.fsClient.GetProject().GetFeatureView(d.table)
+			if featureView == nil {
+				log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\terror=featureView not found, name:%s", d.recallName, d.table))
+				return
+			}
+			var (
+				ids []string
+				err error
+			)
+			for i := 0; i < 5; i++ {
+				ids, err = featureView.ScanAndIterateData("", nil)
 
+				if err == nil {
+					break
+				}
+				time.Sleep(10 * time.Second)
+			}
+			if err != nil {
+				log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\terror=%v", err))
+				return
+			}
+			if len(ids) == 0 {
+				return
+			}
+
+			d.itemIds = ids
+			go d.fetchItemData(d.itemIds)
+		}()
 	}()
 
-	rand.Shuffle(len(ret), func(i, j int) {
-		ret[i], ret[j] = ret[j], ret[i]
-	})
-	if len(ret) > d.recallCount {
-		ret = ret[:d.recallCount]
+	if len(ret) > 0 {
+		d.cache.Put(cacheKey, ret)
 	}
 	return
 
+}
+
+func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string) {
+	if d.filterParam == nil {
+		return
+	}
+
+	start := time.Now()
+	itemIds := make([]string, len(itemIdList))
+	copy(itemIds, itemIdList)
+	rand.Shuffle(len(itemIds), func(i, j int) {
+		itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
+	})
+
+	featureView := d.fsClient.GetProject().GetFeatureView(d.table)
+	if featureView == nil {
+		return
+	}
+	featureEntity := d.fsClient.GetProject().GetFeatureEntity(featureView.GetFeatureEntityName())
+	if featureEntity == nil {
+		return
+	}
+	size := len(itemIds)
+	var cacheSize atomic.Int32
+	var wg sync.WaitGroup
+	ch := make(chan int, 5)
+	batchSize := 200
+	for i := 0; i < size; i += batchSize {
+		start := i
+		end := i + batchSize
+		if end > size {
+			end = size
+		}
+
+		wg.Add(1)
+		ch <- 1
+		go func(start, end int) {
+			size := 0
+			defer wg.Done()
+			defer func() { <-ch }()
+			joinIds := make([]any, 0, end-start)
+			for i := start; i < end; i++ {
+				joinIds = append(joinIds, itemIds[i])
+			}
+			features, err := featureView.GetOnlineFeatures(joinIds, d.fields, map[string]string{})
+			if err != nil {
+				log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\tmsg=load item cache\tfields=%v\terror=%v", d.fields, err))
+				return
+			}
+			for _, featureMap := range features {
+				itemId := featureMap[featureEntity.FeatureEntityJoinid]
+				if id := utils.ToString(itemId, ""); id != "" {
+					d.itemCache.Put(id, featureMap)
+					size++
+				}
+			}
+			cacheSize.Add(int32(size))
+		}(start, end)
+	}
+	wg.Wait()
+	log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\tmsg=load item cache\tsize=%d\tcachesize=%d\tcost=%d", len(itemIds), cacheSize.Load(), utils.CostTime(start)))
 }
