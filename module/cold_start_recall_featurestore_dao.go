@@ -1,9 +1,9 @@
 package module
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,21 +13,17 @@ import (
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
-	"github.com/expr-lang/expr"
 	"github.com/goburrow/cache"
 )
 
 type ColdStartRecallFeatureStoreDao struct {
 	fsClient     *fs.FSClient
 	recallCount  int
-	timeInterval int
 	recallName   string
 	table        string
-	whereClause  string
 	ch           chan string
 	itemIds      []string
 	lastScanTime time.Time // last scan data time
-	whereParams  []string
 	fields       []string
 	filterParam  *FilterParam
 	cache        cache.Cache
@@ -42,14 +38,12 @@ func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRe
 	}
 
 	dao := &ColdStartRecallFeatureStoreDao{
-		fsClient:     fsclient,
-		recallCount:  config.RecallCount,
-		table:        config.ColdStartDaoConf.FeatureStoreViewName,
-		recallName:   config.Name,
-		timeInterval: config.ColdStartDaoConf.TimeInterval,
-		whereClause:  config.ColdStartDaoConf.WhereClause,
-		ch:           make(chan string, 1000),
-		itemIds:      make([]string, 0, 1024),
+		fsClient:    fsclient,
+		recallCount: config.RecallCount,
+		table:       config.ColdStartDaoConf.FeatureStoreViewName,
+		recallName:  config.Name,
+		ch:          make(chan string, 1000),
+		itemIds:     make([]string, 0, 1024),
 
 		cache:     cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Minute)),
 		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(10*time.Minute)),
@@ -138,21 +132,15 @@ func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 }
 
 func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
-	featureView := d.fsClient.GetProject().GetFeatureView(d.table)
-	if featureView == nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=ColdStartRecallFeatureStoreDao\trecallName=%s\terror=featureView not found, name:%s", context.RecommendId, d.recallName, d.table))
-		return
-	}
-	var where string
 	var cacheKey string
-	if d.whereClause != "" {
-		where = d.parseWhere(d.whereClause, user, context)
-		cacheKey = where
+	if d.filterParam != nil {
+		contextFeatures := context.GetParameter("features").(map[string]interface{})
+		if d, err := json.Marshal(contextFeatures); err == nil {
+			cacheKey = string(d)
+
+		}
 	} else {
 		cacheKey = string(user.Id)
-	}
-	if context.Debug {
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=ColdStartRecallFeatureStoreDao\trecallName=%s\twhere=%s", context.RecommendId, d.recallName, where))
 	}
 	if cacheValue, ok := d.cache.GetIfPresent(cacheKey); ok {
 		if items, ok := cacheValue.([]*Item); ok {
@@ -160,7 +148,7 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 		}
 	}
 
-	if d.whereClause == "" {
+	if d.filterParam == nil {
 		//itemIds := d.itemIds
 		itemIds := make([]string, len(d.itemIds))
 		copy(itemIds, d.itemIds)
@@ -177,28 +165,22 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 		}
 	} else {
 
-		program, err := expr.Compile(where, expr.AsBool())
-		if err != nil {
-			log.Error(fmt.Sprintf("requestId=%s\tmodule=ColdStartRecallFeatureStoreDao\trecallName=%s\texpr=%s\terror=%v", context.RecommendId, d.recallName, where, err))
-			return nil
-		}
 		itemIds := make([]string, len(d.itemIds))
 		copy(itemIds, d.itemIds)
 		rand.Shuffle(len(itemIds), func(i, j int) {
 			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
 		})
 
+		userFeatures := user.MakeUserFeatures2()
 		for _, id := range itemIds {
 			cacheValue, ok := d.itemCache.GetIfPresent(id)
 			if ok {
-				if r, err := expr.Run(program, cacheValue.(map[string]any)); err == nil {
-					if flag, ok := r.(bool); ok && flag {
-						item := NewItem(id)
-						item.RetrieveId = d.recallName
-						ret = append(ret, item)
-						if len(ret) >= d.recallCount {
-							break
-						}
+				if r, err := d.filterParam.EvaluateByDomain(userFeatures, cacheValue.(map[string]any)); err == nil && r {
+					item := NewItem(id)
+					item.RetrieveId = d.recallName
+					ret = append(ret, item)
+					if len(ret) >= d.recallCount {
+						break
 					}
 				}
 			}
@@ -213,6 +195,11 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 		d.lastScanTime = time.Now()
 
 		go func() {
+			featureView := d.fsClient.GetProject().GetFeatureView(d.table)
+			if featureView == nil {
+				log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\terror=featureView not found, name:%s", d.recallName, d.table))
+				return
+			}
 			var (
 				ids []string
 				err error
@@ -244,44 +231,9 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 	return
 
 }
-func (d *ColdStartRecallFeatureStoreDao) parseWhere(whereSql string, user *User, context *context.RecommendContext) string {
-	where := whereSql
-	contextFeatures := context.GetParameter("features").(map[string]interface{})
-	for _, param := range d.whereParams {
-		if param == "time" { // time
-			createTime := time.Now().Add(time.Duration(-1*d.timeInterval) * time.Second)
-			where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("'%s'", createTime.Format(time.RFC3339)))
-		} else if strings.HasPrefix(param, "context.features.") { // context features from api param features
-			key := strings.TrimPrefix(param, "context.features.")
-			if value, ok := contextFeatures[key]; ok {
-				switch value.(type) {
-				case string:
-					where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("'%s'", value))
-				default:
-					where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("%v", value))
-				}
-			}
-		} else if strings.HasPrefix(param, "user.") {
-			key := strings.TrimPrefix(param, "user.")
-
-			value := user.GetProperty(key)
-			if value != nil {
-				switch value.(type) {
-				case string:
-					where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("'%s'", value))
-				default:
-					where = strings.ReplaceAll(where, fmt.Sprintf("${%s}", param), fmt.Sprintf("%v", value))
-				}
-			}
-
-		}
-	}
-
-	return where
-}
 
 func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string) {
-	if d.whereClause == "" {
+	if d.filterParam == nil {
 		return
 	}
 

@@ -338,6 +338,8 @@ type RecallConfig struct {
 	BeConf         BeConfig
 	GraphConf      GraphConf
 	OpenSearchConf OpenSearchConf
+
+	FilterParams []FilterParamConfig
 }
 
 type GraphConf struct {
