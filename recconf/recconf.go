@@ -338,6 +338,8 @@ type RecallConfig struct {
 	BeConf         BeConfig
 	GraphConf      GraphConf
 	OpenSearchConf OpenSearchConf
+
+	FilterParams []FilterParamConfig
 }
 
 type GraphConf struct {
@@ -577,6 +579,8 @@ type FeatureStoreConfig struct {
 	FeatureDBUsername string
 	FeatureDBPassword string
 	HologresPort      int
+	HologresUsername  string
+	HologresPassword  string
 }
 type KafkaConfig struct {
 	BootstrapServers string
