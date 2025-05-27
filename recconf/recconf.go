@@ -646,6 +646,8 @@ type CategoryConfig struct {
 type FallbackConfig struct {
 	Timeout int
 	DaoConfig
+	CacheTime   int
+	CacheConfig string
 }
 
 type RankConfig struct {

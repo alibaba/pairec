@@ -17,6 +17,7 @@ import (
 	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/service/pipeline"
 	"github.com/alibaba/pairec/v2/service/rank"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type UserRecommendService struct {
@@ -195,6 +196,7 @@ func (r *UserRecommendService) mergePipelineItems(items []*module.Item, pipeline
 }
 
 func (r *UserRecommendService) TryRecommendWithFallback(context *context.RecommendContext) []*module.Item {
+	start := time.Now()
 	scene, _ := context.Param.GetParameter("scene").(string)
 
 	f := fallback.DefaultFallbackService().GetFallback(scene)
@@ -212,12 +214,16 @@ func (r *UserRecommendService) TryRecommendWithFallback(context *context.Recomme
 
 	select {
 	case <-fallbackTimer.C:
-		return f.Recommend(context)
+		fallbackResult := f.Recommend(context)
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=recommend\tevent=fallback\tcause=timeout\tcost=%d", context.RecommendId, utils.CostTime(start)))
+		return fallbackResult
 	case ret := <-tryResult:
 		fallbackTimer.Stop()
 
 		if len(ret) < context.Size {
-			return f.Recommend(context)
+			fallbackResult := f.Recommend(context)
+			log.Warning(fmt.Sprintf("requestId=%s\tmodule=recommend\tevent=fallback\tcause=itemNotEnough\tcost=%d", context.RecommendId, utils.CostTime(start)))
+			return fallbackResult
 		} else {
 			return ret
 		}
