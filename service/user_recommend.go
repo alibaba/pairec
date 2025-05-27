@@ -220,10 +220,27 @@ func (r *UserRecommendService) TryRecommendWithFallback(context *context.Recomme
 	case ret := <-tryResult:
 		fallbackTimer.Stop()
 
-		if len(ret) < context.Size {
+		if f.CompleteItemsIfNeed() && len(ret) < context.Size {
+			originRetMap := make(map[module.ItemId]bool)
+			for _, item := range ret {
+				originRetMap[item.Id] = true
+			}
+
 			fallbackResult := f.Recommend(context)
+			for i := 0; i < len(fallbackResult); i++ {
+				fallbackItem := fallbackResult[i]
+
+				if !originRetMap[fallbackItem.Id] { // must not appear in origin result
+					ret = append(ret, fallbackItem)
+
+					if len(ret) == context.Size {
+						break
+					}
+				}
+			}
+
 			log.Warning(fmt.Sprintf("requestId=%s\tmodule=recommend\tevent=fallback\tcause=itemNotEnough\tcost=%d", context.RecommendId, utils.CostTime(start)))
-			return fallbackResult
+			return ret
 		} else {
 			return ret
 		}

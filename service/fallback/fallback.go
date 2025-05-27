@@ -9,5 +9,6 @@ import (
 
 type IFallback interface {
 	GetTimer() *time.Timer
+	CompleteItemsIfNeed() bool
 	Recommend(context *context.RecommendContext) []*module.Item
 }

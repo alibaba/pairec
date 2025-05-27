@@ -26,6 +26,8 @@ type FeatureStoreFallback struct {
 
 	cache     cache.Cache
 	cacheTime int
+
+	completeItemsIfNeed bool
 }
 
 func NewFeatureStoreFallback(conf recconf.FallbackConfig) *FeatureStoreFallback {
@@ -59,11 +61,17 @@ func NewFeatureStoreFallback(conf recconf.FallbackConfig) *FeatureStoreFallback 
 
 		cache:     fallbackCache,
 		cacheTime: cacheTime,
+
+		completeItemsIfNeed: conf.CompleteItemsIfNeed,
 	}
 }
 
 func (r *FeatureStoreFallback) GetTimer() *time.Timer {
 	return time.NewTimer(r.timeout)
+}
+
+func (r *FeatureStoreFallback) CompleteItemsIfNeed() bool {
+	return r.completeItemsIfNeed
 }
 
 func (r *FeatureStoreFallback) Recommend(context *context.RecommendContext) []*module.Item {
