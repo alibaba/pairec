@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"fortio.org/assert"
 	"github.com/alibaba/pairec/v2/recconf"
 )
 
@@ -21,36 +22,99 @@ func TestTrigger(t *testing.T) {
 		},
 	}
 
-	trigger := NewTrigger(config)
-
-	features := []map[string]interface{}{
-		{"sex": "Male",
-			"os":  "IOS",
-			"age": 23,
+	testcases := []struct {
+		features  map[string]interface{}
+		expectVal string
+	}{
+		{
+			features: map[string]interface{}{"sex": "Male",
+				"os":  "IOS",
+				"age": 23,
+			},
+			expectVal: "Male_20-30_IOS",
 		},
-
-		{"sex": "Male",
-			"os": "Android",
+		{
+			features: map[string]interface{}{"sex": "Male",
+				"os": "Android",
+			},
+			expectVal: "Male_NULL_Android",
 		},
-		{"sex": "Male",
-			"os":  "Android",
-			"age": 60,
+		{
+			features: map[string]interface{}{"sex": "Male",
+				"os":  "Android",
+				"age": 60,
+			},
+			expectVal: "Male_>50_Android",
 		},
-		{"sex": "Male",
-			"os":  "Android",
-			"age": 50,
+		{
+			features: map[string]interface{}{"sex": "Male",
+				"os":  "Android",
+				"age": 50,
+			},
+			expectVal: "Male_40-50_Android",
 		},
-		{"sex": "Male",
-			"os":  "Android",
-			"age": 40,
+		{
+			features: map[string]interface{}{"sex": "Female",
+				"os":  "Android",
+				"age": 40,
+			},
+			expectVal: "Female_30-40_Android",
 		},
-		{"sex": "Male",
-			"os":  "Android",
-			"age": 20,
+		{
+			features: map[string]interface{}{"sex": "Female",
+				"os":  "Android",
+				"age": 20,
+			},
+			expectVal: "Female_<=20_Android",
+		},
+		{
+			features: map[string]interface{}{"sex": "Female",
+				"os":  "Android",
+				"age": 19,
+			},
+			expectVal: "Female_<=20_Android",
 		},
 	}
 
-	for _, f := range features {
-		fmt.Println(trigger.GetValue(f))
+	trigger := NewTrigger(config)
+
+	for _, testcase := range testcases {
+		fmt.Println(trigger.GetValue(testcase.features))
+		assert.Equal(t, trigger.GetValue(testcase.features), testcase.expectVal)
+	}
+}
+
+func TestMultiTrigger(t *testing.T) {
+	config := []recconf.TriggerConfig{
+		{
+			TriggerKey: "tags",
+		},
+	}
+
+	testcases := []struct {
+		features  map[string]interface{}
+		expectVal string
+	}{
+		{
+			features: map[string]interface{}{"sex": "Male",
+				"tags": []string{"tag1", "tag2", "tag3"},
+				"age":  23,
+			},
+			expectVal: "tag1#tag2#tag3",
+		},
+		{
+			features: map[string]interface{}{"sex": "Male",
+				"tags": []any{"tag1", "tag2", "tag3"},
+				"age":  23,
+			},
+			expectVal: "tag1#tag2#tag3",
+		},
+	}
+
+	trigger := NewTrigger(config)
+
+	for _, testcase := range testcases {
+		fmt.Println(trigger.GetValue(testcase.features))
+		assert.Equal(t, trigger.GetValue(testcase.features), testcase.expectVal)
 	}
 }

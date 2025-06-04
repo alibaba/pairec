@@ -46,11 +46,19 @@ func (d *UserGroupHotRecallFeatureStoreDao) ListItemsByUser(user *User, context 
 		return
 	}
 	triggerId := d.trigger.GetValue(user.MakeUserFeatures2())
-
 	if context.Debug {
 		log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecallFeatureStoreDao\ttriggerId=%s\t", context.RecommendId, triggerId))
 	}
-	features, err := featureView.GetOnlineFeatures([]any{triggerId}, []string{"item_ids"}, map[string]string{})
+
+	triggerIds := strings.Split(triggerId, "#")
+	triggers := make([]any, 0, len(triggerIds))
+	for _, trigger := range triggerIds {
+		if trigger != "" {
+			triggers = append(triggers, trigger)
+		}
+	}
+
+	features, err := featureView.GetOnlineFeatures(triggers, []string{"item_ids"}, map[string]string{})
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecallFeatureStoreDao\terror=%v", context.RecommendId, err))
 		return
@@ -59,22 +67,23 @@ func (d *UserGroupHotRecallFeatureStoreDao) ListItemsByUser(user *User, context 
 	if len(features) == 0 {
 		return
 	}
-	itemIdsStr := utils.ToString(features[0]["item_ids"], "")
-	if itemIdsStr == "" {
-		return
-	}
-
 	itemIds := make([]string, 0, d.recallCount)
-	idList := strings.Split(itemIdsStr, ",")
-	for _, id := range idList {
-		if id != "" {
-			itemIds = append(itemIds, id)
+	for _, feature := range features {
+		if itemIdsStr := utils.ToString(feature["item_ids"], ""); itemIdsStr != "" {
+			idList := strings.Split(itemIdsStr, ",")
+			for _, id := range idList {
+				if id != "" {
+					itemIds = append(itemIds, id)
+				}
+			}
+
 		}
 	}
 
 	if len(itemIds) == 0 {
 		return
 	}
+
 	if len(itemIds) > d.recallCount {
 		rand.Shuffle(len(itemIds)/2, func(i, j int) {
 			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]

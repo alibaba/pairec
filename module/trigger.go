@@ -16,7 +16,30 @@ type TriggerItem struct {
 
 func (tr *TriggerItem) GetValue(feature interface{}) string {
 	if len(tr.Boundaries) == 0 {
-		return utils.ToString(feature, tr.DefaultValue)
+		switch fval := feature.(type) {
+		case []any:
+			strs := make([]string, 0, len(fval))
+			for _, f := range fval {
+				strs = append(strs, utils.ToString(f, ""))
+			}
+			return strings.Join(strs, "#")
+		case []string:
+			return strings.Join(fval, "#")
+		case []int:
+			strs := make([]string, 0, len(fval))
+			for _, f := range fval {
+				strs = append(strs, utils.ToString(f, ""))
+			}
+			return strings.Join(strs, "#")
+		case []int64:
+			strs := make([]string, 0, len(fval))
+			for _, f := range fval {
+				strs = append(strs, utils.ToString(f, ""))
+			}
+			return strings.Join(strs, "#")
+		default:
+			return utils.ToString(feature, tr.DefaultValue)
+		}
 	}
 
 	val := utils.ToInt(feature, 0)
