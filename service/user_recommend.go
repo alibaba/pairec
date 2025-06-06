@@ -5,18 +5,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/pairec/v2/log/feature_log"
-
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/log/feature_log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/service/debug"
+	"github.com/alibaba/pairec/v2/service/fallback"
 	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/general_rank"
 	"github.com/alibaba/pairec/v2/service/hook"
 	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/service/pipeline"
 	"github.com/alibaba/pairec/v2/service/rank"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 type UserRecommendService struct {
@@ -192,4 +193,56 @@ func (r *UserRecommendService) mergePipelineItems(items []*module.Item, pipeline
 		}
 	}
 	return items
+}
+
+func (r *UserRecommendService) TryRecommendWithFallback(context *context.RecommendContext) []*module.Item {
+	start := time.Now()
+	scene, _ := context.Param.GetParameter("scene").(string)
+
+	f := fallback.DefaultFallbackService().GetFallback(scene)
+	if f == nil {
+		return r.Recommend(context)
+	}
+
+	fallbackTimer := f.GetTimer()
+
+	tryResult := make(chan []*module.Item, 1)
+
+	go func() {
+		tryResult <- r.Recommend(context)
+	}()
+
+	select {
+	case <-fallbackTimer.C:
+		fallbackResult := f.Recommend(context)
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=recommend\tevent=fallback\tcause=timeout\tcost=%d", context.RecommendId, utils.CostTime(start)))
+		return fallbackResult
+	case ret := <-tryResult:
+		fallbackTimer.Stop()
+
+		if f.CompleteItemsIfNeed() && len(ret) < context.Size {
+			originRetMap := make(map[module.ItemId]bool)
+			for _, item := range ret {
+				originRetMap[item.Id] = true
+			}
+
+			fallbackResult := f.Recommend(context)
+			for i := 0; i < len(fallbackResult); i++ {
+				fallbackItem := fallbackResult[i]
+
+				if !originRetMap[fallbackItem.Id] { // must not appear in origin result
+					ret = append(ret, fallbackItem)
+
+					if len(ret) == context.Size {
+						break
+					}
+				}
+			}
+
+			log.Warning(fmt.Sprintf("requestId=%s\tmodule=recommend\tevent=fallback\tcause=itemNotEnough\tcost=%d", context.RecommendId, utils.CostTime(start)))
+			return ret
+		} else {
+			return ret
+		}
+	}
 }

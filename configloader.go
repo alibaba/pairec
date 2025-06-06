@@ -7,19 +7,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/pairec/v2/datasource/graph"
-	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
-	"github.com/alibaba/pairec/v2/datasource/kafka"
-	"github.com/alibaba/pairec/v2/datasource/opensearch"
-
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/config"
 	"github.com/alibaba/pairec/v2/config/pairec_config"
 	"github.com/alibaba/pairec/v2/datasource/beengine"
 	"github.com/alibaba/pairec/v2/datasource/datahub"
+	"github.com/alibaba/pairec/v2/datasource/graph"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine"
 	"github.com/alibaba/pairec/v2/datasource/hbase"
+	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
+	"github.com/alibaba/pairec/v2/datasource/kafka"
+	"github.com/alibaba/pairec/v2/datasource/opensearch"
 	"github.com/alibaba/pairec/v2/datasource/sls"
 	"github.com/alibaba/pairec/v2/filter"
 	"github.com/alibaba/pairec/v2/log"
@@ -32,6 +31,7 @@ import (
 	"github.com/alibaba/pairec/v2/persist/tablestoredb"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service"
+	"github.com/alibaba/pairec/v2/service/fallback"
 	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/general_rank"
 	"github.com/alibaba/pairec/v2/service/pipeline"
@@ -114,6 +114,7 @@ func (l *ConfigLoader) reloadConfig(config *recconf.RecommendConfig) {
 	feature.LoadFeatureConfig(config)
 	general_rank.LoadGeneralRankWithConfig(config)
 	pipeline.LoadPipelineConfigs(config)
+	fallback.LoadFallbackConfig(config)
 }
 
 func (l *ConfigLoader) loadConfigFromConfigServer() (*recconf.RecommendConfig, error) {

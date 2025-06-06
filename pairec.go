@@ -7,18 +7,17 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/alibaba/pairec/v2/datasource/graph"
-	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
-	"github.com/alibaba/pairec/v2/datasource/kafka"
-	"github.com/alibaba/pairec/v2/datasource/opensearch"
-
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/config"
 	"github.com/alibaba/pairec/v2/datasource/beengine"
 	"github.com/alibaba/pairec/v2/datasource/datahub"
+	"github.com/alibaba/pairec/v2/datasource/graph"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine"
 	"github.com/alibaba/pairec/v2/datasource/hbase"
+	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
+	"github.com/alibaba/pairec/v2/datasource/kafka"
+	"github.com/alibaba/pairec/v2/datasource/opensearch"
 	"github.com/alibaba/pairec/v2/datasource/sls"
 	"github.com/alibaba/pairec/v2/filter"
 	"github.com/alibaba/pairec/v2/persist/clickhouse"
@@ -30,6 +29,7 @@ import (
 	"github.com/alibaba/pairec/v2/persist/tablestoredb"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service"
+	"github.com/alibaba/pairec/v2/service/fallback"
 	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/general_rank"
 	"github.com/alibaba/pairec/v2/service/metrics"
@@ -38,6 +38,7 @@ import (
 	"github.com/alibaba/pairec/v2/service/recall/berecall"
 	"github.com/alibaba/pairec/v2/sort"
 	"github.com/alibaba/pairec/v2/web"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	_ "go.uber.org/automaxprocs"
 )
@@ -118,6 +119,7 @@ func runStartHook() {
 		feature.LoadFeatureConfig(recconf.Config)
 		general_rank.LoadGeneralRankWithConfig(recconf.Config)
 		rank.LoadColdStartRankConfig(recconf.Config)
+		fallback.LoadFallbackConfig(recconf.Config)
 		pipeline.LoadPipelineConfigs(recconf.Config)
 		// clean log dir
 		ClearDir(recconf.Config.LogConf)

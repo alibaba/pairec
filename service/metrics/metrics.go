@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -20,6 +21,7 @@ var (
 	RankDurSecs           *prometheus.HistogramVec
 	SortDurSecs           *prometheus.HistogramVec
 	RecDurSecs            *prometheus.HistogramVec
+	FallbackTotal         *prometheus.CounterVec
 
 	enabled = false
 	once    sync.Once
@@ -43,7 +45,9 @@ func Load(conf *recconf.RecommendConfig) {
 			FilterDurSecs,
 			GeneralRankDurSecs,
 			LoadFeatureDurSecs,
-			RankDurSecs, SortDurSecs)
+			RankDurSecs,
+			SortDurSecs,
+			FallbackTotal)
 	})
 
 	enabled = conf.PrometheusConfig.Enable
@@ -142,4 +146,10 @@ func initMetrics(conf *recconf.RecommendConfig) {
 		Buckets:   buckets,
 		Help:      "The sort cost in seconds.",
 	}, commonLabels)
+
+	FallbackTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Subsystem: subsystem,
+		Name:      "fallback_total",
+		Help:      "How many times of fallback recommend.",
+	}, []string{"scene"})
 }
