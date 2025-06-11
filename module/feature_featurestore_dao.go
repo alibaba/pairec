@@ -77,7 +77,7 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 				user.AddProperties(cacheValue.(map[string]interface{}))
 			}
 			if context.Debug {
-				log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\tmsg=hit cache(%s)", context.RecommendId, key))
+				log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\tmsg=hit cache(%s)", context.RecommendId, key))
 			}
 			return
 		}
