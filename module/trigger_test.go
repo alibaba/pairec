@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"fortio.org/assert"
@@ -100,14 +101,14 @@ func TestMultiTrigger(t *testing.T) {
 				"tags": []string{"tag1", "tag2", "tag3"},
 				"age":  23,
 			},
-			expectVal: "tag1#tag2#tag3",
+			expectVal: strings.Join([]string{"tag1", "tag2", "tag3"}, TIRRGER_SPLIT),
 		},
 		{
 			features: map[string]interface{}{"sex": "Male",
 				"tags": []any{"tag1", "tag2", "tag3"},
 				"age":  23,
 			},
-			expectVal: "tag1#tag2#tag3",
+			expectVal: strings.Join([]string{"tag1", "tag2", "tag3"}, TIRRGER_SPLIT),
 		},
 	}
 

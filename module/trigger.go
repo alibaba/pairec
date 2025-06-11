@@ -8,6 +8,10 @@ import (
 	"github.com/alibaba/pairec/v2/utils"
 )
 
+const (
+	TIRRGER_SPLIT = "\u001E"
+)
+
 type TriggerItem struct {
 	Key          string
 	DefaultValue string
@@ -22,21 +26,21 @@ func (tr *TriggerItem) GetValue(feature interface{}) string {
 			for _, f := range fval {
 				strs = append(strs, utils.ToString(f, ""))
 			}
-			return strings.Join(strs, "#")
+			return strings.Join(strs, TIRRGER_SPLIT)
 		case []string:
-			return strings.Join(fval, "#")
+			return strings.Join(fval, TIRRGER_SPLIT)
 		case []int:
 			strs := make([]string, 0, len(fval))
 			for _, f := range fval {
 				strs = append(strs, utils.ToString(f, ""))
 			}
-			return strings.Join(strs, "#")
+			return strings.Join(strs, TIRRGER_SPLIT)
 		case []int64:
 			strs := make([]string, 0, len(fval))
 			for _, f := range fval {
 				strs = append(strs, utils.ToString(f, ""))
 			}
-			return strings.Join(strs, "#")
+			return strings.Join(strs, TIRRGER_SPLIT)
 		default:
 			return utils.ToString(feature, tr.DefaultValue)
 		}
