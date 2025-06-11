@@ -70,7 +70,7 @@ func (r *ColdStartRecall) LoopLoadItems() {
 
 		ret := r.coldStartRecallDao.ListItemsByUser(user, recommendContext)
 		if len(ret) == 0 {
-			log.Error(fmt.Sprintf("module=ColdStartRecall\terror=recall items is null"))
+			log.Error("module=ColdStartRecall\terror=recall items is null")
 			time.Sleep(3 * time.Second)
 			continue
 		}

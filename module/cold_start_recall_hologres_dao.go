@@ -115,6 +115,9 @@ func (d *ColdStartRecallHologresDao) ListItemsByUser(user *User, context *contex
 
 func (d *ColdStartRecallHologresDao) parseWhere(whereSql string, user *User, context *context.RecommendContext) string {
 	where := whereSql
+	if len(d.whereParams) == 0 {
+		return where
+	}
 	contextFeatures := context.GetParameter("features").(map[string]interface{})
 	for _, param := range d.whereParams {
 		if param == "time" { // time
