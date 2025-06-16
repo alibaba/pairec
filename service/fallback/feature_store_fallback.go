@@ -205,13 +205,14 @@ func (r *FeatureStoreFallback) Recommend(context *context.RecommendContext) []*m
 			}
 
 			if r.cache != nil && len(fallbackItemsMap) > 0 {
+				key := moduleName
+				var itemIds string
+				for _, item := range fallbackItemsMap {
+					itemIds += fmt.Sprintf("%s:%s:%v", string(item.Id), item.RetrieveId, item.Score) + ","
+				}
+				itemIds = itemIds[:len(itemIds)-1]
+
 				go func() {
-					key := moduleName
-					var itemIds string
-					for _, item := range fallbackItemsMap {
-						itemIds += fmt.Sprintf("%s:%s:%v", string(item.Id), item.RetrieveId, item.Score) + ","
-					}
-					itemIds = itemIds[:len(itemIds)-1]
 					cacheTime := r.cacheTime
 					if cacheTime == 0 {
 						cacheTime = 7200
