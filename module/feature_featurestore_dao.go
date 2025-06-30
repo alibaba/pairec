@@ -3,6 +3,7 @@ package module
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -19,6 +20,7 @@ type FeatureFeatureStoreDao struct {
 	fsViewName       string
 	userSelectFields string
 	itemSelectFields string
+	fieldsMap        sync.Map
 }
 
 func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureStoreDao {
@@ -96,6 +98,59 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=model not found(%s)", context.RecommendId, d.fsModel))
 		return
 	}
+
+	var (
+		labelFieldMap map[string]bool
+		modelFieldMap map[string]bool
+	)
+	labelTable := model.GetLabelTable()
+	if labelTable == nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=label table not found(%s)", context.RecommendId, model.LabelDatasourceTable))
+		return
+	}
+
+	if labelFields, ok := d.fieldsMap.Load(labelTable.Name); ok {
+		labelFieldMap = labelFields.(map[string]bool)
+	} else {
+		fNames := labelTable.GetFeatureNames()
+		labelFieldMap = make(map[string]bool, len(fNames))
+		for _, f := range fNames {
+			labelFieldMap[f] = true
+		}
+		d.fieldsMap.Store(labelTable.Name, labelFieldMap)
+	}
+	if modelFields, ok := d.fieldsMap.Load(model.Name); ok {
+		modelFieldMap = modelFields.(map[string]bool)
+	} else {
+		modelFeatures := model.Features
+
+		modelFieldMap = make(map[string]bool, len(modelFeatures))
+		for _, f := range modelFeatures {
+			if f.AliasName != "" {
+				modelFieldMap[f.AliasName] = true
+			} else {
+				modelFieldMap[f.Name] = true
+			}
+		}
+		d.fieldsMap.Store(model.Name, modelFieldMap)
+	}
+	if len(labelFieldMap) > 0 {
+		contextFeatures := context.GetParameter("features")
+		if contextFeatures != nil {
+			var deleteProperties []string
+			if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
+				for k := range ctxFeatures {
+					_, labelOK := labelFieldMap[k]
+					_, modelOK := modelFieldMap[k]
+					if modelOK && !labelOK {
+						deleteProperties = append(deleteProperties, k)
+					}
+				}
+			}
+			user.DeleteProperties(deleteProperties)
+		}
+	}
+
 	entity := d.client.GetProject().GetFeatureEntity(d.fsEntity)
 	if entity == nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=feature entity not found(%s)", context.RecommendId, d.fsEntity))
@@ -117,7 +172,11 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 		if contextFeatures != nil {
 			if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
 				for k, v := range ctxFeatures {
-					features[0][k] = v
+					_, labelOK := labelFieldMap[k]
+					_, modelOK := modelFieldMap[k]
+					if modelOK && labelOK {
+						features[0][k] = v
+					}
 				}
 			}
 		}
