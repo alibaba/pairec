@@ -34,7 +34,7 @@ func (f *User2ItemExposureFilter) doFilter(filterData *FilterData) error {
 	start := time.Now()
 	items := filterData.Data.([]*module.Item)
 
-	newItems := f.user2ItemExposureDao.FilterByHistory(filterData.Uid, items)
+	newItems := f.user2ItemExposureDao.FilterByHistory(filterData.Uid, items, filterData.Context)
 
 	filterData.Data = newItems
 	filterInfoLog(filterData, "User2ItemExposureFilter", f.name, len(newItems), start)

@@ -90,7 +90,7 @@ func (d *User2ItemExposureMysqlDao) LogHistory(user *User, items []*Item, contex
 	log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tmsg=log history success", context.RecommendId, user.Id))
 
 }
-func (d *User2ItemExposureMysqlDao) FilterByHistory(uid UID, items []*Item) (ret []*Item) {
+func (d *User2ItemExposureMysqlDao) FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item) {
 	query := fmt.Sprintf(SQL_Filter_History, d.getTableName(string(uid)))
 	stmt, err := d.db.Prepare(query)
 	if err != nil {

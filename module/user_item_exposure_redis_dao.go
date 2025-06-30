@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/redisdb"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/gomodule/redigo/redis"
 )
 
 type User2ItemExposureRedisDao struct {
@@ -107,7 +107,7 @@ func (d *User2ItemExposureRedisDao) LogHistory(user *User, items []*Item, contex
 	log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tmsg=log history success", context.RecommendId, user.Id))
 
 }
-func (d *User2ItemExposureRedisDao) FilterByHistory(uid UID, items []*Item) (ret []*Item) {
+func (d *User2ItemExposureRedisDao) FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item) {
 	prefix := d.prefix
 	key := prefix + string(uid)
 	conn := d.redis.Get()
