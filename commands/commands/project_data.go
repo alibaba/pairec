@@ -15,8 +15,9 @@ build:
 	cd ${SOURCE_DIR}; CGO_ENABLED=0 GOARCH=amd64 GOOS=linux ${BUILD} -o ${BIN_NAME} .
 	cd ${SOURCE_DIR}; mv ${BIN_NAME} ../
 release:
-	cd ${SOURCE_DIR}; CGO_ENABLED=0 GOARCH=amd64 GOOS=linux ${BUILD} -o ${BIN_NAME} .
-	cd ${SOURCE_DIR}; mv ${BIN_NAME} ${TEMP_DIR_SERVER}/appd
+	cp -r ${SOURCE_DIR} ${TEMP_DIR_SERVER}/
+	cp go.mod  ${TEMP_DIR_SERVER}/
+	cp go.sum  ${TEMP_DIR_SERVER}/
 	cp docker/Dockerfile ${TEMP_DIR_SERVER}/
 	cp conf/config.json.production ${TEMP_DIR_SERVER}/config.json
 	cd ${TEMP_DIR_SERVER}  &&  ${DOCKER} build  -t ${REGISTRY}/${BIN_NAME}:${DOCKER_TAG} .
@@ -28,11 +29,11 @@ clean:
 
 var gomodS = `module ${BINNAME} 
 
-go 1.19
+go 1.20
 
 require (
-	github.com/alibaba/pairec/v2 v2.2.4
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.5
+	github.com/alibaba/pairec/v2 v2.5.1
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.8
 )
 `
 
@@ -109,15 +110,23 @@ func main() {
 }
 `
 
-var dockerfileS = `FROM amd64/centos
-LABEL pro="recommend"
+var dockerfileS = `FROM mybigpai-public-registry.cn-beijing.cr.aliyuncs.com/mybigpai/golang:1.23 AS builder
+WORKDIR /usr/src/app
+ENV GOPROXY=https://goproxy.cn,direct
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+COPY . .
+RUN cd src &&  CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build  -o appd . && mv appd ../
+
+FROM mybigpai-public-registry.cn-beijing.cr.aliyuncs.com/mybigpai/alpine:latest
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone
 
 RUN mkdir -p /go/config && \
     mkdir /go/log
-ADD appd /go/bin/
 ADD config.json /go/config/
-
-RUN  yes | cp  -f /usr/share/zoneinfo/Asia/Shanghai  /etc/localtime
+COPY --from=builder /usr/src/app/appd /go/bin/
 
 RUN echo -e '#!/bin/sh \n\n\
 /go/bin/appd --config=/go/config/config.json \
@@ -157,6 +166,7 @@ type RecommendParam struct {
 	"    Size     int                    `json:\"size\"` // get recommend items size \n" +
 	"    Debug    bool                   `json:\"debug\"` \n" +
 	"    Features map[string]interface{} `json:\"features\"` \n" +
+	"    ComplexTypeFeatures web.ComplexTypeFeatures `json:\"complex_type_features\"` \n" +
 	"    ItemId   string                 `json:\"item_id\"` // similarity recommendation itemid\n" +
 	"    ItemList []map[string]interface{}   `json:\"item_list\"` \n" +
 	`}
@@ -176,7 +186,9 @@ func (r *RecommendParam) GetParameter(name string) interface{} {
 		return r.ItemId
 	} else if name == "item_list" {
 		return r.ItemList
-	}
+	} else if name == "complex_type_features" {                                                                                                                                                                                                                                                                            
+        return r.ComplexTypeFeatures                                                                                                                                                                                                                                                                                       
+    }
 
 	return nil
 }
@@ -187,6 +199,7 @@ type RecommendResponse struct {
 	"    Size  int             `json:\"size\"` \n" +
 	"    ExperimentId  string  `json:\"experiment_id\"` \n" +
 	"    Items []*ItemData     `json:\"items\"` \n" +
+	"    Logs []string         `json:\"logs,omitempty\"` \n" +
 	`}
 type ItemData struct {
 ` +
@@ -241,6 +254,14 @@ func (r *FeedController) decodeRequestBody() error {
 	} else {
 		r.RequestId = r.param.RequestId
 	}
+	if len(r.param.ComplexTypeFeatures.FeaturesMap) > 0 {                                                                                                                                                                                                                                                                  
+		if r.param.Features == nil {                                                                                                                                                                                                                                                                                       
+			r.param.Features = make(map[string]interface{})                                                                                                                                                                                                                                                                
+		}                                                                                                                                                                                                                                                                                                                  
+		for k, v := range r.param.ComplexTypeFeatures.FeaturesMap {                                                                                                                                                                                                                                                        
+			r.param.Features[k] = v                                                                                                                                                                                                                                                                                        
+		}                                                                                                                                                                                                                                                                                                                  
+	}
 	return nil
 }
 func (r *FeedController) CheckParameter() error {
@@ -266,7 +287,7 @@ func (c *FeedController) doProcess(w http.ResponseWriter, r *http.Request) {
 	data := make([]*ItemData, 0)
 	for _, item := range items {
 		if c.param.Debug {
-			fmt.Println(item)
+			fmt.Println(c.context.RecommendId, item)
 		}
 
 		idata := &ItemData{
