@@ -2,14 +2,15 @@ package module
 
 import (
 	"fmt"
-	igraph "github.com/aliyun/aliyun-igraph-go-sdk"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/graph"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
-	"strconv"
-	"strings"
-	"time"
+	igraph "github.com/aliyun/aliyun-igraph-go-sdk"
 )
 
 type User2ItemExposureGraphDao struct {
@@ -115,7 +116,7 @@ func (d *User2ItemExposureGraphDao) LogHistory(user *User, items []*Item, contex
 	log.Info(fmt.Sprintf("requestId=%s\tscene=%s\tuid=%s\tmsg=log history success", context.RecommendId, scene, user.Id))
 }
 
-func (d *User2ItemExposureGraphDao) FilterByHistory(uid UID, items []*Item) (ret []*Item) {
+func (d *User2ItemExposureGraphDao) FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item) {
 	queryString := fmt.Sprintf("g(\"%s\").V(\"%s\").hasLabel(\"%s\").outE()", d.tableName, string(uid), d.userNode)
 
 	if d.timeInterval > 0 {

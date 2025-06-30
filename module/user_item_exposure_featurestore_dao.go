@@ -10,6 +10,8 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/datasource/featuredb/fdbserverpb"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 )
 
 type User2ItemExposureFeatureStoreDao struct {
@@ -20,6 +22,7 @@ type User2ItemExposureFeatureStoreDao struct {
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
 	onlyLogUserExposeFlag    bool
+	generateUserProgram      *vm.Program
 }
 
 func NewUser2ItemExposureFeatureStoreDao(config recconf.FilterConfig) *User2ItemExposureFeatureStoreDao {
@@ -44,6 +47,13 @@ func NewUser2ItemExposureFeatureStoreDao(config recconf.FilterConfig) *User2Item
 	for _, scene := range config.WriteLogExcludeScenes {
 		dao.writeLogExcludeScenes[scene] = true
 	}
+	if config.GenerateUserDataExpr != "" {
+		if p, err := expr.Compile(config.GenerateUserDataExpr); err != nil {
+			panic(err)
+		} else {
+			dao.generateUserProgram = p
+		}
+	}
 	return dao
 }
 
@@ -66,8 +76,12 @@ func (d *User2ItemExposureFeatureStoreDao) LogHistory(user *User, items []*Item,
 		return
 	}
 
+	userData, err := d.getUserData(user.Id, context)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, userData, err))
+		return
+	}
 	request := new(fdbserverpb.BatchWriteKVReqeust)
-	uid := string(user.Id)
 
 	ttl := int64(featureView.GetTTL())
 
@@ -76,13 +90,13 @@ func (d *User2ItemExposureFeatureStoreDao) LogHistory(user *User, items []*Item,
 	for _, item := range items {
 		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(user.Id, item)
 		request.Kvs = append(request.Kvs, &fdbserverpb.KVData{
-			Key:   uid,
+			Key:   userData,
 			Value: []byte(itemData),
 			Ts:    ts * 1000, // ms
 		})
 	}
 
-	err := fdbserverpb.BatchWriteBloomKV(project, featureView, request)
+	err = fdbserverpb.BatchWriteBloomKV(project, featureView, request)
 
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureFeatureStoreDao\tuid=%s\terr=%v", context.RecommendId, user.Id, err))
@@ -91,7 +105,7 @@ func (d *User2ItemExposureFeatureStoreDao) LogHistory(user *User, items []*Item,
 
 	log.Info(fmt.Sprintf("requestId=%s\tscene=%s\tuid=%s\tmsg=log history success\tcost=%d", context.RecommendId, scene, user.Id, utils.CostTime(start)))
 }
-func (d *User2ItemExposureFeatureStoreDao) FilterByHistory(uid UID, items []*Item) (ret []*Item) {
+func (d *User2ItemExposureFeatureStoreDao) FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item) {
 	project := d.fsClient.GetProject()
 	featureView := project.GetFeatureView(d.table)
 	if featureView == nil {
@@ -99,10 +113,16 @@ func (d *User2ItemExposureFeatureStoreDao) FilterByHistory(uid UID, items []*Ite
 		ret = items
 		return
 	}
+	userData, err := d.getUserData(uid, context)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, uid, err))
+		ret = items
+		return
+	}
 
 	request := new(fdbserverpb.TestBloomItemsRequest)
 
-	request.Key = string(uid)
+	request.Key = userData
 	for _, item := range items {
 		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
 		request.Items = append(request.Items, itemData)
@@ -147,8 +167,13 @@ func (d *User2ItemExposureFeatureStoreDao) ClearHistory(user *User, context *con
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureFeatureStoreDao\terror=table not found, name:%s", context.RecommendId, d.table))
 		return
 	}
+	userData, err := d.getUserData(user.Id, context)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, userData, err))
+		return
+	}
 
-	err := fdbserverpb.DeleteBloomByKey(project, featureView, string(user.Id))
+	err = fdbserverpb.DeleteBloomByKey(project, featureView, userData)
 	if err != nil {
 		context.LogError(fmt.Sprintf("delete user [%s] exposure items failed, err=%v", user.Id, err))
 	}
@@ -156,4 +181,30 @@ func (d *User2ItemExposureFeatureStoreDao) ClearHistory(user *User, context *con
 
 func (d *User2ItemExposureFeatureStoreDao) GetExposureItemIds(user *User, context *context.RecommendContext) (ret string) {
 	return
+}
+func (d *User2ItemExposureFeatureStoreDao) getUserData(uid UID, context *context.RecommendContext) (string, error) {
+	userData := string(uid)
+	if d.generateUserProgram != nil {
+		m := map[string]any{
+			"uid": string(uid),
+			"context": map[string]any{
+				"item_id":  utils.ToString(context.GetParameter("item_id"), ""),
+				"features": context.GetParameter("features"),
+			},
+			"sprintf": fmt.Sprintf,
+		}
+		if output, err := expr.Run(d.generateUserProgram, m); err != nil {
+			return "", err
+		} else {
+			if str := utils.ToString(output, ""); str != "" {
+				userData = str
+			} else {
+				return "", fmt.Errorf("output error(%v)", output)
+			}
+
+		}
+	}
+
+	return userData, nil
+
 }

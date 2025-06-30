@@ -5,11 +5,11 @@ import (
 	"strconv"
 	"time"
 
-	be "github.com/aliyun/aliyun-be-go-sdk"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/beengine"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	be "github.com/aliyun/aliyun-be-go-sdk"
 )
 
 type User2ItemExposureBeDao struct {
@@ -80,7 +80,7 @@ func (d *User2ItemExposureBeDao) LogHistory(user *User, items []*Item, context *
 
 // FilterByHistory filter user expose items.
 // BeEngine already filter itmes, so here no need to filter
-func (d *User2ItemExposureBeDao) FilterByHistory(uid UID, items []*Item) (ret []*Item) {
+func (d *User2ItemExposureBeDao) FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item) {
 	ret = items
 	return
 }

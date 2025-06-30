@@ -35,7 +35,7 @@ func defaultGenerateItemDataFunc(uid UID, item *Item) string {
 
 type User2ItemExposureDao interface {
 	LogHistory(user *User, items []*Item, context *context.RecommendContext)
-	FilterByHistory(uid UID, ids []*Item) (ret []*Item)
+	FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item)
 	ClearHistory(user *User, context *context.RecommendContext)
 	GetExposureItemIds(user *User, context *context.RecommendContext) (ret string)
 }

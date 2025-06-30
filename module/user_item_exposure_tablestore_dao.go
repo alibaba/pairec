@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/tablestoredb"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 )
 
 type User2ItemExposureTableStoreDao struct {
@@ -85,7 +85,7 @@ func (d *User2ItemExposureTableStoreDao) LogHistory(user *User, items []*Item, c
 	log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tmsg=log history success", context.RecommendId, user.Id))
 
 }
-func (d *User2ItemExposureTableStoreDao) FilterByHistory(uid UID, items []*Item) (ret []*Item) {
+func (d *User2ItemExposureTableStoreDao) FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item) {
 	getRangeRequest := &tablestore.GetRangeRequest{}
 	rangeRowQueryCriteria := &tablestore.RangeRowQueryCriteria{}
 	rangeRowQueryCriteria.TableName = d.table

@@ -53,7 +53,7 @@ func (f *User2ItemExposureWithConditionFilter) doFilter(filterData *FilterData) 
 	start := time.Now()
 	items := filterData.Data.([]*module.Item)
 
-	newItems := f.user2ItemExposureDao.FilterByHistory(filterData.Uid, items)
+	newItems := f.user2ItemExposureDao.FilterByHistory(filterData.Uid, items, filterData.Context)
 
 	filterData.Data = newItems
 	filterInfoLog(filterData, "User2ItemExposureWithConditionFilter", f.name, len(newItems), start)

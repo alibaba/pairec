@@ -12,6 +12,9 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"github.com/huandu/go-sqlbuilder"
 )
 
@@ -48,6 +51,7 @@ type User2ItemExposureHologresDao struct {
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
 	onlyLogUserExposeFlag    bool
+	generateUserProgram      *vm.Program
 }
 
 func NewUser2ItemExposureHologresDao(config recconf.FilterConfig) *User2ItemExposureHologresDao {
@@ -76,6 +80,13 @@ func NewUser2ItemExposureHologresDao(config recconf.FilterConfig) *User2ItemExpo
 	for _, scene := range config.WriteLogExcludeScenes {
 		dao.writeLogExcludeScenes[scene] = true
 	}
+	if config.GenerateUserDataExpr != "" {
+		if p, err := expr.Compile(config.GenerateUserDataExpr); err != nil {
+			panic(err)
+		} else {
+			dao.generateUserProgram = p
+		}
+	}
 	return dao
 }
 
@@ -91,6 +102,11 @@ func (d *User2ItemExposureHologresDao) LogHistory(user *User, items []*Item, con
 	}
 
 	uid := string(user.Id)
+	userData, err := d.getUserData(user.Id, context)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, uid, err))
+		return
+	}
 	if d.insertStmt == nil {
 		d.mu.Lock()
 		if d.insertStmt == nil {
@@ -114,7 +130,7 @@ func (d *User2ItemExposureHologresDao) LogHistory(user *User, items []*Item, con
 		ret = ret + "," + itemData
 	}
 	ret = ret[1:]
-	_, err := d.insertStmt.Exec(uid, ret, createTime)
+	_, err = d.insertStmt.Exec(userData, ret, createTime)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, user.Id, err))
 		return
@@ -123,11 +139,18 @@ func (d *User2ItemExposureHologresDao) LogHistory(user *User, items []*Item, con
 	log.Info(fmt.Sprintf("requestId=%s\tscene=%s\tuid=%s\tmsg=log history success", context.RecommendId, scene, user.Id))
 
 }
-func (d *User2ItemExposureHologresDao) FilterByHistory(uid UID, items []*Item) (ret []*Item) {
+func (d *User2ItemExposureHologresDao) FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item) {
+	userData, err := d.getUserData(uid, context)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, uid, err))
+		ret = items
+		return
+	}
+
 	builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 	builder.Select("item")
 	builder.From(d.table)
-	builder.Where(builder.Equal("uid", string(uid)))
+	builder.Where(builder.Equal("uid", userData))
 	if d.timeInterval > 0 {
 		t := time.Now().Unix() - int64(d.timeInterval)
 		builder.Where(builder.GreaterEqualThan("create_time", t))
@@ -144,7 +167,7 @@ func (d *User2ItemExposureHologresDao) FilterByHistory(uid UID, items []*Item) (
 		if d.selectStmt == nil {
 			stmt, err := d.db.Prepare(sql)
 			if err != nil {
-				log.Error(fmt.Sprintf("module=User2ItemExposureHologresDao\tuid=%s\terr=%v", uid, err))
+				log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, uid, err))
 				ret = items
 				d.mu.Unlock()
 				return
@@ -160,7 +183,7 @@ func (d *User2ItemExposureHologresDao) FilterByHistory(uid UID, items []*Item) (
 	defer cancel()
 	rows, err := d.selectStmt.QueryContext(ctx, args...)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=User2ItemExposureHologresDao\tuid=%s\terr=%v", uid, err))
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, uid, err))
 		ret = items
 		return
 	}
@@ -203,12 +226,17 @@ func (d *User2ItemExposureHologresDao) ClearHistory(user *User, context *context
 	if scene != d.clearLogScene {
 		return
 	}
+	userData, err := d.getUserData(user.Id, context)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, userData, err))
+		return
+	}
 	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
 	db.DeleteFrom(d.table)
-	db.Where(db.Equal("uid", string(user.Id)))
+	db.Where(db.Equal("uid", userData))
 
 	deleteSql, args := db.Build()
-	_, err := d.db.Exec(deleteSql, args...)
+	_, err = d.db.Exec(deleteSql, args...)
 	if err != nil {
 		context.LogError(fmt.Sprintf("delete user [%s] exposure items from holo failed, err=%v", user.Id, err))
 	}
@@ -216,11 +244,16 @@ func (d *User2ItemExposureHologresDao) ClearHistory(user *User, context *context
 
 func (d *User2ItemExposureHologresDao) GetExposureItemIds(user *User, context *context.RecommendContext) (ret string) {
 	uid := string(user.Id)
+	userData, err := d.getUserData(user.Id, context)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=User2ItemExposureHologresDao\tuid=%s\terr=%v", context.RecommendId, uid, err))
+		return
+	}
 
 	builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 	builder.Select("item")
 	builder.From(d.table)
-	builder.Where(builder.Equal("uid", string(uid)))
+	builder.Where(builder.Equal("uid", userData))
 	if d.timeInterval > 0 {
 		t := time.Now().Unix() - int64(d.timeInterval)
 		builder.Where(builder.GreaterEqualThan("create_time", t))
@@ -271,4 +304,30 @@ func (d *User2ItemExposureHologresDao) GetExposureItemIds(user *User, context *c
 
 	ret = strings.Join(fiterIds, ",")
 	return
+}
+func (d *User2ItemExposureHologresDao) getUserData(uid UID, context *context.RecommendContext) (string, error) {
+	userData := string(uid)
+	if d.generateUserProgram != nil {
+		m := map[string]any{
+			"uid": string(uid),
+			"context": map[string]any{
+				"item_id":  utils.ToString(context.GetParameter("item_id"), ""),
+				"features": context.GetParameter("features"),
+			},
+			"sprintf": fmt.Sprintf,
+		}
+		if output, err := expr.Run(d.generateUserProgram, m); err != nil {
+			return "", err
+		} else {
+			if str := utils.ToString(output, ""); str != "" {
+				userData = str
+			} else {
+				return "", fmt.Errorf("output error(%v)", output)
+			}
+
+		}
+	}
+
+	return userData, nil
+
 }
