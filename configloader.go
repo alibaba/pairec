@@ -37,6 +37,7 @@ import (
 	"github.com/alibaba/pairec/v2/service/pipeline"
 	"github.com/alibaba/pairec/v2/service/recall/berecall"
 	"github.com/alibaba/pairec/v2/sort"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 var (
@@ -132,7 +133,7 @@ func (l *ConfigLoader) loadConfigFromConfigServer() (*recconf.RecommendConfig, e
 	paramMap := abtest.GetParams(pairec_config.PairecConfigScene).ListParams()
 
 	for key, value := range paramMap {
-		data = strings.ReplaceAll(data, fmt.Sprintf("${%s}", key), value.(string))
+		data = strings.ReplaceAll(data, fmt.Sprintf("${%s}", key), utils.ToString(value, ""))
 	}
 
 	configD := &recconf.RecommendConfig{}
