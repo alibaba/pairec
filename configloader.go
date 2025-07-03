@@ -129,6 +129,12 @@ func (l *ConfigLoader) loadConfigFromConfigServer() (*recconf.RecommendConfig, e
 	data = strings.ReplaceAll(data, "${AccessKey}", accessId)
 	data = strings.ReplaceAll(data, "${AccessSecret}", accessSecret)
 
+	paramMap := abtest.GetParams(pairec_config.PairecConfigScene).ListParams()
+
+	for key, value := range paramMap {
+		data = strings.ReplaceAll(data, fmt.Sprintf("${%s}", key), value.(string))
+	}
+
 	configD := &recconf.RecommendConfig{}
 	err = json.Unmarshal([]byte(data), configD)
 	if err != nil {
