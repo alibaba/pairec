@@ -12,6 +12,7 @@ import (
 
 var (
 	Pairec_Config_Scene_Name = "pairec_config_manage"
+	PairecConfigScene        = "pairec_config_scene"
 )
 
 func init() {

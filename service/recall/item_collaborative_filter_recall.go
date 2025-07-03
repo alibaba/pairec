@@ -47,7 +47,7 @@ func (r *ItemCollaborativeFilterRecall) GetCandidateItems(user *module.User, con
 				item.ItemType = r.itemType
 				ret = append(ret, item)
 			}
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFilterRecall\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFilterRecall\tname=%s\tcount=%d\tcost=%d", context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 			return
 		}
 	}
@@ -67,6 +67,6 @@ func (r *ItemCollaborativeFilterRecall) GetCandidateItems(user *module.User, con
 			}
 		}()
 	}
-	log.Info(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFilterRecall\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFilterRecall\tname=%s\tcount=%d\tcost=%d", context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 	return
 }
