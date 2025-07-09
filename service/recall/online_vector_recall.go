@@ -122,6 +122,10 @@ func (r *OnlineVectorRecall) GetCandidateItems(user *module.User, context *conte
 						item.RetrieveId = r.modelName
 						ret = append(ret, item)
 					}
+
+					if r.recallCount > 0 && len(ret) > r.recallCount {
+						ret = ret[:r.recallCount]
+					}
 				}
 			}
 
