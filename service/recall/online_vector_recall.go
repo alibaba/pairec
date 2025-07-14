@@ -11,6 +11,7 @@ import (
 
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/algorithm/eas"
+	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/algorithm/response"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -102,7 +103,9 @@ func (r *OnlineVectorRecall) GetCandidateItems(user *module.User, context *conte
 	algoGenerator.SetItemFeatures(nil)
 	algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
 	algoData := algoGenerator.GeneratorAlgoData()
-	algoRet, err := algorithm.Run(r.recallAlgo, algoData.GetFeatures())
+	easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
+	easyrecRequest.FaissNeighNum = int32(r.recallCount)
+	algoRet, err := algorithm.Run(r.recallAlgo, easyrecRequest)
 	if err != nil {
 		context.LogError(fmt.Sprintf("requestId=%s\tmodule=OnlineVectorRecall\tname=%s\terr=%v", context.RecommendId, r.modelName, err))
 	} else {
@@ -118,6 +121,10 @@ func (r *OnlineVectorRecall) GetCandidateItems(user *module.User, context *conte
 						item.Score = info.Score
 						item.RetrieveId = r.modelName
 						ret = append(ret, item)
+					}
+
+					if r.recallCount > 0 && len(ret) > r.recallCount {
+						ret = ret[:r.recallCount]
 					}
 				}
 			}
