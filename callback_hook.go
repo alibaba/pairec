@@ -51,7 +51,8 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	for _, item := range items {
 		data := make(map[string]any)
 		data["item_id"] = item.Id
-		for k, v := range item.GetProperties() {
+		itemFeatutres := item.GetCloneFeatures()
+		for k, v := range itemFeatutres {
 			data[k] = v
 		}
 
