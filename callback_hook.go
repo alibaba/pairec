@@ -10,10 +10,19 @@ import (
 )
 
 func CallBackHookFunc(context *context.RecommendContext, params ...any) {
-	if !context.Debug {
+	scene := context.GetParameter("scene").(string)
+	callbackFlag := false
+	if sceneConf, ok := context.Config.SceneConfs[scene]; ok {
+		if categoryConf, ok := sceneConf["default"]; ok {
+			if categoryConf.AutoInvokeCallBack {
+				callbackFlag = true
+			}
+		}
+	}
+
+	if !context.Debug && !callbackFlag {
 		return
 	}
-	scene := context.GetParameter("scene").(string)
 	if _, ok := context.Config.CallBackConfs[scene]; !ok {
 		return
 	}
@@ -28,7 +37,7 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 		"scene_id":   scene,
 		"features":   features,
 		"uid":        user.Id,
-		"debug":      true,
+		"debug":      context.Debug,
 	}
 	if context.GetParameter("complex_type_features") != nil {
 		if complexTypeFeatures, ok := context.GetParameter("complex_type_features").(web.ComplexTypeFeatures); ok {
