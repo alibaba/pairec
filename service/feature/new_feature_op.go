@@ -5,6 +5,7 @@ import (
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/utils/fasttime"
 )
 
 // CreateNewFeatureOp create new feature by Normalizer
@@ -24,6 +25,7 @@ func (op CreateNewFeatureOp) UserTransOp(featureName string, source string, remo
 
 func (op CreateNewFeatureOp) ItemTransOp(featureName string, source string, remove bool, normalizer Normalizer, user *module.User, item *module.Item, context *context.RecommendContext) {
 	params := make(map[string]interface{})
+	params["currentTime"] = fasttime.UnixTimestamp() // current time in seconds
 	if source == "item:recall_name" {
 		params["recall_name"] = item.RetrieveId
 	} else if source == "" {

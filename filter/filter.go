@@ -159,6 +159,8 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			f = NewConditionFilter(conf)
 		} else if conf.FilterType == "DiversityAdjustCountFilter" {
 			f = NewDiversityAdjustCountFilter(conf)
+		} else if conf.FilterType == "SnakeFilter" {
+			f = NewSnakeFilter(conf)
 		}
 
 		if f == nil {

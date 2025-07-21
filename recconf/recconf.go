@@ -810,6 +810,7 @@ type AdjustCountConfig struct {
 	Count      int
 	Type       string
 	Expression string
+	Weight     int
 }
 type CallBackConfig struct {
 	DataSource      DataSourceConfig
