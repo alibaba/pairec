@@ -12,18 +12,28 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 )
 
+type SnakeConfigType uint8
+
+const (
+	Snake_Type_Refill SnakeConfigType = iota + 1
+	Snake_Type_Skip
+)
+
 type snakeAdjustCountConfig struct {
 	Id         int
 	Weight     int
 	RecallName string
 	Count      int
+	Type       SnakeConfigType
 }
 
 func newSnakeAdjustCountConfig(config recconf.AdjustCountConfig) (*snakeAdjustCountConfig, error) {
-	return &snakeAdjustCountConfig{
+	c := &snakeAdjustCountConfig{
 		Weight:     config.Weight,
 		RecallName: config.RecallName,
-	}, nil
+	}
+
+	return c, nil
 }
 
 type snakeItemIterator struct {
@@ -89,6 +99,9 @@ func (s *snakeItemIterator) Next(size int) (ret []*module.Item) {
 				s.itemRankMap[item.Id] = append(s.itemRankMap[item.Id], fmt.Sprintf("%s:%d:%f", item.RetrieveId, s.index, item.Score))
 			}
 			s.index++
+			if s.config.Type == Snake_Type_Skip {
+				i++
+			}
 		}
 	}
 
@@ -114,6 +127,10 @@ func NewSnakeFilter(config recconf.FilterConfig) *SnakeFilter {
 			panic(err)
 		}
 		snakeConfig.Id = i
+		snakeConfig.Type = Snake_Type_Refill // default REFILL_ON_DUPLICATE
+		if config.SnakeType == "SKIP_ON_DUPLICATE" {
+			snakeConfig.Type = Snake_Type_Skip
+		}
 		filter.configs = append(filter.configs, snakeConfig)
 		totalWeight += snakeConfig.Weight
 	}

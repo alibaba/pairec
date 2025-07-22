@@ -717,6 +717,7 @@ type FilterConfig struct {
 	ItemStateCacheSize        int
 	ItemStateCacheTime        int
 	Conditions                []FilterParamConfig
+	SnakeType                 string
 
 	ConditionFilterConfs struct {
 		FilterConfs []struct {
