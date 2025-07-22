@@ -458,4 +458,71 @@ func TestSnakeFilter(t *testing.T) {
 			}
 		}
 	})
+	t.Run("test snake filter with recall SKIP_ON_DUPLICATE type", func(t *testing.T) {
+		var items []*module.Item
+		for i := 0; i < 100; i++ {
+			item := &module.Item{
+				Id:         module.ItemId(fmt.Sprintf("item_%d", i)),
+				Score:      float64(i),
+				RetrieveId: "recall_A",
+				Properties: map[string]interface{}{},
+			}
+			items = append(items, item)
+		}
+		for i := 95; i < 105; i++ {
+			item := &module.Item{
+				Id:         module.ItemId(fmt.Sprintf("item_%d", i)),
+				Score:      float64(i),
+				RetrieveId: "recall_B",
+				Properties: map[string]interface{}{},
+			}
+			items = append(items, item)
+		}
+		for i := 98; i < 108; i++ {
+			item := &module.Item{
+				Id:         module.ItemId(fmt.Sprintf("item_%d", i)),
+				Score:      float64(i),
+				RetrieveId: "recall_C",
+				Properties: map[string]interface{}{},
+			}
+			items = append(items, item)
+		}
+		rand.Shuffle(len(items), func(i, j int) { items[i], items[j] = items[j], items[i] })
+		uniqFilter := NewUniqueFilter()
+		filterData := FilterData{
+			Context: &context.RecommendContext{},
+			Data:    items,
+		}
+		uniqFilter.doFilter(&filterData)
+		filter := NewSnakeFilter(recconf.FilterConfig{
+			Name: "snake_filter",
+			AdjustCountConfs: []recconf.AdjustCountConfig{
+				{
+					RecallName: "recall_A",
+					Weight:     1,
+				},
+				{
+					RecallName: "recall_B",
+					Weight:     2,
+				},
+				{
+					RecallName: "recall_C",
+					Weight:     3,
+				},
+			},
+			RetainNum: 60,
+			SnakeType: "SKIP_ON_DUPLICATE",
+		})
+		filterData = FilterData{
+			Context: &context.RecommendContext{},
+			Data:    filterData.Data,
+		}
+
+		filter.doFilter(&filterData)
+		newItems := filterData.Data.([]*module.Item)
+		assert.Equal(t, 60, len(newItems))
+		for _, item := range newItems {
+			t.Log(item)
+		}
+	})
 }
