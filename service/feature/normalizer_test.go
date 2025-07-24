@@ -55,3 +55,41 @@ func TestExpressionNormalizer(t *testing.T) {
 	str = normalizer.Apply(map[string]interface{}{})
 	t.Log(str)
 }
+
+func TestCreateMonthNormalizer(t *testing.T) {
+
+	user := module.NewUser("123")
+	conf := recconf.FeatureLoadConfig{}
+	conf.Features = append(conf.Features,
+		recconf.FeatureConfig{
+			FeatureType:  "new_feature",
+			FeatureStore: "user",
+			Normalizer:   "month",
+			FeatureName:  "month",
+		},
+		recconf.FeatureConfig{
+			FeatureType:  "new_feature",
+			FeatureStore: "user",
+			Normalizer:   "week",
+			FeatureName:  "week",
+		},
+		recconf.FeatureConfig{
+			FeatureType:  "new_feature",
+			FeatureStore: "user",
+			Normalizer:   "hour_in_day",
+			FeatureName:  "hour",
+		},
+		recconf.FeatureConfig{
+			FeatureType:  "new_feature",
+			FeatureStore: "user",
+			Normalizer:   "weekday",
+			FeatureName:  "weekday",
+		},
+	)
+
+	feature := LoadWithConfig(conf)
+	feature.LoadFeatures(user, nil, context.NewRecommendContext())
+
+	t.Log(user.Properties)
+
+}

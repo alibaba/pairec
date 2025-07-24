@@ -27,6 +27,10 @@ func NewNormalizer(name, expression string) Normalizer {
 		normalize = NewCreateConstValueNormalizer()
 	} else if name == "expression" {
 		normalize = NewExpressionNormalizer(expression)
+	} else if name == "month" {
+		normalize = &CreateMonthNormalizer{}
+	} else if name == "week" {
+		normalize = &CreateWeekNormalizer{}
 	}
 
 	return normalize
@@ -59,6 +63,21 @@ func (n *CreateDayNormalizer) Apply(value interface{}) interface{} {
 	default:
 		return int(6)
 	}
+}
+
+type CreateMonthNormalizer struct {
+}
+
+func (n *CreateMonthNormalizer) Apply(value interface{}) interface{} {
+	return int(time.Now().Month())
+}
+
+type CreateWeekNormalizer struct {
+}
+
+func (n *CreateWeekNormalizer) Apply(value interface{}) interface{} {
+	_, week := time.Now().ISOWeek()
+	return week
 }
 
 type CreateRandomNormalizer struct {
