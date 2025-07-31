@@ -101,13 +101,14 @@ func (r *OnlineVectorRecall) GetCandidateItems(user *module.User, context *conte
 	// second invoke eas model
 	algoGenerator := rank.CreateAlgoDataGenerator(r.recallAlgoType, nil)
 	algoGenerator.SetItemFeatures(nil)
-	algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
+	userFeatures := user.MakeUserFeatures2()
+	algoGenerator.AddFeatures(nil, nil, userFeatures)
 	algoData := algoGenerator.GeneratorAlgoData()
 	easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
 	easyrecRequest.FaissNeighNum = int32(r.recallCount)
 	algoRet, err := algorithm.Run(r.recallAlgo, easyrecRequest)
 	if context.Debug {
-		go r.debugFeature(user, context)
+		go r.debugFeature(userFeatures, context)
 	}
 	if err != nil {
 		context.LogError(fmt.Sprintf("requestId=%s\tmodule=OnlineVectorRecall\tname=%s\terr=%v", context.RecommendId, r.modelName, err))
@@ -153,7 +154,7 @@ func (r *OnlineVectorRecall) GetCandidateItems(user *module.User, context *conte
 	return
 }
 
-func (r *OnlineVectorRecall) debugFeature(user *module.User, context *context.RecommendContext) {
+func (r *OnlineVectorRecall) debugFeature(userFeatures map[string]any, context *context.RecommendContext) {
 	newAlgoName := r.recallAlgo + "_debug_vector_algo"
 
 	printFunc := func(data, featureType string) {
@@ -204,7 +205,7 @@ func (r *OnlineVectorRecall) debugFeature(user *module.User, context *context.Re
 	}
 	algoGenerator := rank.CreateAlgoDataGenerator(r.recallAlgoType, nil)
 	algoGenerator.SetItemFeatures(nil)
-	algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
+	algoGenerator.AddFeatures(nil, nil, userFeatures)
 	algoData := algoGenerator.GeneratorAlgoData()
 	easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
 	easyrecRequest.DebugLevel = 1
