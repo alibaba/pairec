@@ -175,7 +175,7 @@ func (r *OnlineVectorRecall) debugFeature(userFeatures map[string]any, context *
 					end = i + 4096
 				}
 			}
-			log.Info(fmt.Sprintf("requestId=%s\t%s=%s", context.RecommendId, featureType, string(data[i:end])))
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=OnlineVectorRecall\tname=%s\t%s=%s", context.RecommendId, r.modelName, featureType, string(data[i:end])))
 			i = end
 		}
 
