@@ -742,6 +742,7 @@ type SortConfig struct {
 	SortByField                   string
 	SwitchThreshold               float64
 	DiversitySize                 int
+	ExploreItemSize               int
 	Size                          int
 	DPPConf                       DPPSortConfig
 	SSDConf                       SSDSortConfig
@@ -753,6 +754,7 @@ type SortConfig struct {
 	Conditions                    []FilterParamConfig
 	ExcludeRecalls                []string
 	DiversityRules                []DiversityRuleConfig
+	ExclusionRules                []ExclusionRuleConfig
 	TimeInterval                  int
 	BoostScoreByWeightDao         BoostScoreByWeightDaoConfig
 }
@@ -777,6 +779,10 @@ type DiversityRuleConfig struct {
 	IntervalSize  int
 	WindowSize    int
 	FrequencySize int
+}
+type ExclusionRuleConfig struct {
+	Positions  []int
+	Conditions []FilterParamConfig
 }
 type FilterParamConfig struct {
 	Name     string
