@@ -94,6 +94,8 @@ func (r *EasRequest) SetResponseFunc(name string) {
 		r.responseFunc = torchrecEmbeddingResponseFunc
 	} else if name == "torchrecEmbeddingItemsResponseFunc" {
 		r.responseFunc = torchrecEmbeddingItemsResponseFunc
+	} else if name == "torchrecEmbeddingItemsResponseFuncDebug" {
+		r.responseFunc = torchrecEmbeddingItemsResponseFuncDebug
 	} else if name == "tfUseEmbResponseFunc" {
 		r.responseFunc = tfUseEmbResponseFunc
 	}

@@ -101,11 +101,15 @@ func (r *OnlineVectorRecall) GetCandidateItems(user *module.User, context *conte
 	// second invoke eas model
 	algoGenerator := rank.CreateAlgoDataGenerator(r.recallAlgoType, nil)
 	algoGenerator.SetItemFeatures(nil)
-	algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
+	userFeatures := user.MakeUserFeatures2()
+	algoGenerator.AddFeatures(nil, nil, userFeatures)
 	algoData := algoGenerator.GeneratorAlgoData()
 	easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
 	easyrecRequest.FaissNeighNum = int32(r.recallCount)
 	algoRet, err := algorithm.Run(r.recallAlgo, easyrecRequest)
+	if context.Debug {
+		go r.debugFeature(userFeatures, context)
+	}
 	if err != nil {
 		context.LogError(fmt.Sprintf("requestId=%s\tmodule=OnlineVectorRecall\tname=%s\terr=%v", context.RecommendId, r.modelName, err))
 	} else {
@@ -148,4 +152,73 @@ func (r *OnlineVectorRecall) GetCandidateItems(user *module.User, context *conte
 	log.Info(fmt.Sprintf("requestId=%s\tmodule=OnlineVectorRecall\tname=%s\tcount=%d\tcost=%d",
 		context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 	return
+}
+
+func (r *OnlineVectorRecall) debugFeature(userFeatures map[string]any, context *context.RecommendContext) {
+	newAlgoName := r.recallAlgo + "_debug_vector_algo"
+
+	printFunc := func(data, featureType string) {
+		size := len(data)
+		for i := 0; i < size; {
+			end := i + 4096
+			if end >= size {
+				end = size
+			} else {
+				for end > i {
+					if data[end] == '|' {
+						end++
+						break
+					}
+					end--
+				}
+				if end == i {
+					end = i + 4096
+				}
+			}
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=OnlineVectorRecall\tname=%s\t%s=%s", context.RecommendId, r.modelName, featureType, string(data[i:end])))
+			i = end
+		}
+
+	}
+	found := false
+	for _, config := range context.Config.AlgoConfs {
+		if config.Name == newAlgoName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		var algoConfig recconf.AlgoConfig
+		for _, config := range context.Config.AlgoConfs {
+			if config.Name == r.recallAlgo {
+				algoConfig = config
+				// change algoname  and  response function name
+				algoConfig.Name = newAlgoName
+				if algoConfig.EasConf.ResponseFuncName != "" {
+					algoConfig.EasConf.ResponseFuncName += "Debug"
+				}
+				algorithm.AddAlgoWithSign(algoConfig)
+				break
+			}
+		}
+
+	}
+	algoGenerator := rank.CreateAlgoDataGenerator(r.recallAlgoType, nil)
+	algoGenerator.SetItemFeatures(nil)
+	algoGenerator.AddFeatures(nil, nil, userFeatures)
+	algoData := algoGenerator.GeneratorAlgoData()
+	easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
+	easyrecRequest.DebugLevel = 1
+	algoRet, err := algorithm.Run(newAlgoName, easyrecRequest)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=OnlineVectorRecall\tname=%s\terr=%v", context.RecommendId, r.modelName, err))
+	} else {
+		if result, ok := algoRet.([]response.AlgoResponse); ok && len(result) > 0 {
+			if easyResponse, ok := result[0].(*eas.EasyrecResponse); ok {
+				printFunc(easyResponse.RawFeatures, "RawFeatures")
+				printFunc(easyResponse.GenerateFeatures.String(), "GenerateFeatures")
+			}
+		}
+	}
+
 }

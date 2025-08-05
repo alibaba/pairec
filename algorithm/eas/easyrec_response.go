@@ -637,3 +637,29 @@ func torchrecEmbeddingItemsResponseFunc(data interface{}) (ret []response.AlgoRe
 
 	return
 }
+
+func torchrecEmbeddingItemsResponseFuncDebug(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("invalid data type, %v", data)
+		return
+	}
+	var (
+		itemFeatures     string
+		generateFeatures *bytes.Buffer
+	)
+	for _, v := range resp.GenerateFeatures {
+		generateFeatures = bytes.NewBufferString(v)
+		break
+	}
+	for _, v := range resp.RawFeatures {
+		itemFeatures = v
+		break
+	}
+	if generateFeatures == nil {
+		generateFeatures = new(bytes.Buffer)
+	}
+	ret = append(ret, &EasyrecResponse{multiValModule: true, RawFeatures: itemFeatures, GenerateFeatures: generateFeatures})
+
+	return
+}
