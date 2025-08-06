@@ -187,7 +187,7 @@ func (s *DiversityRuleSort) doSort(sortData *SortData) error {
 			if firstItemIndex == -1 {
 				firstItemIndex = i
 			}
-			if s.exploreItemSize > 0 && i >= s.exploreItemSize {
+			if s.exploreItemSize > 0 && i-firstItemIndex >= s.exploreItemSize {
 				if flag {
 					alreadyMatchItems[items[firstItemIndex].Id] = true
 					result = append(result, items[firstItemIndex])

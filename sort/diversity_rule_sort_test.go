@@ -373,7 +373,7 @@ func TestDiversitryRuleExploreItemSize(t *testing.T) {
 					IntervalSize: 1,
 				},
 			},
-			ExploreItemSize: 9,
+			ExploreItemSize: 10,
 		}
 
 		context := context.NewRecommendContext()
@@ -387,9 +387,13 @@ func TestDiversitryRuleExploreItemSize(t *testing.T) {
 		assert.Equal(t, 20, len(result))
 		for i, item := range result {
 			if i < 10 {
-				assert.Equal(t, "t1", item.GetProperty("tag"))
+				if i%2 == 0 {
+					assert.Equal(t, "t1", item.StringProperty("tag"))
+				} else {
+					assert.Equal(t, "t2", item.StringProperty("tag"))
+				}
 			}
-			fmt.Println(i, item)
+			t.Log(i, item)
 		}
 	})
 }
