@@ -81,3 +81,8 @@ func (r *DiversityRule) Match(item *module.Item, itemList []*module.Item) bool {
 	}
 	return true
 }
+
+func (r *DiversityRule) GetWeight() int {
+	return r.DiversityRuleConfig.Weight
+
+}

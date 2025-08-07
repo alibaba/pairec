@@ -397,3 +397,119 @@ func TestDiversitryRuleExploreItemSize(t *testing.T) {
 		}
 	})
 }
+
+func TestDiversitryRuleWeight(t *testing.T) {
+	var items []*module.Item
+	for i := 0; i < 20; i++ {
+		item := module.NewItem(strconv.Itoa(i))
+		item.Score = float64(i)
+		item.RetrieveId = "r1"
+
+		item.AddProperty("is_new_item", i%2)
+		item.AddProperty("tag", fmt.Sprintf("t%d", i%3))
+		item.AddProperty("category", fmt.Sprintf("c%d", i%4))
+
+		if i > 10 {
+			item.AddProperty("is_new_item", 1)
+			item.AddProperty("tag", "t2")
+			item.AddProperty("category", "c1")
+		}
+		if i == 19 {
+			item.AddProperty("tag", "t3")
+		}
+		if i == 18 {
+			item.AddProperty("category", "c4")
+			item.AddProperty("is_new_item", 0)
+		}
+
+		items = append(items, item)
+	}
+	t.Run("diversitry_rule_sort", func(t *testing.T) {
+		config := recconf.SortConfig{
+
+			DiversityRules: []recconf.DiversityRuleConfig{
+				{
+					Dimensions:   []string{"is_new_item"},
+					IntervalSize: 1,
+				},
+				{
+					Dimensions:    []string{"tag"},
+					WindowSize:    5,
+					FrequencySize: 1,
+				},
+				{
+					Dimensions:    []string{"category"},
+					WindowSize:    5,
+					FrequencySize: 1,
+				},
+			},
+		}
+		fmt.Println("====sort before====")
+		for _, item := range items {
+			t.Log(item)
+		}
+
+		context := context.NewRecommendContext()
+		context.Size = 10
+		sortData := SortData{Data: items, Context: context}
+
+		NewDiversityRuleSort(config).Sort(&sortData)
+
+		result := sortData.Data.([]*module.Item)
+
+		fmt.Println("====sort after====")
+		for i, item := range result {
+			assert.Equal(t, strconv.Itoa(i), string(item.Id))
+			t.Log(item)
+		}
+
+	})
+	t.Run("diversitry_rule_sort_with_weight", func(t *testing.T) {
+		config := recconf.SortConfig{
+
+			DiversityRules: []recconf.DiversityRuleConfig{
+				{
+					Dimensions:   []string{"is_new_item"},
+					IntervalSize: 1,
+					Weight:       1,
+				},
+				{
+					Dimensions:    []string{"category"},
+					WindowSize:    5,
+					FrequencySize: 1,
+					Weight:        3,
+				},
+				{
+					Dimensions:    []string{"tag"},
+					WindowSize:    5,
+					FrequencySize: 1,
+					Weight:        5,
+				},
+			},
+		}
+		fmt.Println("====sort before====")
+		for _, item := range items {
+			t.Log(item)
+		}
+
+		context := context.NewRecommendContext()
+		context.Size = 10
+		sortData := SortData{Data: items, Context: context}
+
+		NewDiversityRuleSort(config).Sort(&sortData)
+
+		result := sortData.Data.([]*module.Item)
+
+		fmt.Println("====sort after====")
+		for i, item := range result {
+			if i == 3 {
+				assert.Equal(t, "19", string(item.Id))
+			}
+			if i == 4 {
+				assert.Equal(t, "18", string(item.Id))
+			}
+			t.Log(item)
+		}
+
+	})
+}

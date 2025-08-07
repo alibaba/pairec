@@ -779,6 +779,7 @@ type DiversityRuleConfig struct {
 	IntervalSize  int
 	WindowSize    int
 	FrequencySize int
+	Weight        int
 }
 type ExclusionRuleConfig struct {
 	Positions  []int
