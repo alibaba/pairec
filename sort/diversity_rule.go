@@ -13,10 +13,10 @@ type DiversityRule struct {
 	DimensionItemMap    map[module.ItemId]string
 }
 
-func NewDiversityRule(config recconf.DiversityRuleConfig) *DiversityRule {
+func NewDiversityRule(config recconf.DiversityRuleConfig, size int) *DiversityRule {
 	rule := DiversityRule{
 		DiversityRuleConfig: config,
-		DimensionItemMap:    make(map[module.ItemId]string),
+		DimensionItemMap:    make(map[module.ItemId]string, size),
 	}
 
 	return &rule
@@ -80,4 +80,9 @@ func (r *DiversityRule) Match(item *module.Item, itemList []*module.Item) bool {
 		}
 	}
 	return true
+}
+
+func (r *DiversityRule) GetWeight() int {
+	return r.DiversityRuleConfig.Weight
+
 }

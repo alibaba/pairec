@@ -2,6 +2,7 @@ package sort
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/alibaba/pairec/v2/module"
@@ -11,20 +12,24 @@ import (
 type DiversityRuleSort struct {
 	diversitySize    int
 	diversityRules   []recconf.DiversityRuleConfig
+	exclusionRules   []recconf.ExclusionRuleConfig
 	excludeRecallMap map[string]bool
 	filterParam      *module.FilterParam
 	cloneInstances   map[string]*DiversityRuleSort
 	name             string
+	exploreItemSize  int
 }
 
 func NewDiversityRuleSort(config recconf.SortConfig) *DiversityRuleSort {
 	sort := DiversityRuleSort{
 		diversitySize:    config.DiversitySize,
 		diversityRules:   config.DiversityRules,
+		exclusionRules:   config.ExclusionRules,
 		excludeRecallMap: make(map[string]bool, len(config.ExcludeRecalls)),
 		filterParam:      nil,
 		name:             config.Name,
 		cloneInstances:   make(map[string]*DiversityRuleSort),
+		exploreItemSize:  -1,
 	}
 
 	for _, recallName := range config.ExcludeRecalls {
@@ -34,6 +39,9 @@ func NewDiversityRuleSort(config recconf.SortConfig) *DiversityRuleSort {
 	if len(config.Conditions) > 0 {
 		filterParam := module.NewFilterParamWithConfig(config.Conditions)
 		sort.filterParam = filterParam
+	}
+	if config.ExploreItemSize > 0 {
+		sort.exploreItemSize = config.ExploreItemSize
 	}
 
 	return &sort
@@ -60,10 +68,22 @@ func (s *DiversityRuleSort) Sort(sortData *SortData) error {
 	return nil
 }
 
-func (s *DiversityRuleSort) createDiversityRules() (ret []*DiversityRule) {
+func (s *DiversityRuleSort) createDiversityRules(size int) (ret []*DiversityRule) {
 	for _, config := range s.diversityRules {
-		rule := NewDiversityRule(config)
+		rule := NewDiversityRule(config, size)
 
+		ret = append(ret, rule)
+	}
+
+	return
+}
+func (s *DiversityRuleSort) createExclusionRules(user *module.User, size int) (ret []*DiversityExclusionRule) {
+	features := make(map[string]any)
+	if user != nil {
+		features = user.MakeUserFeatures2()
+	}
+	for _, config := range s.exclusionRules {
+		rule := NewDiversityExclusionRule(config, features, size)
 		ret = append(ret, rule)
 	}
 
@@ -73,11 +93,12 @@ func (s *DiversityRuleSort) doSort(sortData *SortData) error {
 	start := time.Now()
 	items := sortData.Data.([]*module.Item)
 
-	diversityRules := s.createDiversityRules()
+	diversityRules := s.createDiversityRules(len(items))
 	if len(diversityRules) == 0 {
 		return nil
 	}
 
+	exclusionRules := s.createExclusionRules(sortData.User, len(items))
 	var excludeItems []*module.Item
 	if len(s.excludeRecallMap) > 0 {
 		newItems := make([]*module.Item, 0, len(items))
@@ -109,11 +130,46 @@ func (s *DiversityRuleSort) doSort(sortData *SortData) error {
 
 	result := make([]*module.Item, 0, diversitySize)
 	alreadyMatchItems := make(map[module.ItemId]bool, diversitySize)
-	alreadyMatchItems[items[0].Id] = true
-	result = append(result, items[0])
-	items = items[1:]
+	exFlag := false
+	if len(exclusionRules) > 0 {
+		for _, item := range items {
+			exFlag = false
+			for _, rule := range exclusionRules {
+				if rule.Match(1, item) {
+					exFlag = true
+					break
+				}
+			}
+			if !exFlag { // item not match any exclusion rule
+				alreadyMatchItems[item.Id] = true
+				result = append(result, item)
+				break
+			}
+		}
+
+		if len(result) == 0 {
+			alreadyMatchItems[items[0].Id] = true
+			result = append(result, items[0])
+			items = items[1:]
+		}
+
+	} else {
+		alreadyMatchItems[items[0].Id] = true
+		result = append(result, items[0])
+		items = items[1:]
+	}
 
 	index := 1
+	weight := 0
+	itemWeightContainer := itemWeightContainerPool.Get().(*itemWeightContainer)
+	defer itemWeightContainerPool.Put(itemWeightContainer)
+	hasWeight := false
+	for _, rule := range diversityRules {
+		if rule.GetWeight() > 0 {
+			hasWeight = true
+			break
+		}
+	}
 	for len(result) <= diversitySize {
 		if index == itemLength {
 			break
@@ -122,18 +178,43 @@ func (s *DiversityRuleSort) doSort(sortData *SortData) error {
 		flag := true
 		// if all the rest items not match diversity rule, use the first item append to the result
 		firstItemIndex := -1
+		itemWeightContainer.reset()
 		for i, item := range items {
 			if _, ok := alreadyMatchItems[item.Id]; ok {
 				continue
+			}
+			if len(exclusionRules) > 0 {
+				exFlag = false
+				for _, rule := range exclusionRules {
+					if rule.Match(len(result)+1, item) { // next position check item is match the exclusion rule
+						exFlag = true
+						break
+					}
+				}
+				if exFlag { // if item match the exclusion rule, so skip it, search next item
+					continue
+				}
 			}
 
 			if firstItemIndex == -1 {
 				firstItemIndex = i
 			}
+			if s.exploreItemSize > 0 && i-firstItemIndex >= s.exploreItemSize {
+				break
+			}
 			flag = true
+			weight = 0
 			for _, rule := range diversityRules {
-				if flag = rule.Match(item, result); !flag {
-					break
+				if hasWeight { // if has weight, so need to iterate all the rules find the max weight
+					if rule.Match(item, result) {
+						weight += rule.GetWeight()
+					} else {
+						flag = false
+					}
+				} else {
+					if flag = rule.Match(item, result); !flag {
+						break
+					}
 				}
 			}
 
@@ -143,13 +224,21 @@ func (s *DiversityRuleSort) doSort(sortData *SortData) error {
 				result = append(result, item)
 				index++
 				break
+			} else {
+				itemWeightContainer.addItemWeight(item, weight)
 			}
 		}
 
 		if !flag {
-			alreadyMatchItems[items[firstItemIndex].Id] = true
-			result = append(result, items[firstItemIndex])
-			index++
+			if item := itemWeightContainer.getItem(); item != nil {
+				alreadyMatchItems[item.Id] = true
+				result = append(result, item)
+				index++
+			} else {
+				alreadyMatchItems[items[firstItemIndex].Id] = true
+				result = append(result, items[firstItemIndex])
+				index++
+			}
 		}
 	}
 
@@ -165,4 +254,40 @@ func (s *DiversityRuleSort) doSort(sortData *SortData) error {
 	sortData.Data = result
 	sortInfoLog(sortData, "DiversityRuleSort", len(result), start)
 	return nil
+}
+
+type itemWeightContainer struct {
+	item      *module.Item
+	maxWeight int
+}
+
+func newItemWeightContainer() *itemWeightContainer {
+	return &itemWeightContainer{
+		item:      nil,
+		maxWeight: 0,
+	}
+}
+func (c *itemWeightContainer) reset() {
+	c.item = nil
+	c.maxWeight = 0
+}
+
+// addItemWeight  log max weight item
+func (c *itemWeightContainer) addItemWeight(item *module.Item, weight int) {
+	if c.item == nil {
+		c.item = item
+		c.maxWeight = weight
+	} else if c.maxWeight < weight {
+		c.item = item
+		c.maxWeight = weight
+	}
+}
+func (c *itemWeightContainer) getItem() *module.Item {
+	return c.item
+}
+
+var itemWeightContainerPool = sync.Pool{
+	New: func() interface{} {
+		return newItemWeightContainer()
+	},
 }
