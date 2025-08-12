@@ -94,7 +94,7 @@ func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeU
 
 func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
 
-	itemTriggers := d.GetTriggers(user, context)
+	itemTriggers, triggerIds := d.GetTriggersBySort(user, context)
 	if len(itemTriggers) == 0 {
 		return
 	}
@@ -130,9 +130,10 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\terror=featureEntity not found, featureEntity:%s", context.RecommendId, featureView.GetFeatureEntityName()))
 		return
 	}
+	isSnakeMode := d.isSnakeMergeMode()
 
+	triggerIdItemMap := make(map[string][]*Item, len(itemTriggers))
 	for _, featureMap := range features {
-
 		triggerId := utils.ToString(featureMap[featureEntity.FeatureEntityJoinid], "")
 		ids := utils.ToString(featureMap[d.similarItemIdField], "")
 		preferScore := itemTriggers[triggerId]
@@ -152,6 +153,7 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 				}
 
 				ret = append(ret, item)
+				triggerIdItemMap[triggerId] = append(triggerIdItemMap[triggerId], item)
 			} else if len(strs) == 3 { // compatible format itemid1:recall1:score1
 				item := NewItem(strs[0])
 				item.RetrieveId = d.recallName
@@ -162,19 +164,78 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 				}
 
 				ret = append(ret, item)
+				triggerIdItemMap[triggerId] = append(triggerIdItemMap[triggerId], item)
 			}
 		}
 
 	}
+	// sort items
+	if isSnakeMode || context.Debug {
+		for _, triggerId := range triggerIds {
+			items := triggerIdItemMap[triggerId]
+			gosort.Sort(gosort.Reverse(ItemScoreSlice(items)))
+			triggerIdItemMap[triggerId] = items
+		}
+	}
+	if context.Debug {
+		for _, triggerId := range triggerIds {
+			items := triggerIdItemMap[triggerId]
+			if len(items) > 0 {
+				str := d.debugItemsString(items)
+				log.Info(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\ttriggerId=%s\ttriggerScore=%f\titems=%s", context.RecommendId, triggerId, itemTriggers[triggerId], str))
+			}
+		}
+	}
 
-	gosort.Sort(gosort.Reverse(ItemScoreSlice(ret)))
-	ret = uniqItems(ret)
+	if isSnakeMode {
+		uniq := make(map[ItemId]bool, d.recallCount)
+		resultItems := make([]*Item, 0, d.recallCount)
+		emptyItemsCount := 0
+		for len(resultItems) < d.recallCount {
+			emptyItemsCount = 0
+			for _, triggerId := range triggerIds {
+				items := triggerIdItemMap[triggerId]
+				if len(items) == 0 {
+					emptyItemsCount++
+					continue
+				} else {
+					item := items[0]
+					if _, ok := uniq[item.Id]; !ok {
+						uniq[item.Id] = true
+						resultItems = append(resultItems, item)
+					}
+					triggerIdItemMap[triggerId] = items[1:]
+				}
+			}
+			if emptyItemsCount == len(triggerIds) {
+				break
+			}
+		}
+
+		ret = resultItems
+		gosort.Sort(gosort.Reverse(ItemScoreSlice(ret)))
+	} else {
+		gosort.Sort(gosort.Reverse(ItemScoreSlice(ret)))
+		ret = uniqItems(ret)
+	}
 
 	if len(ret) > d.recallCount {
 		ret = ret[:d.recallCount]
 	}
 
+	if context.Debug {
+		str := d.debugItemsString(ret)
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\titems=%s", context.RecommendId, str))
+	}
+
 	return
+}
+func (d *RealtimeUser2ItemFeatureStoreDao) debugItemsString(itmes []*Item) string {
+	ret := make([]string, 0, len(itmes))
+	for _, item := range itmes {
+		ret = append(ret, fmt.Sprintf("%s:%f", item.Id, item.Score))
+	}
+	return strings.Join(ret, ",")
 }
 
 func (d *RealtimeUser2ItemFeatureStoreDao) GetTriggerInfos(user *User, context *context.RecommendContext) (triggerInfos []*TriggerInfo) {
@@ -268,6 +329,18 @@ func (d *RealtimeUser2ItemFeatureStoreDao) GetTriggers(user *User, context *cont
 
 	for _, trigger := range triggerInfos {
 		itemTriggers[trigger.ItemId] = trigger.Weight
+	}
+
+	return
+}
+
+func (d *RealtimeUser2ItemFeatureStoreDao) GetTriggersBySort(user *User, context *context.RecommendContext) (itemTriggers map[string]float64, triggerIds []string) {
+	triggerInfos := d.GetTriggerInfos(user, context)
+	itemTriggers = make(map[string]float64, len(triggerInfos))
+
+	for _, trigger := range triggerInfos {
+		itemTriggers[trigger.ItemId] = trigger.Weight
+		triggerIds = append(triggerIds, trigger.ItemId)
 	}
 
 	return
