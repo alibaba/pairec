@@ -69,6 +69,7 @@ type RealtimeUser2ItemBaseDao struct {
 	diversityRules   []recconf.TriggerDiversityRuleConfig
 	eventPlayTimeMap map[string]float64
 	eventWeightMap   map[string]float64
+	mergeMode        string
 }
 
 func NewRealtimeUser2ItemBaseDao(config *recconf.RecallConfig) *RealtimeUser2ItemBaseDao {
@@ -82,6 +83,7 @@ func NewRealtimeUser2ItemBaseDao(config *recconf.RecallConfig) *RealtimeUser2Ite
 		limit:            config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.Limit,
 		eventPlayTimeMap: make(map[string]float64),
 		eventWeightMap:   make(map[string]float64),
+		mergeMode:        config.RealTimeUser2ItemDaoConf.MergeMode,
 	}
 
 	if dao.triggerCount == 0 {
@@ -189,4 +191,8 @@ func (d *RealtimeUser2ItemBaseDao) DiversityTriggers(triggers []*TriggerInfo) []
 	}
 
 	return triggerResult
+}
+
+func (d *RealtimeUser2ItemBaseDao) isSnakeMergeMode() bool {
+	return d.mergeMode == "snake"
 }
