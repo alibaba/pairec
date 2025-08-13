@@ -213,7 +213,6 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 		}
 
 		ret = resultItems
-		gosort.Sort(gosort.Reverse(ItemScoreSlice(ret)))
 	} else {
 		gosort.Sort(gosort.Reverse(ItemScoreSlice(ret)))
 		ret = uniqItems(ret)
