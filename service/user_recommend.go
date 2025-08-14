@@ -82,6 +82,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 
 	if metrics.Enabled() {
 		metrics.RecallDurSecs.WithLabelValues(scene, expId).Observe(time.Since(recallStart).Seconds())
+		metrics.RecallCountTotal.WithLabelValues(scene).Add(float64(len(items)))
 
 		recallCountMap := map[string]int{}
 		for _, item := range items {
@@ -89,7 +90,8 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 		}
 
 		for src, count := range recallCountMap {
-			metrics.RecallItemsPercentage.WithLabelValues(src).Set(float64(count) / float64(len(items)))
+			//metrics.RecallItemsPercentage.WithLabelValues(src).Set(float64(count) / float64(len(items)))
+			metrics.RecallCount.WithLabelValues(scene, src).Add(float64(count))
 		}
 	}
 
