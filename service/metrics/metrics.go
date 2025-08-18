@@ -13,6 +13,8 @@ import (
 var (
 	SizeNotEnoughTotal    *prometheus.CounterVec
 	RecTotal              *prometheus.CounterVec
+	RecallCount           *prometheus.CounterVec
+	RecallCountTotal      *prometheus.CounterVec
 	RecallItemsPercentage *prometheus.GaugeVec
 	RecallDurSecs         *prometheus.HistogramVec
 	FilterDurSecs         *prometheus.HistogramVec
@@ -39,6 +41,8 @@ func Load(conf *recconf.RecommendConfig) {
 
 		register(RecTotal,
 			SizeNotEnoughTotal,
+			RecallCount,
+			RecallCountTotal,
 			RecallItemsPercentage,
 			RecDurSecs,
 			RecallDurSecs,
@@ -87,6 +91,23 @@ func initMetrics(conf *recconf.RecommendConfig) {
 		Name:      "size_not_enough_total",
 		Help:      "How many times of recommend with not enough items.",
 	}, commonLabels)
+
+	RecallCount = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Subsystem: subsystem,
+		Name:      "recall_count",
+		Help:      "Recall items count.",
+	}, []string{
+		"scene",
+		"recall_name",
+	})
+
+	RecallCountTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Subsystem: subsystem,
+		Name:      "recall_count_total",
+		Help:      "Total recall items count.",
+	}, []string{
+		"scene",
+	})
 
 	RecallItemsPercentage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: subsystem,

@@ -3,6 +3,7 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -154,6 +155,15 @@ func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	if resp, err := client.Do(req); err != nil {
 		log.Error(fmt.Sprintf("Error sending to push gateway: %v", err))
 	} else {
+		if resp.StatusCode != 200 {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Error(fmt.Sprintf("Error push gateway response code: %d err: %s", resp.StatusCode, err.Error()))
+			} else {
+				log.Error(fmt.Sprintf("Error push gateway response code: %d body: %s", resp.StatusCode, string(body)))
+			}
+		}
+
 		resp.Body.Close()
 	}
 }
@@ -164,7 +174,10 @@ func (p *Prometheus) startPushTicker() {
 		for range ticker.C {
 			p.sendMetricsToPushGateway(p.getMetrics())
 
-			p.sendMetricsToPushGateway(p.getCustomMetrics())
+			customMetrics := p.getCustomMetrics()
+			if len(customMetrics) > 0 {
+				p.sendMetricsToPushGateway(customMetrics)
+			}
 		}
 	}()
 }
