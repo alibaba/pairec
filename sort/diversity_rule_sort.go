@@ -239,6 +239,8 @@ func (s *DiversityRuleSort) doSort(sortData *SortData) error {
 				result = append(result, items[firstItemIndex])
 				index++
 			}
+		} else if firstItemIndex == -1 { // all items are in alreadyMatchItems map
+			break
 		}
 	}
 
