@@ -670,7 +670,6 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 		}
 
 		for _, condition := range conditions {
-			var conditionExpr string
 			if condition.Option == "=" {
 				condition.Option = "=="
 
@@ -678,7 +677,6 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 				case string:
 					condition.Value = fmt.Sprintf("'%s'", condition.Value)
 				}
-				conditionExpr = fmt.Sprintf("%s%s%v", condition.Field, condition.Option, condition.Value)
 			} else if condition.Option == "in" {
 				if condition.Type == "STRING" {
 					valueArr := strings.Split(condition.Value.(string), ",")
@@ -689,11 +687,9 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 				} else {
 					condition.Value = fmt.Sprintf("(%v)", condition.Value)
 				}
-				conditionExpr = fmt.Sprintf("%s %s %v", condition.Field, condition.Option, condition.Value)
-			} else {
-				conditionExpr = fmt.Sprintf("%s%s%v", condition.Field, condition.Option, condition.Value)
-			}
 
+			}
+			conditionExpr := fmt.Sprintf("%s %s %v", condition.Field, condition.Option, condition.Value)
 			if express == "" {
 				express = conditionExpr
 			} else {
