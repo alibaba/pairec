@@ -80,12 +80,6 @@ func (s *PIDStatus) GetMeasurement() float64 {
 	return s.lastMeasurement
 }
 
-type Expression struct {
-	Field  string      `json:"field"`
-	Option string      `json:"option"`
-	Value  interface{} `json:"value"`
-}
-
 func NewPIDController(task *model.TrafficControlTask, target *model.TrafficControlTarget, conf *recconf.PIDControllerConfig, expId string) *PIDController {
 	loadTrafficControlTargetData(task.SceneName, conf.Timestamp)
 	endTime, _ := time.Parse("2006-01-02T15:04:05+08:00", target.EndTime)
@@ -659,6 +653,13 @@ func (p *PIDController) SetStartPageNum(pageNum int) {
 	p.startPageNum = pageNum
 }
 
+type Expression struct {
+	Field  string      `json:"field"`
+	Type   string      `json:"type"`
+	Option string      `json:"option"`
+	Value  interface{} `json:"value"`
+}
+
 func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 	var express string
 	if conditionArray != "" {
@@ -669,6 +670,7 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 		}
 
 		for _, condition := range conditions {
+			var conditionExpr string
 			if condition.Option == "=" {
 				condition.Option = "=="
 
@@ -676,8 +678,22 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 				case string:
 					condition.Value = fmt.Sprintf("'%s'", condition.Value)
 				}
+				conditionExpr = fmt.Sprintf("%s%s%v", condition.Field, condition.Option, condition.Value)
+			} else if condition.Option == "in" {
+				if condition.Type == "STRING" {
+					valueArr := strings.Split(condition.Value.(string), ",")
+					for i, value := range valueArr {
+						valueArr[i] = fmt.Sprintf("'%s'", value)
+					}
+					condition.Value = fmt.Sprintf("(%v)", strings.Join(valueArr, ","))
+				} else {
+					condition.Value = fmt.Sprintf("(%v)", condition.Value)
+				}
+				conditionExpr = fmt.Sprintf("%s %s %v", condition.Field, condition.Option, condition.Value)
+			} else {
+				conditionExpr = fmt.Sprintf("%s%s%v", condition.Field, condition.Option, condition.Value)
 			}
-			conditionExpr := fmt.Sprintf("%s%s%v", condition.Field, condition.Option, condition.Value)
+
 			if express == "" {
 				express = conditionExpr
 			} else {
