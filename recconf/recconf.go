@@ -647,6 +647,7 @@ type CategoryConfig struct {
 	RecallNames        []string
 	FallbackConfig     *FallbackConfig
 	AutoInvokeCallBack bool
+	OutputFields       []string
 }
 
 type FallbackConfig struct {
