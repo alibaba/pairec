@@ -1,6 +1,6 @@
 module github.com/alibaba/pairec/v2
 
-go 1.20
+go 1.22
 
 require (
 	github.com/ClickHouse/clickhouse-go v1.5.4
@@ -42,11 +42,12 @@ require (
 require (
 	fortio.org/assert v1.2.1
 	github.com/alibabacloud-go/opensearch-util v1.0.1
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.5-0.20250729072700-e2b381f589af
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.6-0.20250820025643-194b9ac775ad
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.0
 	github.com/aliyun/credentials-go v1.4.6
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
+	github.com/expr-lang/expr v1.16.9
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
 )
@@ -64,7 +65,6 @@ require (
 	github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
-	github.com/expr-lang/expr v1.16.9 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
@@ -98,11 +98,9 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudflare/golz4 v0.0.0-20150217214814-ef862a3cdc58 // indirect
-	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
-	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12
