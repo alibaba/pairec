@@ -86,6 +86,8 @@ github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 h1:jSMfOm0fpc83+YersEbXhYG7/4o
 github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1/go.mod h1:ki4zr1YK8ehW1rQxMFoAVTnjZeRNcSbVNyJxJZqR9i4=
 github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.4-0.20250612074337-3c6e7b95b667 h1:/Af9Wxcg7XPMNkeliV3vC1CPDAD8Vd/nCjrmS0sRAus=
 github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.4-0.20250612074337-3c6e7b95b667/go.mod h1:NLAAiV3qfPGvYUuKcWsDIqjAMKxXfAsLG/geiYwq8TY=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.5-0.20250729072700-e2b381f589af h1:m/M0X/eRHvwc6uiQxyF9XdV+7Lub1B9RJHuK/TgPfk8=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.5-0.20250729072700-e2b381f589af/go.mod h1:X38zkeooEBG8ImnFEnWQ3Rl4kOavb/AdeGrocZ4c4o4=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.9 h1:5y0i3aCjpg6eEwRq+wE7dxLz1f5J+KStkL7OA50kFdo=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.9/go.mod h1:OK+RoTDGkwH8PYezWr0qasD/x1P+CKn020L9Zcmcu1M=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.0 h1:0Rj6VSppWzxpF5DgHgIzazzJpck11kdr0wfQaPA9zAQ=
