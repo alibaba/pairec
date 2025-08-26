@@ -51,10 +51,14 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	for _, item := range items {
 		data := make(map[string]any)
 		data["item_id"] = item.Id
+		data["score"] = item.Score
 		itemFeatutres := item.GetCloneFeatures()
 		for k, v := range itemFeatutres {
 			data[k] = v
 		}
+
+		scores := item.CloneAlgoScores()
+		data["algo_scores"] = scores
 
 		itemList = append(itemList, data)
 	}

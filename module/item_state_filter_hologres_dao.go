@@ -23,15 +23,16 @@ var (
 )
 
 type ItemStateFilterHologresDao struct {
-	db            *sql.DB
-	table         string
-	whereClause   string
-	itemFieldName string
-	selectFields  string
-	filterParam   *FilterParam
-	mu            sync.RWMutex
-	stmtMap       map[int]*sql.Stmt
-	itmCache      cache.Cache
+	db                 *sql.DB
+	table              string
+	whereClause        string
+	itemFieldName      string
+	selectFields       string
+	filterParam        *FilterParam
+	defaultFieldValues map[string]any
+	mu                 sync.RWMutex
+	stmtMap            map[int]*sql.Stmt
+	itmCache           cache.Cache
 }
 
 func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilterHologresDao {
@@ -41,12 +42,13 @@ func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilter
 	}
 
 	dao := &ItemStateFilterHologresDao{
-		db:            hologres.DB,
-		table:         config.ItemStateDaoConf.HologresTableName,
-		itemFieldName: config.ItemStateDaoConf.ItemFieldName,
-		whereClause:   config.ItemStateDaoConf.WhereClause,
-		selectFields:  config.ItemStateDaoConf.SelectFields,
-		stmtMap:       make(map[int]*sql.Stmt),
+		db:                 hologres.DB,
+		table:              config.ItemStateDaoConf.HologresTableName,
+		itemFieldName:      config.ItemStateDaoConf.ItemFieldName,
+		whereClause:        config.ItemStateDaoConf.WhereClause,
+		selectFields:       config.ItemStateDaoConf.SelectFields,
+		stmtMap:            make(map[int]*sql.Stmt),
+		defaultFieldValues: config.ItemStateDaoConf.DefaultFieldValues,
 	}
 	if config.ItemStateCacheSize > 0 {
 		cacheTime := 3600
@@ -122,6 +124,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 			select {
 			case idlist := <-requestCh:
 				fieldMap := make(map[string]bool, len(idlist))
+				addPropertyMap := make(map[string]bool, len(idlist))
 				builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 				builder.Select(d.itemFieldName)
 				if d.selectFields != "" {
@@ -264,6 +267,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 						}
 						if item, ok := itemMap[ItemId(id)]; ok {
 							item.AddProperties(properties)
+							addPropertyMap[id] = true
 						}
 						if d.filterParam != nil {
 							result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
@@ -272,6 +276,27 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 							}
 						} else {
 							fieldMap[id] = true
+						}
+					}
+				}
+				if len(d.defaultFieldValues) > 0 {
+					for _, id := range idlist {
+						itemId := id.(string)
+						if _, ok := addPropertyMap[itemId]; !ok {
+							if item, ok := itemMap[ItemId(itemId)]; ok {
+								item.AddProperties(d.defaultFieldValues)
+								if d.itmCache != nil {
+									d.itmCache.Put(itemId, d.defaultFieldValues)
+								}
+								if d.filterParam != nil {
+									result, err := d.filterParam.EvaluateByDomain(userFeatures, d.defaultFieldValues)
+									if err == nil && result {
+										fieldMap[itemId] = true
+									}
+								} else {
+									fieldMap[itemId] = true
+								}
+							}
 						}
 					}
 				}

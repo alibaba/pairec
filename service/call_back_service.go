@@ -240,8 +240,8 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 								itemList[j].AddProperty("raw_features", response.RawFeatures)
 							}
 
-							//itemList[j].AddProperty("generate_features", response.GenerateFeatures)
-							itemList[j].Properties["generate_features"] = response.GenerateFeatures
+							itemList[j].AddProperty("generate_features", response.GenerateFeatures)
+							//itemList[j].Properties["generate_features"] = response.GenerateFeatures
 							itemList[j].AddProperty("context_features", response.ContextFeatures)
 						}
 					}
