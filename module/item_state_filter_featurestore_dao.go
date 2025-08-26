@@ -116,6 +116,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 			select {
 			case idlist := <-requestCh:
 				fieldMap := make(map[string]bool, len(idlist))
+				addPropertyMap := make(map[string]bool, len(idlist))
 
 				featureView := d.fsClient.GetProject().GetFeatureView(d.table)
 				if featureView == nil {
@@ -142,6 +143,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 					if itemId != "" {
 						if item, ok := itemMap[ItemId(itemId)]; ok {
 							item.AddProperties(itemFeatures)
+							addPropertyMap[itemId] = true
 							if d.itmCache != nil {
 								d.itmCache.Put(itemId, itemFeatures)
 							}
@@ -159,7 +161,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 				if len(d.defaultFieldValues) > 0 {
 					for _, id := range idlist {
 						itemId := id.(string)
-						if _, ok := fieldMap[itemId]; !ok {
+						if _, ok := addPropertyMap[itemId]; !ok {
 							if item, ok := itemMap[ItemId(itemId)]; ok {
 								item.AddProperties(d.defaultFieldValues)
 								if d.itmCache != nil {
