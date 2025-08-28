@@ -56,7 +56,7 @@ func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilter
 			cacheTime = config.ItemStateCacheTime
 		}
 		dao.itmCache = cache.New(cache.WithMaximumSize(config.ItemStateCacheSize),
-			cache.WithExpireAfterAccess(time.Second*time.Duration(cacheTime)))
+			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
 	}
 	if len(config.FilterParams) > 0 {
 		dao.filterParam = NewFilterParamWithConfig(config.FilterParams)
