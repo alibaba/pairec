@@ -7,6 +7,7 @@ import (
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/cespare/xxhash/v2"
 )
 
 func TestComposeFeatureOp(t *testing.T) {
@@ -135,6 +136,22 @@ func TestNewFeatureWithExpressionFeatureOp(t *testing.T) {
 		assert.Equal(t, items[0].StringProperty("replace_feature"), "user1#123")
 		assert.Equal(t, items[1].StringProperty("replace_feature"), "user1#456")
 
+	})
+	t.Run("test_hash_expression", func(t *testing.T) {
+		conf := recconf.FeatureLoadConfig{}
+		conf.Features = append(conf.Features, recconf.FeatureConfig{
+			FeatureType:   "new_feature",
+			FeatureStore:  "item",
+			FeatureSource: "item:category",
+			FeatureName:   "category_hash",
+			Normalizer:    "expression",
+			Expression:    "hash(category)",
+		})
+		feature := LoadWithConfig(conf)
+		feature.LoadFeatures(user, items, context.NewRecommendContext())
+
+		assert.Equal(t, items[0].GetProperty("category_hash"), xxhash.Sum64String("movie"))
+		assert.Equal(t, items[1].GetProperty("category_hash"), xxhash.Sum64String("book"))
 	})
 
 }
