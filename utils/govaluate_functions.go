@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Knetic/govaluate"
+	"github.com/cespare/xxhash/v2"
 )
 
 var (
@@ -64,6 +65,13 @@ var (
 			} else {
 				return nil, errors.New("wrong number of arguments")
 			}
+		},
+		"hash": func(args ...interface{}) (interface{}, error) {
+			if len(args) != 1 {
+				return "", errors.New("args length not equal 1")
+			}
+			str := ToString(args[0], "")
+			return xxhash.Sum64String(str), nil
 		},
 	}
 )
