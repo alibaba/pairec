@@ -92,6 +92,7 @@ type PrometheusConfig struct {
 	Enable           bool
 	Subsystem        string
 	PushGatewayURL   string
+	PushGatewayToken string
 	PushIntervalSecs int
 	Job              string
 	ReqDurBuckets    []float64

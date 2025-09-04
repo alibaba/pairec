@@ -75,6 +75,8 @@ type PushGateway struct {
 	// where JOBNAME can be any string of your choice
 	PushGatewayURL string
 
+	PushGatewayToken string
+
 	// pushgateway job name, defaults to "recommend"
 	Job string
 }
@@ -102,8 +104,9 @@ func NewPrometheus(options ...PrometheusOption) *Prometheus {
 	return p
 }
 
-func (p *Prometheus) Push(pushGatewayURL string, pushIntervalSecs int, job string) {
+func (p *Prometheus) Push(pushGatewayURL, PushGatewayToken string, pushIntervalSecs int, job string) {
 	p.Ppg.PushGatewayURL = pushGatewayURL
+	p.Ppg.PushGatewayToken = PushGatewayToken
 	p.Ppg.PushIntervalSeconds = time.Duration(pushIntervalSecs)
 
 	if job != "" {
@@ -147,6 +150,9 @@ func (p *Prometheus) getPushGatewayURL() string {
 
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
+	if p.Ppg.PushGatewayToken != "" {
+		req.Header.Add("Authorization", "Bearer "+p.Ppg.PushGatewayToken)
+	}
 	if err != nil {
 		//log.Errorf("failed to create push gateway request: %v", err)
 		return

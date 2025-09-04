@@ -70,7 +70,7 @@ func (app *App) Run() {
 
 				config.Job = env
 			}
-			p.Push(config.PushGatewayURL, config.PushIntervalSecs, config.Job)
+			p.Push(config.PushGatewayURL, config.PushGatewayToken, config.PushIntervalSecs, config.Job)
 		}
 
 		app.Use(p.HandlerFunc)
