@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -28,6 +28,16 @@ type FeatureStoreFallback struct {
 	cacheTime int
 
 	completeItemsIfNeed bool
+}
+
+var timerPool = sync.Pool{
+	New: func() interface{} {
+		t := time.NewTimer(time.Hour) // init with any duration
+		if !t.Stop() {
+			<-t.C
+		}
+		return t
+	},
 }
 
 func NewFeatureStoreFallback(conf recconf.FallbackConfig) *FeatureStoreFallback {
@@ -67,7 +77,18 @@ func NewFeatureStoreFallback(conf recconf.FallbackConfig) *FeatureStoreFallback 
 }
 
 func (r *FeatureStoreFallback) GetTimer() *time.Timer {
-	return time.NewTimer(r.timeout)
+	t := timerPool.Get().(*time.Timer)
+	t.Reset(r.timeout)
+	return t
+}
+func (r *FeatureStoreFallback) PutTimer(t *time.Timer) {
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
+		}
+	}
+	timerPool.Put(t)
 }
 
 func (r *FeatureStoreFallback) CompleteItemsIfNeed() bool {
@@ -115,30 +136,17 @@ func (r *FeatureStoreFallback) Recommend(context *context.RecommendContext) []*m
 	if r.cache != nil {
 		key := moduleName
 		cacheRet := r.cache.Get(key)
-		switch itemStr := cacheRet.(type) {
-		case string:
-			itemIds := strings.Split(itemStr, ",")
-			for _, id := range itemIds {
-				var item *module.Item
-				if strings.Contains(id, ":") {
-					vars := strings.Split(id, ":")
-					item = module.NewItem(vars[0])
-					f, _ := strconv.ParseFloat(vars[2], 64)
-					item.AddAlgoScore("hot_score", f)
-					item.Score = f
-					item.RetrieveId = vars[1]
-				} else {
-					item = module.NewItem(id)
+		switch itemsMap := cacheRet.(type) {
+		case map[module.ItemId]*module.Item:
+			fallbackItemsMap = make(map[module.ItemId]*module.Item, len(itemsMap))
+			for _, item := range itemsMap {
+				newItem := module.NewItem(string(item.Id))
+				newItem.Score = item.Score
+				newItem.RetrieveId = item.RetrieveId
+				if newItem.RetrieveId == "" {
+					newItem.RetrieveId = moduleName
 				}
-				if item.RetrieveId == "" {
-					item.RetrieveId = moduleName
-				}
-
-				if seenItem, ok := fallbackItemsMap[item.Id]; ok {
-					seenItem.Score += item.Score
-				} else {
-					fallbackItemsMap[item.Id] = item
-				}
+				fallbackItemsMap[newItem.Id] = newItem
 			}
 		default:
 		}
@@ -206,22 +214,23 @@ func (r *FeatureStoreFallback) Recommend(context *context.RecommendContext) []*m
 
 			if r.cache != nil && len(fallbackItemsMap) > 0 {
 				key := moduleName
-				var itemIds string
-				for _, item := range fallbackItemsMap {
-					itemIds += fmt.Sprintf("%s:%s:%v", string(item.Id), item.RetrieveId, item.Score) + ","
-				}
-				itemIds = itemIds[:len(itemIds)-1]
 
-				go func() {
-					cacheTime := r.cacheTime
-					if cacheTime == 0 {
-						cacheTime = 7200
-					}
-					if err := r.cache.Put(key, itemIds, time.Duration(cacheTime)*time.Second); err != nil {
-						log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureStoreFallback\terror=%v",
-							context.RecommendId, err))
-					}
-				}()
+				itemsMap := make(map[module.ItemId]*module.Item, len(fallbackItemsMap))
+				for _, item := range fallbackItemsMap {
+					newItem := module.NewItem(string(item.Id))
+					newItem.Score = item.Score
+					newItem.RetrieveId = item.RetrieveId
+					itemsMap[newItem.Id] = newItem
+				}
+
+				cacheTime := r.cacheTime
+				if cacheTime == 0 {
+					cacheTime = 7200
+				}
+				if err := r.cache.Put(key, itemsMap, time.Duration(cacheTime)*time.Second); err != nil {
+					log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureStoreFallback\terror=%v",
+						context.RecommendId, err))
+				}
 			}
 		}
 	}

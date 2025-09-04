@@ -2394,6 +2394,51 @@ func TestBoolFilterOp(t *testing.T) {
 			},
 			Expect: false,
 		},
+		{
+			Config: []recconf.FilterParamConfig{
+				{
+					Operator: "bool",
+					Type:     "or",
+					Configs: []recconf.FilterParamConfig{
+						{
+							Domain:   "item",
+							Operator: "not_in",
+							Type:     "string",
+							Name:     "cate_id",
+							Value:    []any{"75", "765", "74"},
+						},
+						{
+							Operator: "bool",
+							Type:     "and",
+							Configs: []recconf.FilterParamConfig{
+								{
+									Domain:   "item",
+									Operator: "equal",
+									Type:     "string",
+									Name:     "cate_id",
+									Value:    "74",
+								},
+								{
+									Domain:   "item",
+									Operator: "not_in",
+									Type:     "string",
+									Name:     "length",
+									Value:    []any{"Cropped", "Hip"},
+								},
+							},
+						},
+					},
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"cate_id": "74",
+				"length":  "Hip2",
+			},
+			UserProperties: map[string]interface{}{
+				"list": []any{"41", "43.5", "42.5"},
+			},
+			Expect: true,
+		},
 	}
 
 	for _, case1 := range testcases {

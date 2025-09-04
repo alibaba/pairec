@@ -216,11 +216,12 @@ func (r *UserRecommendService) TryRecommendWithFallback(context *context.Recomme
 
 	select {
 	case <-fallbackTimer.C:
+		f.PutTimer(fallbackTimer)
 		fallbackResult := f.Recommend(context)
 		log.Warning(fmt.Sprintf("requestId=%s\tmodule=recommend\tevent=fallback\tcause=timeout\tcost=%d", context.RecommendId, utils.CostTime(start)))
 		return fallbackResult
 	case ret := <-tryResult:
-		fallbackTimer.Stop()
+		f.PutTimer(fallbackTimer)
 
 		if f.CompleteItemsIfNeed() && len(ret) < context.Size {
 			originRetMap := make(map[module.ItemId]bool)
