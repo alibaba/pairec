@@ -223,14 +223,16 @@ func (r *FeatureStoreFallback) Recommend(context *context.RecommendContext) []*m
 					itemsMap[newItem.Id] = newItem
 				}
 
-				cacheTime := r.cacheTime
-				if cacheTime == 0 {
-					cacheTime = 7200
-				}
-				if err := r.cache.Put(key, itemsMap, time.Duration(cacheTime)*time.Second); err != nil {
-					log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureStoreFallback\terror=%v",
-						context.RecommendId, err))
-				}
+				go func() {
+					cacheTime := r.cacheTime
+					if cacheTime == 0 {
+						cacheTime = 7200
+					}
+					if err := r.cache.Put(key, itemsMap, time.Duration(cacheTime)*time.Second); err != nil {
+						log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureStoreFallback\terror=%v",
+							context.RecommendId, err))
+					}
+				}()
 			}
 		}
 	}
