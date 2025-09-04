@@ -25,7 +25,7 @@ const (
 
 var tr = &http.Transport{
 	DialContext: (&net.Dialer{
-		Timeout:   100 * time.Millisecond, // 100ms
+		Timeout:   10 * time.Second, // 10s
 		KeepAlive: 5 * time.Minute,
 	}).DialContext,
 	MaxIdleConnsPerHost:   200,
