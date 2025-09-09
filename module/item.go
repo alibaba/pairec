@@ -315,3 +315,10 @@ func (t *Item) DeepClone() *Item {
 	item.RecallScores = recallScores
 	return item
 }
+func (t *Item) String() string {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return fmt.Sprintf("item_id:%s,score:%v,recall_name:%s,properties:%v,algo_scores:%v,recall_scores:%v",
+		t.Id, t.Score, t.GetRecallName(), t.Properties, t.algoScores, t.RecallScores)
+
+}
