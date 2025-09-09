@@ -1,7 +1,6 @@
 package sort
 
 import (
-	"fmt"
 	"strconv"
 	"testing"
 
@@ -186,6 +185,9 @@ func TestRandomPositionStrategyByRecallName(t *testing.T) {
 			t.Error("items len error", len(items), context.Size)
 		}
 		for _, item := range result {
+			if size == 10 {
+				t.Log(item)
+			}
 			if item == nil {
 				t.Error("item has nil item")
 			}
@@ -242,10 +244,11 @@ func TestRemainItemByRecallName(t *testing.T) {
 		items = append(items, item)
 	}
 
+	user := module.NewUser("user_1")
 	for size := 10; size <= 30; size++ {
 		context := context.NewRecommendContext()
 		context.Size = size
-		sortData := SortData{Data: items, Context: context}
+		sortData := SortData{Data: items, Context: context, User: user}
 
 		NewItemRankScoreSort().Sort(&sortData)
 
@@ -352,8 +355,9 @@ func TestRandomPositionStrategyByCondition(t *testing.T) {
 	var items []*module.Item
 	for i := 0; i < 10; i++ {
 		item := module.NewItem(strconv.Itoa(i))
-		item.AddProperty("sex", "woman")
+		item.AddProperty("sex", "man")
 		item.RetrieveId = "r1"
+		item.Score = float64(i)
 
 		items = append(items, item)
 	}
@@ -361,15 +365,16 @@ func TestRandomPositionStrategyByCondition(t *testing.T) {
 		item := module.NewItem(strconv.Itoa(i))
 		item.AddProperty("sex", "woman")
 		item.RetrieveId = "r2"
+		item.Score = float64(i)
 
 		items = append(items, item)
 	}
 
+	user := module.NewUser("user_1")
 	for size := 10; size <= 20; size++ {
-		fmt.Println("start")
 		context := context.NewRecommendContext()
 		context.Size = size
-		sortData := SortData{Data: items, Context: context}
+		sortData := SortData{Data: items, Context: context, User: user}
 
 		NewItemRankScoreSort().Sort(&sortData)
 
@@ -381,6 +386,9 @@ func TestRandomPositionStrategyByCondition(t *testing.T) {
 			t.Error("items len error", len(items), context.Size)
 		}
 		for _, item := range result {
+			if size == 10 {
+				t.Log(item)
+			}
 			if item == nil {
 				t.Error("item has nil item")
 			}

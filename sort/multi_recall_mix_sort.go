@@ -79,6 +79,7 @@ func (s *MultiRecallMixSort) doSort(sortData *SortData) error {
 	found := false
 	for _, item := range items {
 		found = false
+		properties := item.GetFeatures()
 		for _, strategy := range strategies {
 			if strategy.ContainsRecallName(item.GetRecallName()) {
 				if !strategy.IsFull() {
@@ -88,7 +89,6 @@ func (s *MultiRecallMixSort) doSort(sortData *SortData) error {
 				}
 			}
 			if strategy.IsUseCondition() {
-				properties := item.GetFeatures()
 				ok, err := strategy.EvaluateByDomain(userProperties, properties)
 				if err != nil {
 					log.Error(fmt.Sprintf("requestId=%s\tmodule=MultiRecallMixSort\titemId=%s\terror=%v", sortData.Context.RecommendId, item.Id, err))
