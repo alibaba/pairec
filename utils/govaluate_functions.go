@@ -73,6 +73,42 @@ var (
 			str := ToString(args[0], "")
 			return xxhash.Sum64String(str), nil
 		},
+		"log": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) != 1 {
+				return "", errors.New("args length not equal 1")
+			}
+			return math.Log(ToFloat(arguments[0], 0)), nil
+		},
+		"log10": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) != 1 {
+				return "", errors.New("args length not equal 1")
+			}
+			return math.Log10(ToFloat(arguments[0], 0)), nil
+		},
+		"log2": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) != 1 {
+				return "", errors.New("args length not equal 1")
+			}
+			return math.Log2(ToFloat(arguments[0], 0)), nil
+		},
+		"max": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) != 2 {
+				return "", errors.New("args length not equal 2")
+			}
+			return math.Max(ToFloat(arguments[0], 0), ToFloat(arguments[1], 0)), nil
+		},
+		"min": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) != 2 {
+				return "", errors.New("args length not equal 2")
+			}
+			return math.Min(ToFloat(arguments[0], 0), ToFloat(arguments[1], 0)), nil
+		},
+		"pow": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) != 2 {
+				return "", errors.New("args length not equal 2")
+			}
+			return math.Pow(ToFloat(arguments[0], 0), ToFloat(arguments[1], 0)), nil
+		},
 	}
 )
 
