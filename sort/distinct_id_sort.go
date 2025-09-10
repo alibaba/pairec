@@ -9,15 +9,20 @@ import (
 )
 
 type DistinctIdCondition struct {
-	filterParam *module.FilterParam
-	distinctId  int
+	filterParam    *module.FilterParam
+	distinctId     int
+	distinctIdName string
 }
 
 func NewDistinctIdCondition(config *recconf.DistinctIdCondition) *DistinctIdCondition {
 	filterParam := module.NewFilterParamWithConfig(config.Conditions)
 	condition := DistinctIdCondition{
-		filterParam: filterParam,
-		distinctId:  config.DistinctId,
+		filterParam:    filterParam,
+		distinctId:     config.DistinctId,
+		distinctIdName: "__distinct_id__",
+	}
+	if config.DistinctIdName != "" {
+		condition.distinctIdName = config.DistinctIdName
 	}
 	return &condition
 }
@@ -47,16 +52,17 @@ func (s *DistinctIdSort) Sort(sortData *SortData) error {
 func (s *DistinctIdSort) doSort(sortData *SortData) error {
 	start := time.Now()
 	items := sortData.Data.([]*module.Item)
-	//ctx := sortData.Context
 	userProperties := sortData.User.MakeUserFeatures2()
 	for i, item := range items {
-		item.AddProperty("__distinct_id__", i+1)
+		distinctId := i + 1
 		properties := item.GetProperties()
 		for _, condition := range s.conditions {
 			if flag, err := condition.filterParam.EvaluateByDomain(userProperties, properties); err == nil && flag {
-				item.AddProperty("__distinct_id__", condition.distinctId)
+				item.AddProperty(condition.distinctIdName, condition.distinctId)
 				//ctx.LogDebug(fmt.Sprintf("module=DistinctIdSort\titem=%s\tdistinct_id=%d", item.Id, condition.distinctId))
 				break
+			} else {
+				item.AddProperty(condition.distinctIdName, distinctId)
 			}
 		}
 	}

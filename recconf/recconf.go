@@ -801,8 +801,9 @@ type BoostScoreCondition struct {
 	Conditions []FilterParamConfig
 }
 type DistinctIdCondition struct {
-	DistinctId int
-	Conditions []FilterParamConfig
+	DistinctId     int
+	Conditions     []FilterParamConfig
+	DistinctIdName string
 }
 type ItemStateDaoConfig struct {
 	DaoConfig
