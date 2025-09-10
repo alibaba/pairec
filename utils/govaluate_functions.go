@@ -8,6 +8,7 @@ import (
 
 	"github.com/Knetic/govaluate"
 	"github.com/cespare/xxhash/v2"
+	"github.com/spaolacci/murmur3"
 )
 
 var (
@@ -72,6 +73,19 @@ var (
 			}
 			str := ToString(args[0], "")
 			return xxhash.Sum64String(str), nil
+		},
+		"hash32": func(args ...interface{}) (interface{}, error) {
+			if len(args) != 1 {
+				return "", errors.New("args length not equal 1")
+			}
+			str := ToString(args[0], "")
+			return float64(murmur3.Sum32(String2byte(str))), nil
+		},
+		"toFloat64": func(args ...interface{}) (interface{}, error) {
+			if len(args) != 1 {
+				return "", errors.New("args length not equal 1")
+			}
+			return ToFloat(args[0], 0), nil
 		},
 		"log": func(arguments ...interface{}) (interface{}, error) {
 			if len(arguments) != 1 {

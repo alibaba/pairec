@@ -9,6 +9,7 @@ import (
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/spaolacci/murmur3"
 )
 
 func TestCreateConstValueNormalizer(t *testing.T) {
@@ -136,5 +137,15 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 		normalizer := NewExpressionNormalizer("pow(a, b)")
 		result := normalizer.Apply(map[string]interface{}{"a": 2, "b": 3})
 		assert.Equal(t, result, float64(8))
+	})
+	t.Run("string contact", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("'hello ' + a")
+		result := normalizer.Apply(map[string]interface{}{"a": "world", "b": 3})
+		assert.Equal(t, result, "hello world")
+
+		key := result.(string)
+		normalizer = NewExpressionNormalizer("hash32(key) % 100")
+		result = normalizer.Apply(map[string]interface{}{"key": key})
+		assert.Equal(t, result, float64(murmur3.Sum32([]byte(key))%100))
 	})
 }

@@ -48,6 +48,8 @@ func ToFloat(i interface{}, defaultVal float64) float64 {
 		return float64(value)
 	case uint32:
 		return float64(value)
+	case uint64:
+		return float64(value)
 	case uint:
 		return float64(value)
 	case string:
