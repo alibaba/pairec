@@ -2,8 +2,10 @@ package feature
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
+	"fortio.org/assert"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -92,4 +94,47 @@ func TestCreateMonthNormalizer(t *testing.T) {
 
 	t.Log(user.Properties)
 
+}
+
+func TestExpressionFunctionNormalizer(t *testing.T) {
+	t.Run("max function", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("a > b ? a : b")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, float64(10))
+		// use max func
+		normalizer = NewExpressionNormalizer("max(a, b)")
+		result = normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, float64(10))
+
+	})
+	t.Run("min function", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("a > b ? b : a")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, float64(8))
+
+		// use min func
+		normalizer = NewExpressionNormalizer("min(a, b)")
+		result = normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, float64(8))
+	})
+	t.Run("log function", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("log(a)")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, math.Log(10))
+	})
+	t.Run("log10 function", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("log10(a)")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, math.Log10(10))
+	})
+	t.Run("log2 function", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("log2(a)")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, math.Log2(10))
+	})
+	t.Run("pow function", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("pow(a, b)")
+		result := normalizer.Apply(map[string]interface{}{"a": 2, "b": 3})
+		assert.Equal(t, result, float64(8))
+	})
 }
