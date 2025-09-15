@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/constants"
+	"github.com/expr-lang/expr"
 	"math"
 	"os"
 	"sort"
@@ -106,6 +106,13 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 	return &trafficControlSort
 }
 
+func traceTime(ctx *context.RecommendContext, name string, start time.Time) {
+	if ctx.Debug {
+		elapsed := time.Since(start)
+		ctx.LogDebug(fmt.Sprintf("TrafficControlSort\tFunc %s Cost: %d ms\n", name, elapsed.Milliseconds()))
+	}
+}
+
 func (p *TrafficControlSort) Sort(sortData *SortData) error {
 	items, good := sortData.Data.([]*module.Item)
 	if !good {
@@ -143,6 +150,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 	}
 
 	controllerInfo := p.getPidControllers(ctx)
+	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tcontroller info\tcount=%d", len(controllerInfo)))
 
 	controllerMap := isControlUser(user, controllerInfo)
 
@@ -158,11 +166,24 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		sortData.Data = items
 		return nil
 	}
-	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tglobal control num %d, single control num %d", len(globalControls), len(singleControls)))
+
 	wgCtrl := sync.WaitGroup{}
 	if len(singleControls) > 0 {
-		wgCtrl.Add(1)
-		go microControl(singleControls, items, ctx, &wgCtrl)
+		maxScore := items[0].Score
+		if maxScore == 0 {
+			maxScore = 1e-8
+		}
+		parallelism := 8
+		chunkSize := (len(items) + parallelism - 1) / parallelism
+		for begin := 0; begin < len(items); begin += chunkSize {
+			end := begin + chunkSize
+			if end > len(items) {
+				end = len(items)
+			}
+			subItems := items[begin:end]
+			wgCtrl.Add(1)
+			go microControl(controllerMap, subItems, ctx, &wgCtrl, maxScore)
+		}
 	}
 	if len(globalControls) > 0 {
 		wgCtrl.Add(1)
@@ -378,17 +399,18 @@ func splitController(controllers map[string]*PIDController, ctx *context.Recomme
 
 // 宏观调控，针对目标整体
 func macroControl(controllerMap map[string]*PIDController, items []*module.Item, ctx *context.RecommendContext, wgCtrl *sync.WaitGroup) {
+	defer traceTime(ctx, "macroControl", time.Now())
 	defer wgCtrl.Done()
 	begin := time.Now()
 	var targetOutput map[string]float64
 	var count int
 	targetOutput, count = FlowControl(controllerMap, ctx)
 	if len(targetOutput) == 0 || count == 0 {
-		ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttraffic control task output is zero"))
+		ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttraffic control task output is zero\tcost=%d", utils.CostTime(begin)))
 		return
 	}
-	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget out put: %v", targetOutput))
 	begin = time.Now()
+	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget out put: %v", targetOutput))
 	itemScores := make([]float64, len(items))
 	// 计算各个目标的偏好分的全局占比
 	totalScore := 0.0
@@ -447,7 +469,8 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 			targetOutput[targetId] = alpha
 		}
 	}
-	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget output: %v", targetOutput))
+	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget output: %v\tcost=%d",
+		targetOutput, utils.CostTime(begin)))
 	// compute delta rank
 	begin = time.Now()
 	pageNo := utils.ToInt(ctx.GetParameter("pageNum"), 1)
@@ -536,6 +559,7 @@ func macroControl(controllerMap map[string]*PIDController, items []*module.Item,
 
 // FlowControl 非单品（整体）目标流量调控，返回各个目标的调控力度
 func FlowControl(controllerMap map[string]*PIDController, ctx *context.RecommendContext) (map[string]float64, int) {
+	defer traceTime(ctx, "FlowControl", time.Now())
 	// 获取(granularity="Global")类型的调控目标 当前已累计完成的流量
 	targetOutput := make(map[string]float64)
 
@@ -728,7 +752,9 @@ func SampleControlTargetsByScore(maxUpliftTargetCnt int, targetScore, alpha map[
 }
 
 // 微观调控，针对单个item
-func microControl(controllerMap map[string]*PIDController, items []*module.Item, ctx *context.RecommendContext, wgCtrl *sync.WaitGroup) {
+func microControl(controllerMap map[string]*PIDController, items []*module.Item, ctx *context.RecommendContext,
+	wgCtrl *sync.WaitGroup, maxScore float64) {
+	defer traceTime(ctx, "microControl", time.Now())
 	defer wgCtrl.Done()
 	itemTargetTraffic := loadTargetItemTraffic(ctx, items, controllerMap) // key1: targetId, key2: itemId, value: traffic
 	if ctx.Debug {
@@ -736,28 +762,25 @@ func microControl(controllerMap map[string]*PIDController, items []*module.Item,
 		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\titem target traffic:%s", string(data)))
 	}
 	params := ctx.ExperimentResult.GetExperimentParams()
-	maxUpliftCnt := params.GetInt("pid_max_uplift_item_cnt", 5)
-	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\tpid_max_uplift_item_cnt=%d", maxUpliftCnt))
+	maxUpliftCnt := params.GetInt("pid_max_uplift_item_cnt", len(items))
+	if maxUpliftCnt != len(items) {
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\tpid_max_uplift_item_cnt=%d", maxUpliftCnt))
+	}
 	upliftCnt := 0
-	maxScore := 0.0
 
 	//Calculate the number of items controlled by each target, key:targetId; value:control item sum
 	controlNumberMap := make(map[string]int)
-
 	for i, item := range items {
 		score := item.Score
 		if score == 0 {
 			score = 1e-8
-		}
-		if i == 0 {
-			maxScore = score
 		}
 		deltaRank := 0.0
 		for targetId, controller := range controllerMap {
 			if !controller.IsControlledItem(item) {
 				continue
 			}
-			controlNumberMap[targetId] = controlNumberMap[targetId] + 1
+			controlNumberMap[targetId]++
 			traffic := float64(0)
 			if dict, ok := itemTargetTraffic[targetId]; ok {
 				if value, okay := dict[string(item.Id)]; okay {
@@ -855,27 +878,19 @@ func isControlUser(user *module.User, controllerMap map[string]*PIDController) m
 	controllerNewMap := make(map[string]*PIDController)
 
 	for targetId, controller := range controllerMap {
-		userExpression := controller.userExpression
-
-		if userExpression == "" {
+		if controller.userExprProg == nil {
 			controllerNewMap[targetId] = controller
 			continue
 		}
 
-		expression, err := govaluate.NewEvaluableExpression(userExpression)
-		if err != nil {
-			log.Error(fmt.Sprintf("module=PIDController\tgenerate user expression field, expression:%s, err:%v", userExpression, err))
-			return controllerNewMap
-		}
 		properties := user.Properties
 
-		result, err := expression.Evaluate(properties)
+		result, err := expr.Run(controller.userExprProg, properties)
 		if err != nil {
 			log.Error(fmt.Sprintf("module=PIDController\tcompute user expression field, err:%v", err))
 			return controllerNewMap
 		}
-		ok := ToBool(result, false)
-		if ok {
+		if result.(bool) { // 这里一定是 bool
 			controllerNewMap[targetId] = controller
 		}
 	}
