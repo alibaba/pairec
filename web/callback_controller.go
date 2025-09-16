@@ -158,6 +158,11 @@ func (c *CallBackController) doCallbackLog() {
 	if f, ok := callBackProcessFuncMap[c.param.SceneId]; ok {
 		f(user, items, c.context)
 	}
+	if callbackConfig, ok := c.context.Config.CallBackConfs[c.param.SceneId]; ok {
+		if callbackConfig.ItemSize > 0 && len(items) > callbackConfig.ItemSize {
+			items = items[:callbackConfig.ItemSize]
+		}
+	}
 
 	// load characteristics
 	callBackService.Items = items
