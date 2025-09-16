@@ -15,6 +15,7 @@ require (
 	github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227
 	github.com/aliyun/aliyun-log-go-sdk v0.1.27
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7
+	github.com/expr-lang/expr v1.17.6
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/goburrow/cache v0.1.3
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -47,7 +48,6 @@ require (
 	github.com/aliyun/credentials-go v1.4.6
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
-	github.com/expr-lang/expr v1.16.9
 	github.com/google/uuid v1.3.0
 	go.uber.org/automaxprocs v1.5.2
 )

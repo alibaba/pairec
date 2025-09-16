@@ -3,8 +3,9 @@ package sort
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/constants"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"math"
 	"math/rand"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
+	"github.com/goburrow/cache"
 )
 
 var targetMap map[string]model.TrafficControlTarget // key: targetId, value: target
@@ -32,13 +34,13 @@ type PIDController struct {
 	kd                float64                     // The value for the derivative gain
 	errDiscount       float64                     // the discount of err sum
 	status            *PIDStatus
-	itemStatusMap     sync.Map // for single granularity or experiment wisely task, key is itemId or exp id, value is pidStatus
-	timestamp         int64    // set timestamp to this value to get task meta info of that time
-	allocateExpWise   bool     // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
-	minExpTraffic     float64  // the minimum traffic to activate the experimental control
-	userExpression    string   // the conditions of user
-	itemExpression    string   // the conditions of candidate items
-	startPageNum      int      // turn off pid controller when current pageNum < startPageNum
+	itemStatusMap     sync.Map    // for single granularity or experiment wisely task, key is itemId or exp id, value is pidStatus
+	timestamp         int64       // set timestamp to this value to get task meta info of that time
+	allocateExpWise   bool        // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
+	minExpTraffic     float64     // the minimum traffic to activate the experimental control
+	userExprProg      *vm.Program // the conditions of user
+	itemExprProg      *vm.Program // the conditions of candidate items
+	startPageNum      int         // turn off pid controller when current pageNum < startPageNum
 	online            bool
 	freezeMinutes     int // use last output when time less than this at everyday morning
 	aheadMinutes      int // get dynamic target value ahead of this minutes
@@ -47,6 +49,7 @@ type PIDController struct {
 	integralMax       float64 // 积分项最大值, 根据最大控制量需求计算： integralMax = (MaxOutput - Kp*MaxError) / Ki
 	integralThreshold float64 // 激活积分项的误差阈值，通常设为目标值的10%-20%
 	errThreshold      float64 // 变速积分阈值, 初始值设为目标值的20%-30%; 快速响应系统：较大阈值; 慢速系统：较小阈值
+	memberCache       cache.Cache
 }
 
 type PIDStatus struct {
@@ -108,6 +111,8 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		integralMax:       100.0,
 		integralThreshold: conf.IntegralThreshold,
 		errThreshold:      conf.ErrThreshold,
+		memberCache: cache.New(cache.WithMaximumSize(100000),
+			cache.WithExpireAfterWrite(time.Second*time.Duration(60))),
 	}
 	if conf.DefaultKi == 0 {
 		controller.ki = 10.0
@@ -499,12 +504,19 @@ func (p *PIDController) GenerateItemExpress() {
 			p.task.UserConditionArray, p.task.UserConditionExpress, err))
 		return
 	}
+	var itemExpression string
 	if targetExpression != "" && taskExpression != "" {
-		p.itemExpression = fmt.Sprintf("%s&&%s", taskExpression, targetExpression)
+		itemExpression = fmt.Sprintf("%s&&%s", taskExpression, targetExpression)
 	} else if targetExpression != "" {
-		p.itemExpression = targetExpression
+		itemExpression = targetExpression
 	} else if taskExpression != "" {
-		p.itemExpression = taskExpression
+		itemExpression = taskExpression
+	}
+	p.itemExprProg, err = expr.Compile(itemExpression, expr.AsBool())
+	if err != nil {
+		log.Error(fmt.Sprintf("module=PIDController\tcompile item expression field, expression:%s, err:%v",
+			itemExpression, err))
+		return
 	}
 }
 
@@ -524,23 +536,24 @@ func BetweenSlackInterval(trafficValue, setValue, delta float64) bool {
 }
 
 func (p *PIDController) IsControlledItem(item *module.Item) bool {
-	if p.itemExpression == "" {
+	if p.itemExprProg == nil {
 		return true
 	}
-	expression, err := govaluate.NewEvaluableExpression(p.itemExpression)
-	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tgenerate item expression field, itemId:%s,expression:%s, err:%v",
-			item.Id, p.itemExpression, err))
-		return false
+	if exist, ok := p.memberCache.GetIfPresent(item.Id); ok {
+		return exist.(bool)
 	}
+
 	properties := item.GetCloneFeatures()
-
-	result, err := expression.Evaluate(properties)
+	result, err := expr.Run(p.itemExprProg, properties)
 	if err != nil {
+		log.Error(fmt.Sprintf("module=PIDController\tcompute item expression failed, item:%v, err:%v",
+			item.Id, err))
 		return false
 	}
 
-	return ToBool(result, false)
+	hit := result.(bool)
+	p.memberCache.Put(item.Id, hit)
+	return hit
 }
 
 func (p *PIDController) IsControlledTraffic(ctx *context.RecommendContext) bool {
@@ -642,10 +655,16 @@ func (p *PIDController) SetErrDiscount(decay float64) {
 }
 
 func (p *PIDController) SetUserExpress(expression string) {
-	p.userExpression = expression
-	if expression != "" {
-		log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set userConditions=%s",
-			p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, expression))
+	if expression == "" {
+		return
+	}
+	log.Info(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] set userConditions=%s",
+		p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, expression))
+	var err error
+	p.userExprProg, err = expr.Compile(expression, expr.AsBool())
+	if err != nil {
+		log.Error(fmt.Sprintf("module=PIDController\tcompile user expression field, expression:%s, err:%v",
+			expression, err))
 	}
 }
 
@@ -683,11 +702,10 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 					for i, value := range valueArr {
 						valueArr[i] = fmt.Sprintf("'%s'", value)
 					}
-					condition.Value = fmt.Sprintf("(%v)", strings.Join(valueArr, ","))
+					condition.Value = fmt.Sprintf("[%v]", strings.Join(valueArr, ","))
 				} else {
-					condition.Value = fmt.Sprintf("(%v)", condition.Value)
+					condition.Value = fmt.Sprintf("[%v]", condition.Value)
 				}
-
 			}
 			conditionExpr := fmt.Sprintf("%s %s %v", condition.Field, condition.Option, condition.Value)
 			if express == "" {
@@ -705,18 +723,4 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 		}
 	}
 	return express, nil
-}
-
-func ToBool(i interface{}, defaultVal bool) bool {
-	switch value := i.(type) {
-	case bool:
-		return value
-	case string:
-		if "true" == strings.ToLower(value) || "y" == strings.ToLower(value) {
-			return true
-		}
-	default:
-		return defaultVal
-	}
-	return defaultVal
 }
