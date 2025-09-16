@@ -46,7 +46,7 @@ func (ep *baseEndpoint) get() string {
 			break
 		}
 		retryCount += 1
-		if retryCount == 3000 { // 30s timeout
+		if retryCount == 500 { // 5s timeout
 			fmt.Printf("Timeout when getting the services' endpoint list from upstream\n")
 			return ""
 		}

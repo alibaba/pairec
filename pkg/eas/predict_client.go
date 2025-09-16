@@ -78,7 +78,7 @@ func NewPredictClient(endpointName string, serviceName string) *PredictClient {
 		client: http.Client{
 			Timeout: 5000 * time.Millisecond,
 			Transport: &http.Transport{
-				MaxConnsPerHost: 100,
+				MaxConnsPerHost: 1000,
 			},
 		},
 	}

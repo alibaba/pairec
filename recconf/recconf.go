@@ -830,6 +830,7 @@ type CallBackConfig struct {
 	RankConf        RankConfig
 	RawFeatures     bool
 	RawFeaturesRate int
+	ItemSize        int
 }
 type EmbeddingConfig struct {
 	DataSource DataSourceConfig
