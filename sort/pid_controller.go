@@ -702,11 +702,10 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 					for i, value := range valueArr {
 						valueArr[i] = fmt.Sprintf("'%s'", value)
 					}
-					condition.Value = fmt.Sprintf("(%v)", strings.Join(valueArr, ","))
+					condition.Value = fmt.Sprintf("[%v]", strings.Join(valueArr, ","))
 				} else {
-					condition.Value = fmt.Sprintf("(%v)", condition.Value)
+					condition.Value = fmt.Sprintf("[%v]", condition.Value)
 				}
-
 			}
 			conditionExpr := fmt.Sprintf("%s %s %v", condition.Field, condition.Option, condition.Value)
 			if express == "" {
