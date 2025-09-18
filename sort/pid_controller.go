@@ -501,7 +501,7 @@ func (p *PIDController) getPIDStatus(itemOrExpId string) *PIDStatus {
 func (p *PIDController) GenerateItemExpress() {
 	var taskExpression, targetExpression string
 	var err error
-	if p.target.ItemConditionArray != "" {
+	if p.target.ItemConditionArray != "" && p.target.ItemConditionArray != "[]" {
 		err = json.Unmarshal([]byte(p.target.ItemConditionArray), &p.itemConditions)
 		if err != nil {
 			log.Error(fmt.Sprintf("module=PIDController\tparse target item condition field, please check %s\terr:%v",
@@ -517,7 +517,7 @@ func (p *PIDController) GenerateItemExpress() {
 		}
 	}
 
-	if p.task.ItemConditionArray != "" {
+	if p.task.ItemConditionArray != "" && p.task.UserConditionArray != "[]" {
 		err = json.Unmarshal([]byte(p.task.ItemConditionArray), &p.taskConditions)
 		if err != nil {
 			log.Error(fmt.Sprintf("module=PIDController\tparse task item condition field, please check %s\terr:%v",
