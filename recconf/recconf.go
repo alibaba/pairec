@@ -265,6 +265,7 @@ type PIDControllerConfig struct {
 	DefaultKd              float64
 	Timestamp              int64
 	AheadMinutes           int
+	MembershipCacheSeconds int
 	IntegralMin            float64
 	IntegralMax            float64
 	IntegralThreshold      float64

@@ -34,13 +34,15 @@ type PIDController struct {
 	kd                float64                     // The value for the derivative gain
 	errDiscount       float64                     // the discount of err sum
 	status            *PIDStatus
-	itemStatusMap     sync.Map    // for single granularity or experiment wisely task, key is itemId or exp id, value is pidStatus
-	timestamp         int64       // set timestamp to this value to get task meta info of that time
-	allocateExpWise   bool        // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
-	minExpTraffic     float64     // the minimum traffic to activate the experimental control
-	userExprProg      *vm.Program // the conditions of user
-	itemExprProg      *vm.Program // the conditions of candidate items
-	startPageNum      int         // turn off pid controller when current pageNum < startPageNum
+	itemStatusMap     sync.Map      // for single granularity or experiment wisely task, key is itemId or exp id, value is pidStatus
+	timestamp         int64         // set timestamp to this value to get task meta info of that time
+	allocateExpWise   bool          // whether to allocate traffic experiment wisely。如果为是，每个实验都达成目标，如果为否，整个链路达成目标
+	minExpTraffic     float64       // the minimum traffic to activate the experimental control
+	userExprProg      *vm.Program   // the compiled expression of valid user
+	itemExprProg      *vm.Program   // the compiled expression of candidate items
+	itemConditions    []*Expression // the conditions of candidate items of current target
+	taskConditions    []*Expression // the conditions of candidate items of current task
+	startPageNum      int           // turn off pid controller when current pageNum < startPageNum
 	online            bool
 	freezeMinutes     int // use last output when time less than this at everyday morning
 	aheadMinutes      int // get dynamic target value ahead of this minutes
@@ -111,8 +113,13 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		integralMax:       100.0,
 		integralThreshold: conf.IntegralThreshold,
 		errThreshold:      conf.ErrThreshold,
-		memberCache: cache.New(cache.WithMaximumSize(100000),
-			cache.WithExpireAfterWrite(time.Second*time.Duration(60))),
+	}
+	if conf.MembershipCacheSeconds > 0 {
+		controller.memberCache = cache.New(cache.WithMaximumSize(100000),
+			cache.WithExpireAfterWrite(time.Second*time.Duration(conf.MembershipCacheSeconds)))
+	} else {
+		controller.memberCache = cache.New(cache.WithMaximumSize(100000),
+			cache.WithExpireAfterWrite(time.Second*time.Duration(60)))
 	}
 	if conf.DefaultKi == 0 {
 		controller.ki = 10.0
@@ -492,18 +499,40 @@ func (p *PIDController) getPIDStatus(itemOrExpId string) *PIDStatus {
 }
 
 func (p *PIDController) GenerateItemExpress() {
-	targetExpression, err := ParseExpression(p.target.ItemConditionArray, p.target.ItemConditionExpress)
-	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v",
-			p.target.ItemConditionArray, p.target.ItemConditionExpress, err))
-		return
+	var taskExpression, targetExpression string
+	var err error
+	if p.target.ItemConditionArray != "" {
+		err = json.Unmarshal([]byte(p.target.ItemConditionArray), &p.itemConditions)
+		if err != nil {
+			log.Error(fmt.Sprintf("module=PIDController\tparse target item condition field, please check %s\terr:%v",
+				p.target.ItemConditionArray, err))
+			return
+		}
+	} else {
+		targetExpression, err = ParseExpression(p.target.ItemConditionArray, p.target.ItemConditionExpress)
+		if err != nil {
+			log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v",
+				p.target.ItemConditionArray, p.target.ItemConditionExpress, err))
+			return
+		}
 	}
-	taskExpression, err := ParseExpression(p.task.ItemConditionArray, p.target.ItemConditionExpress)
-	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v",
-			p.task.UserConditionArray, p.task.UserConditionExpress, err))
-		return
+
+	if p.task.ItemConditionArray != "" {
+		err = json.Unmarshal([]byte(p.task.ItemConditionArray), &p.taskConditions)
+		if err != nil {
+			log.Error(fmt.Sprintf("module=PIDController\tparse task item condition field, please check %s\terr:%v",
+				p.task.ItemConditionArray, err))
+			return
+		}
+	} else {
+		taskExpression, err = ParseExpression(p.task.ItemConditionArray, p.task.ItemConditionExpress)
+		if err != nil {
+			log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v",
+				p.task.ItemConditionArray, p.task.ItemConditionExpress, err))
+			return
+		}
 	}
+
 	var itemExpression string
 	if targetExpression != "" && taskExpression != "" {
 		itemExpression = fmt.Sprintf("%s&&%s", taskExpression, targetExpression)
@@ -512,11 +541,15 @@ func (p *PIDController) GenerateItemExpress() {
 	} else if taskExpression != "" {
 		itemExpression = taskExpression
 	}
-	p.itemExprProg, err = expr.Compile(itemExpression, expr.AsBool())
-	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tcompile item expression field, expression:%s, err:%v",
-			itemExpression, err))
-		return
+	if itemExpression != "" {
+		p.itemExprProg, err = expr.Compile(itemExpression, expr.AsBool())
+		if err != nil {
+			log.Error(fmt.Sprintf("module=PIDController\tcompile item expression field, expression:%s, err:%v",
+				itemExpression, err))
+			return
+		}
+		log.Info(fmt.Sprintf("module=PIDController\tcompile item expression success, expression:%s",
+			itemExpression))
 	}
 }
 
@@ -535,16 +568,67 @@ func BetweenSlackInterval(trafficValue, setValue, delta float64) bool {
 	return false
 }
 
-func (p *PIDController) IsControlledItem(item *module.Item) bool {
-	if p.itemExprProg == nil {
-		return true
+func IsExprMatch(conditions []*Expression, item *module.Item) bool {
+	for _, expression := range conditions {
+		field := expression.Field
+		op := expression.Option
+		value := expression.Value
+		v, ok := item.Properties[field]
+		if !ok {
+			return false
+		}
+		switch op {
+		case "=":
+			if utils.NotEqual(v, value) {
+				return false
+			}
+		case "!=":
+			if utils.Equal(v, value) {
+				return false
+			}
+		case ">":
+			if utils.LessEqual(v, value) {
+				return false
+			}
+		case ">=":
+			if utils.Less(v, value) {
+				return false
+			}
+		case "<":
+			if utils.GreaterEqual(v, value) {
+				return false
+			}
+		case "<=":
+			if utils.Greater(v, value) {
+				return false
+			}
+		case "in":
+			if !utils.In(v, value) {
+				return false
+			}
+		}
 	}
+	return true
+}
+
+func (p *PIDController) IsControlledItem(item *module.Item) bool {
 	if exist, ok := p.memberCache.GetIfPresent(item.Id); ok {
 		return exist.(bool)
 	}
+	if !IsExprMatch(p.taskConditions, item) {
+		p.memberCache.Put(item.Id, false)
+		return false
+	}
+	if !IsExprMatch(p.itemConditions, item) {
+		p.memberCache.Put(item.Id, false)
+		return false
+	}
 
-	properties := item.GetCloneFeatures()
-	result, err := expr.Run(p.itemExprProg, properties)
+	if p.itemExprProg == nil {
+		return true
+	}
+
+	result, err := expr.Run(p.itemExprProg, item.Properties)
 	if err != nil {
 		log.Error(fmt.Sprintf("module=PIDController\tcompute item expression failed, item:%v, err:%v",
 			item.Id, err))

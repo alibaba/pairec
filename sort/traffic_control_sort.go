@@ -10,6 +10,7 @@ import (
 	"github.com/expr-lang/expr"
 	"math"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -107,9 +108,12 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 }
 
 func traceTime(ctx *context.RecommendContext, name string, start time.Time) {
-	if ctx.Debug {
-		elapsed := time.Since(start)
-		ctx.LogDebug(fmt.Sprintf("TrafficControlSort\tFunc %s Cost: %d ms\n", name, elapsed.Milliseconds()))
+	elapsed := time.Since(start)
+	span := elapsed.Milliseconds()
+	if span > 10 {
+		ctx.LogInfo(fmt.Sprintf("TrafficControlSort\tFunc %s Cost: %d ms\n", name, span))
+	} else {
+		ctx.LogDebug(fmt.Sprintf("TrafficControlSort\tFunc %s Cost: %d ms\n", name, span))
 	}
 }
 
@@ -173,7 +177,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		if maxScore == 0 {
 			maxScore = 1e-8
 		}
-		parallelism := 8
+		parallelism := runtime.NumCPU()
 		chunkSize := (len(items) + parallelism - 1) / parallelism
 		for begin := 0; begin < len(items); begin += chunkSize {
 			end := begin + chunkSize
@@ -240,8 +244,12 @@ func (p *TrafficControlSort) loadTrafficControlTaskMetaData(expId string) map[st
 	}
 	p.controllerLock.RUnlock()
 
-	controllerMap := make(map[string]*PIDController, 0)
+	controllerMap := make(map[string]*PIDController, len(oldControllerMap))
+	// 服务和场景之间没有一一对应关系，所以不能够根据场景名来筛选任务
 	for i, task := range tasks {
+		if task.ProductStatus != "Running" && task.PrepubStatus != "Running" {
+			continue
+		}
 		taskUserExpress, err := ParseExpression(task.UserConditionArray, task.UserConditionExpress)
 		if err != nil {
 			log.Error(fmt.Sprintf("module=TrafficControlSort\tparse user condition field, please check %s or %s",
@@ -291,12 +299,18 @@ func (p *TrafficControlSort) loadTrafficControlTaskMetaData(expId string) map[st
 	p.controllerLock.Lock()
 	p.exp2controllers[expId] = controllerMap
 	p.controllerLock.Unlock()
-	log.Info(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tload %d Traffic Control Task for exp=%s.",
-		timestamp, len(controllerMap), expId))
+	if timestamp == 0 {
+		log.Info(fmt.Sprintf("module=TrafficControlSort\tload %d Traffic Control Task for exp=%s.",
+			len(controllerMap), expId))
+	} else {
+		log.Info(fmt.Sprintf("module=TrafficControlSort\tcurrent timestamp=%d\tload %d Traffic Control Task for exp=%s.",
+			timestamp, len(controllerMap), expId))
+	}
 	return controllerMap
 }
 
 func loadTargetItemTraffic(ctx *context.RecommendContext, items []*module.Item, controllerMap map[string]*PIDController) map[string]map[string]float64 {
+	defer traceTime(ctx, "loadTargetItemTraffic", time.Now())
 	var scene string
 	var good bool
 	s := ctx.GetParameter("scene")
