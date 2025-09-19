@@ -3,15 +3,16 @@ package sort
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/alibaba/pairec/v2/constants"
-	"github.com/expr-lang/expr"
-	"github.com/expr-lang/expr/vm"
 	"math"
 	"math/rand"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/alibaba/pairec/v2/constants"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -573,8 +574,8 @@ func IsExprMatch(conditions []*Expression, item *module.Item) bool {
 		field := expression.Field
 		op := expression.Option
 		value := expression.Value
-		v, ok := item.Properties[field]
-		if !ok {
+		v := item.GetProperty(field)
+		if v == nil {
 			return false
 		}
 		switch op {
@@ -628,7 +629,7 @@ func (p *PIDController) IsControlledItem(item *module.Item) bool {
 		return true
 	}
 
-	result, err := expr.Run(p.itemExprProg, item.Properties)
+	result, err := expr.Run(p.itemExprProg, item.GetProperties())
 	if err != nil {
 		log.Error(fmt.Sprintf("module=PIDController\tcompute item expression failed, item:%v, err:%v",
 			item.Id, err))

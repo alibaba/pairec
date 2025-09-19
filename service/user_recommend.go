@@ -188,7 +188,7 @@ func (r *UserRecommendService) mergePipelineItems(items []*module.Item, pipeline
 	// need to merge item properties of different pipelines
 	for _, item := range pipelineItems {
 		if exist, ok := itemMap[item.Id]; ok {
-			exist.AddProperties(item.Properties)
+			exist.AddProperties(item.GetProperties())
 		} else {
 			itemMap[item.Id] = item
 			items = append(items, item)
