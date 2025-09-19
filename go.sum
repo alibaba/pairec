@@ -86,8 +86,8 @@ github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8
 github.com/aliyun/aliyun-log-go-sdk v0.1.27/go.mod h1:aBG0R+MWRTgvlIODQkz+a3/RM9bQYKsmSbKdbIx4vpc=
 github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 h1:jSMfOm0fpc83+YersEbXhYG7/4o1z0u698FiacPD77o=
 github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1/go.mod h1:ki4zr1YK8ehW1rQxMFoAVTnjZeRNcSbVNyJxJZqR9i4=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.6-0.20250820025643-194b9ac775ad h1:C4VC8kZLgps5WbvOq10WP/CenxK63Zwh9HCn3rLtP1A=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.6-0.20250820025643-194b9ac775ad/go.mod h1:X38zkeooEBG8ImnFEnWQ3Rl4kOavb/AdeGrocZ4c4o4=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.7-0.20250919070609-b13950e7887b h1:mvjUr2rc3UF+agdNXe/47RFLBoz4eHaSMll//PBiRss=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.7-0.20250919070609-b13950e7887b/go.mod h1:U+khheWuWEoTw8/oOfh7wzOSumzuLei6DF9sfnCYeAY=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.1-0.20250918074701-1a2fffa5042a h1:jlDEiI2b6d6KxMOTej0Mu0l4KiRNT9D0/87WZ5RGwNU=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.1-0.20250918074701-1a2fffa5042a/go.mod h1:zur/0Z6Ku5TVhFyvs4mFRait7f2CZo4fRX3E03UJzzQ=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7 h1:+d/mcgaxx1jaWtFN2WrBHy4XeM9IK5gmZvbbpVkhqHE=
@@ -685,6 +685,7 @@ golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4/go.mod h1:RxMgew5VJxzue5/jJ
 golang.org/x/sync v0.1.0/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.3.0/go.mod h1:FU7BRWz2tNW+3quACPkgCx/L+uEAv1htQ0V83Z9Rj+Y=
 golang.org/x/sync v0.6.0/go.mod h1:Czt+wKu1gCyEFDUtn0jG5QVvpJ6rzVqr5aXyt9drQfk=
+golang.org/x/sync v0.7.0 h1:YsImfSBoP9QPYL0xyKJPq0gcaJdG3rInoqxTWbfQu9M=
 golang.org/x/sync v0.7.0/go.mod h1:Czt+wKu1gCyEFDUtn0jG5QVvpJ6rzVqr5aXyt9drQfk=
 golang.org/x/sys v0.0.0-20180823144017-11551d06cbcc/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20180830151530-49385e6e1522/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
