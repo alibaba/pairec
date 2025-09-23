@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"encoding/json"
+	"sync"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
@@ -12,8 +13,9 @@ import (
 
 type FeatureService struct {
 	pipelineName     string
-	featureServices  map[string]*feature.FeatureService
 	featureLoadConfs []recconf.FeatureLoadConfig
+	mu               sync.RWMutex
+	featureServices  map[string]*feature.FeatureService
 }
 
 func NewFeatureService(config *recconf.PipelineConfig) *FeatureService {
@@ -65,11 +67,23 @@ func (fs *FeatureService) GetFeatureServiceByContext(context *context.RecommendC
 
 	d, _ := json.Marshal(featureLoadConfs)
 	id := scene + "#" + utils.Md5(string(d))
+
+	fs.mu.RLock()
+	featureService, ok := fs.featureServices[id]
+	fs.mu.RUnlock()
+
+	if ok {
+		return featureService
+	}
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
 	if featureService, ok := fs.featureServices[id]; ok {
 		return featureService
 	}
 
-	featureService := feature.NewFeatureService()
+	featureService = feature.NewFeatureService()
 	var features []*feature.Feature
 	for _, conf := range featureLoadConfs {
 		f := feature.LoadWithConfig(conf)
