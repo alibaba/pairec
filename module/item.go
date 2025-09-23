@@ -3,6 +3,7 @@ package module
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"sync"
 
@@ -79,10 +80,8 @@ func (t *Item) CloneAlgoScores() map[string]float64 {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
-	algoScores := make(map[string]float64, len(t.algoScores))
-	for k, v := range t.algoScores {
-		algoScores[k] = v
-	}
+	algoScores := maps.Clone(t.algoScores)
+
 	return algoScores
 }
 func (t *Item) AddProperty(key string, value interface{}) {
@@ -264,23 +263,15 @@ func (t *Item) AddRecallNameFeature() {
 func (t *Item) GetProperties() map[string]interface{} {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
-	clone := make(map[string]interface{}, len(t.Properties))
-	for k, v := range t.Properties {
-		clone[k] = v
-	}
+	clone := maps.Clone(t.Properties)
 	return clone
 }
 func (t *Item) GetCloneFeatures() map[string]interface{} {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
-	features := make(map[string]interface{}, len(t.Properties))
-
-	for k, v := range t.Properties {
-		features[k] = v
-	}
-
-	return features
+	clone := maps.Clone(t.Properties)
+	return clone
 }
 func (t *Item) DeleteProperty(key string) {
 	t.mutex.Lock()
@@ -305,14 +296,9 @@ func (t *Item) DeepClone() *Item {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
-	algoScores := make(map[string]float64, len(t.algoScores))
-	recallScores := make(map[string]float64, len(t.RecallScores))
-	for k, v := range t.algoScores {
-		algoScores[k] = v
-	}
-	for k, v := range t.RecallScores {
-		recallScores[k] = v
-	}
+	algoScores := maps.Clone(t.algoScores)
+	recallScores := maps.Clone(t.RecallScores)
+
 	item := NewItemWithProperty(string(t.Id), t.Properties)
 
 	item.Score = t.Score

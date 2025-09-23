@@ -832,6 +832,8 @@ type CallBackConfig struct {
 	RawFeatures     bool
 	RawFeaturesRate int
 	ItemSize        int
+	ItemSizeRate    int
+	UseUserFeatures bool
 }
 type EmbeddingConfig struct {
 	DataSource DataSourceConfig
