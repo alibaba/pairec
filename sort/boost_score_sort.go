@@ -75,7 +75,7 @@ func (s *BoostScoreSort) doSort(sortData *SortData) error {
 	items := sortData.Data.([]*module.Item)
 	userProperties := sortData.User.MakeUserFeatures2()
 	for _, item := range items {
-		properties := item.GetProperties()
+		properties := item.GetCloneFeatures()
 		for _, condition := range s.conditions {
 			if flag, err := condition.filterParam.EvaluateByDomain(userProperties, properties); err == nil && flag {
 				properties["score"] = item.Score

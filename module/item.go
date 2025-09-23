@@ -52,6 +52,9 @@ func (t *Item) GetAlgoScores() map[string]float64 {
 	return t.algoScores
 }
 func (t *Item) GetAlgoScoreWithNames(names []string) map[string]float64 {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+
 	ret := make(map[string]float64, len(names))
 	for _, n := range names {
 		ret[n] = t.algoScores[n]
@@ -261,11 +264,15 @@ func (t *Item) AddRecallNameFeature() {
 func (t *Item) GetProperties() map[string]interface{} {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
-	return t.Properties
+	clone := make(map[string]interface{}, len(t.Properties))
+	for k, v := range t.Properties {
+		clone[k] = v
+	}
+	return clone
 }
 func (t *Item) GetCloneFeatures() map[string]interface{} {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
 
 	features := make(map[string]interface{}, len(t.Properties))
 
@@ -295,30 +302,31 @@ func (t *Item) AddProperties(properties map[string]interface{}) {
 	}
 }
 func (t *Item) DeepClone() *Item {
-	item := NewItemWithProperty(string(t.Id), t.Properties)
-
-	item.Score = t.Score
-	item.RetrieveId = t.RetrieveId
-	item.ItemType = t.ItemType
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
 
 	algoScores := make(map[string]float64, len(t.algoScores))
 	recallScores := make(map[string]float64, len(t.RecallScores))
-	t.mutex.RLock()
 	for k, v := range t.algoScores {
 		algoScores[k] = v
 	}
 	for k, v := range t.RecallScores {
 		recallScores[k] = v
 	}
-	t.mutex.RUnlock()
+	item := NewItemWithProperty(string(t.Id), t.Properties)
+
+	item.Score = t.Score
+	item.RetrieveId = t.RetrieveId
+	item.ItemType = t.ItemType
+
 	item.algoScores = algoScores
 	item.RecallScores = recallScores
 	return item
 }
 func (t *Item) String() string {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
 	return fmt.Sprintf("item_id:%s,score:%v,recall_name:%s,properties:%v,algo_scores:%v,recall_scores:%v",
-		t.Id, t.Score, t.GetRecallName(), t.Properties, t.algoScores, t.RecallScores)
+		t.Id, t.Score, t.RetrieveId, t.Properties, t.algoScores, t.RecallScores)
 
 }
