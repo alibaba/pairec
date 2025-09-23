@@ -2,6 +2,7 @@ package module
 
 import (
 	"errors"
+	"maps"
 	"strconv"
 	"strings"
 	"sync"
@@ -161,10 +162,7 @@ func (u *User) MakeUserFeatures() (features map[string]interface{}) {
 func (u *User) MakeUserFeatures2() (features map[string]interface{}) {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
-	features = make(map[string]interface{}, len(u.Properties))
-	for k, v := range u.Properties {
-		features[k] = v
-	}
+	features = maps.Clone(u.Properties)
 	return
 }
 func (u *User) StringProperty(key string) string {

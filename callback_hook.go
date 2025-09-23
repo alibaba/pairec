@@ -2,6 +2,9 @@ package pairec
 
 import (
 	"encoding/json"
+	"math"
+
+	randv2 "math/rand/v2"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
@@ -23,15 +26,48 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	if !context.Debug && !callbackFlag {
 		return
 	}
-	if _, ok := context.Config.CallBackConfs[scene]; !ok {
+	callbackConfig, ok := context.Config.CallBackConfs[scene]
+	if !ok {
 		return
 	}
+
 	user := params[0].(*module.User)
 	items := params[1].([]*module.Item)
-	var features map[string]any
-	if context.GetParameter("features") != nil {
-		features = context.GetParameter("features").(map[string]any)
+
+	if callbackConfig.ItemSize > 0 && len(items) > callbackConfig.ItemSize {
+		items = items[:callbackConfig.ItemSize]
 	}
+	if callbackConfig.ItemSizeRate > 0 && callbackConfig.ItemSizeRate < 100 {
+		originSize := len(items)
+		targetSize := int(math.Round(float64(originSize) * float64(callbackConfig.ItemSizeRate) / 100.0))
+		if targetSize == 0 && originSize > 0 {
+			targetSize = 1
+		}
+		if targetSize < originSize {
+			step := float64(originSize) / float64(targetSize)
+			newItems := make([]*module.Item, 0, targetSize)
+			start := randv2.Float64() * step
+
+			for i := 0; i < targetSize; i++ {
+				index := int(start + float64(i)*step)
+				if index < originSize {
+					newItems = append(newItems, items[index])
+				}
+			}
+			if len(newItems) > 0 {
+				items = newItems
+			}
+		}
+	}
+	var features map[string]any
+	if callbackConfig.UseUserFeatures {
+		features = user.MakeUserFeatures2()
+	} else {
+		if context.GetParameter("features") != nil {
+			features = context.GetParameter("features").(map[string]any)
+		}
+	}
+
 	requestData := map[string]any{
 		"request_id": context.RecommendId,
 		"scene_id":   scene,

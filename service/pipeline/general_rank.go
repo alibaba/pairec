@@ -3,6 +3,7 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -33,9 +34,10 @@ func (r *GeneralRank) Rank(user *module.User, items []*module.Item, context *con
 }
 
 type GeneralRankService struct {
-	generalRanks    map[string]*GeneralRank
 	pipelineName    string
 	generalRankConf recconf.GeneralRankConfig
+	mu              sync.RWMutex
+	generalRanks    map[string]*GeneralRank
 }
 
 func NewGeneralRankService(config *recconf.PipelineConfig) *GeneralRankService {
@@ -49,14 +51,21 @@ func NewGeneralRankService(config *recconf.PipelineConfig) *GeneralRankService {
 }
 
 func (r *GeneralRankService) Clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.generalRanks = make(map[string]*GeneralRank, 0)
 }
 
 func (r *GeneralRankService) AddGeneralRank(rankId string, rank *GeneralRank) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.generalRanks[rankId] = rank
 }
 
 func (r *GeneralRankService) GetGeneralRank(rankId string) (*GeneralRank, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	rank, ok := r.generalRanks[rankId]
 	return rank, ok
 }
@@ -89,6 +98,15 @@ func (r *GeneralRankService) GetGeneralRankByContext(context *context.RecommendC
 	}
 	d, _ := json.Marshal(rankConfig)
 	id := scene + "#" + utils.Md5(string(d))
+	r.mu.RLock()
+	generalRank, ok := r.generalRanks[id]
+	r.mu.RUnlock()
+	if ok {
+		return generalRank
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if generalRank, ok := r.generalRanks[id]; ok {
 		return generalRank
 	}
