@@ -28,10 +28,15 @@ func NewItemCollaborativeFilterRecall(config recconf.RecallConfig) *ItemCollabor
 
 func (r *ItemCollaborativeFilterRecall) GetCandidateItems(user *module.User, context *context.RecommendContext) (ret []*module.Item) {
 	start := time.Now()
+	item_id := utils.ToString(context.GetParameter("item_id"), "")
+	if item_id == "" {
+		return
+	}
 	if r.cache != nil {
-		key := r.cachePrefix + string(user.Id)
+		key := item_id
 		cacheRet := r.cache.Get(key)
-		if itemStr, ok := cacheRet.([]uint8); ok {
+		switch itemStr := cacheRet.(type) {
+		case []uint8:
 			itemIds := strings.Split(string(itemStr), ",")
 			for _, id := range itemIds {
 				var item *module.Item
@@ -44,24 +49,40 @@ func (r *ItemCollaborativeFilterRecall) GetCandidateItems(user *module.User, con
 					item = module.NewItem(id)
 				}
 				item.RetrieveId = r.modelName
-				item.ItemType = r.itemType
 				ret = append(ret, item)
 			}
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFilterRecall\tname=%s\tcount=%d\tcost=%d", context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
+		case string:
+			itemIds := strings.Split(itemStr, ",")
+			for _, id := range itemIds {
+				var item *module.Item
+				if strings.Contains(id, ":") {
+					vars := strings.Split(id, ":")
+					item = module.NewItem(vars[0])
+					f, _ := strconv.ParseFloat(vars[1], 64)
+					item.Score = f
+				} else {
+					item = module.NewItem(id)
+				}
+				item.RetrieveId = r.modelName
+				ret = append(ret, item)
+			}
+		default:
+		}
+		if len(ret) > 0 {
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFilterRecall\tfrom=cache\tname=%s\tcount=%d\tcost=%d", context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 			return
 		}
 	}
 	ret = r.itemCollaborativeDao.ListItemsByItem(user, context)
 	if r.cache != nil && len(ret) > 0 {
 		go func() {
-			key := r.cachePrefix + string(user.Id)
+			key := item_id
 			var itemIds string
 			for _, item := range ret {
-				//item.AddProperty(r.modelName, 0)
 				itemIds += fmt.Sprintf("%s:%v", string(item.Id), item.Score) + ","
 			}
 			itemIds = itemIds[:len(itemIds)-1]
-			if err := r.cache.Put(key, itemIds, 1800*time.Second); err != nil {
+			if err := r.cache.Put(key, itemIds, time.Duration(r.cacheTime)*time.Second); err != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFilterRecall\terror=%v",
 					context.RecommendId, err))
 			}
