@@ -3,6 +3,7 @@ package sort
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
@@ -59,6 +60,7 @@ func (s *MultiRecallMixSort) createMixStrategies(sortData *SortData) []MixSortSt
 	return strategies
 }
 func (s *MultiRecallMixSort) doSort(sortData *SortData) error {
+	start := time.Now()
 	items := sortData.Data.([]*module.Item)
 
 	size := sortData.Context.Size
@@ -171,6 +173,7 @@ func (s *MultiRecallMixSort) doSort(sortData *SortData) error {
 
 	}
 	sortData.Data = result
+	sortInfoLogWithName(sortData, "MultiRecallMixSort", s.name, len(items), start)
 	return nil
 }
 
