@@ -1,7 +1,6 @@
 package module
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -114,7 +113,7 @@ func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 		d.fetchItemData(ids)
 		ids = ids[:0]
 		d.itemIds = newItemIds
-		d.lastScanTime = time.Now()
+		//d.lastScanTime = time.Now()
 	}
 	for id := range d.ch {
 		ids = append(ids, id)
@@ -132,16 +131,7 @@ func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 }
 
 func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
-	var cacheKey string
-	if d.filterParam != nil {
-		contextFeatures := context.GetParameter("features").(map[string]interface{})
-		if d, err := json.Marshal(contextFeatures); err == nil {
-			cacheKey = string(d)
-
-		}
-	} else {
-		cacheKey = string(user.Id)
-	}
+	cacheKey := string(user.Id)
 	if cacheValue, ok := d.cache.GetIfPresent(cacheKey); ok {
 		if items, ok := cacheValue.([]*Item); ok {
 			return items
@@ -164,7 +154,6 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 			ret = append(ret, item)
 		}
 	} else {
-
 		itemIds := make([]string, len(d.itemIds))
 		copy(itemIds, d.itemIds)
 		rand.Shuffle(len(itemIds), func(i, j int) {
