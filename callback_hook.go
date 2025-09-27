@@ -15,10 +15,12 @@ import (
 func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	scene := context.GetParameter("scene").(string)
 	callbackFlag := false
+	rate := 0
 	if sceneConf, ok := context.Config.SceneConfs[scene]; ok {
 		if categoryConf, ok := sceneConf["default"]; ok {
 			if categoryConf.AutoInvokeCallBack {
 				callbackFlag = true
+				rate = categoryConf.AutoInvokeCallBackRate
 			}
 		}
 	}
@@ -26,6 +28,13 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	if !context.Debug && !callbackFlag {
 		return
 	}
+
+	if callbackFlag && (rate > 0 && rate < 100) {
+		if randv2.IntN(100) >= rate {
+			return
+		}
+	}
+
 	callbackConfig, ok := context.Config.CallBackConfs[scene]
 	if !ok {
 		return

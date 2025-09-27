@@ -646,10 +646,11 @@ type SceneConfig struct {
 	Categories []string
 }
 type CategoryConfig struct {
-	RecallNames        []string
-	FallbackConfig     *FallbackConfig
-	AutoInvokeCallBack bool
-	OutputFields       []string
+	RecallNames            []string
+	FallbackConfig         *FallbackConfig
+	AutoInvokeCallBack     bool
+	AutoInvokeCallBackRate int
+	OutputFields           []string
 }
 
 type FallbackConfig struct {
