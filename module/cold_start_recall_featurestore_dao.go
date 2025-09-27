@@ -211,6 +211,7 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 
 			d.itemIds = ids
 			go d.fetchItemData(d.itemIds)
+			log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\tmsg=load item\tsize=%d", len(d.itemIds)))
 		}()
 	}()
 
