@@ -919,6 +919,7 @@ type DebugConfig struct {
 
 type FeatureLogConfig struct {
 	OutputType   string
+	Rate         int
 	DatahubName  string
 	KafKaName    string
 	UserFeatures string

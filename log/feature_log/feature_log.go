@@ -7,6 +7,7 @@ import (
 	"github.com/alibaba/pairec/v2/datasource/datahub"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,18 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 	config, ok := context.Config.FeatureLogConfs[scene]
 
 	if !ok {
+		return
+	}
+
+	var featureLogFlag bool
+	if config.Rate == 100 || config.Rate == 0 {
+		featureLogFlag = true
+	} else {
+		if rand.Intn(100) < config.Rate {
+			featureLogFlag = true
+		}
+	}
+	if !featureLogFlag {
 		return
 	}
 
