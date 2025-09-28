@@ -23,7 +23,7 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 	}
 
 	var featureLogFlag bool
-	if config.Rate == 100 {
+	if config.Rate == 100 || config.Rate == 0 {
 		featureLogFlag = true
 	} else {
 		if rand.Intn(100) < config.Rate {
