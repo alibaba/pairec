@@ -127,7 +127,7 @@ func NewRealtimeUser2ItemBaseDao(config *recconf.RecallConfig) *RealtimeUser2Ite
 	if config.RealTimeUser2ItemDaoConf.I2ICacheSize > 0 {
 		cacheTime := 3600
 		if config.RealTimeUser2ItemDaoConf.I2ICacheTime > 0 {
-			cacheTime = config.CacheTime
+			cacheTime = config.RealTimeUser2ItemDaoConf.I2ICacheTime
 		}
 		dao.cache = cache.New(cache.WithMaximumSize(config.RealTimeUser2ItemDaoConf.I2ICacheSize),
 			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
