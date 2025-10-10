@@ -455,6 +455,9 @@ type RealTimeUser2ItemDaoConfig struct {
 	// FeatureStore i2i feature view name
 	Item2ItemFeatureViewName string
 	MergeMode                string
+
+	I2ICacheSize int
+	I2ICacheTime int // seconds
 }
 type UserTriggerDaoConfig struct {
 	SqlDaoConfig
