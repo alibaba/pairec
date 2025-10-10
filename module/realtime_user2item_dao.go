@@ -3,9 +3,11 @@ package module
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/goburrow/cache"
 )
 
 type RealTimeUser2ItemDao interface {
@@ -70,6 +72,7 @@ type RealtimeUser2ItemBaseDao struct {
 	eventPlayTimeMap map[string]float64
 	eventWeightMap   map[string]float64
 	mergeMode        string
+	cache            cache.Cache
 }
 
 func NewRealtimeUser2ItemBaseDao(config *recconf.RecallConfig) *RealtimeUser2ItemBaseDao {
@@ -111,12 +114,23 @@ func NewRealtimeUser2ItemBaseDao(config *recconf.RecallConfig) *RealtimeUser2Ite
 				}
 			}
 		}
+		if len(dao.eventWeightMap) == 0 {
+			panic("UserTriggerDaoConf.EventWeight is empty")
+		}
 	}
 
 	if len(dao.propertyFields) > 0 {
 		for i, field := range dao.propertyFields {
 			dao.propertyFieldMap[field] = i
 		}
+	}
+	if config.RealTimeUser2ItemDaoConf.I2ICacheSize > 0 {
+		cacheTime := 3600
+		if config.RealTimeUser2ItemDaoConf.I2ICacheTime > 0 {
+			cacheTime = config.CacheTime
+		}
+		dao.cache = cache.New(cache.WithMaximumSize(config.RealTimeUser2ItemDaoConf.I2ICacheSize),
+			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
 	}
 	return dao
 }
@@ -193,6 +207,10 @@ func (d *RealtimeUser2ItemBaseDao) DiversityTriggers(triggers []*TriggerInfo) []
 	return triggerResult
 }
 
+const (
+	MergeMode_Snake string = "snake"
+)
+
 func (d *RealtimeUser2ItemBaseDao) isSnakeMergeMode() bool {
-	return d.mergeMode == "snake"
+	return d.mergeMode == MergeMode_Snake
 }

@@ -109,72 +109,96 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 	}
 
 	var itemIds []interface{}
+	triggerIdItemMap := make(map[string][]*Item, len(itemTriggers))
 	for id := range itemTriggers {
+		if d.cache != nil {
+			if cacheValue, ok := d.cache.GetIfPresent(id); ok {
+				if items, ok := cacheValue.([]*Item); ok {
+					newItems := d.cloneItems(items)
+					triggerIdItemMap[id] = newItems
+					ret = append(ret, newItems...)
+					continue
+				}
+			}
+		}
 		itemIds = append(itemIds, id)
 	}
 
-	featureView := d.fsClient.GetProject().GetFeatureView(d.itemTable)
-	if featureView == nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\trecallName=%s\terror=featureView not found, featureview:%s", context.RecommendId, d.recallName, d.itemTable))
-		return
-	}
-
-	features, err := featureView.GetOnlineFeatures(itemIds, []string{d.similarItemIdField}, nil)
-	if err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\terror=%v", context.RecommendId, err))
-		return
-	}
-	featureView.GetFeatureEntityName()
-	featureEntity := d.fsClient.GetProject().GetFeatureEntity(featureView.GetFeatureEntityName())
-	if featureEntity == nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\terror=featureEntity not found, featureEntity:%s", context.RecommendId, featureView.GetFeatureEntityName()))
-		return
-	}
 	isSnakeMode := d.isSnakeMergeMode()
 
-	triggerIdItemMap := make(map[string][]*Item, len(itemTriggers))
-	for _, featureMap := range features {
-		triggerId := utils.ToString(featureMap[featureEntity.FeatureEntityJoinid], "")
-		ids := utils.ToString(featureMap[d.similarItemIdField], "")
-		preferScore := itemTriggers[triggerId]
-		list := strings.Split(ids, ",")
-		for _, str := range list {
-			strs := strings.Split(str, ":")
-			if strs[0] == "" || strs[0] == "null" {
-				continue
-			}
-			if len(strs) == 2 {
-				item := NewItem(strs[0])
-				item.RetrieveId = d.recallName
-				if tmpScore, err := strconv.ParseFloat(strings.TrimSpace(strs[1]), 64); err == nil {
-					item.Score = tmpScore * preferScore
-				} else {
-					item.Score = preferScore
-				}
-
-				ret = append(ret, item)
-				triggerIdItemMap[triggerId] = append(triggerIdItemMap[triggerId], item)
-			} else if len(strs) == 3 { // compatible format itemid1:recall1:score1
-				item := NewItem(strs[0])
-				item.RetrieveId = d.recallName
-				if tmpScore, err := strconv.ParseFloat(strings.TrimSpace(strs[2]), 64); err == nil {
-					item.Score = tmpScore * preferScore
-				} else {
-					item.Score = preferScore
-				}
-
-				ret = append(ret, item)
-				triggerIdItemMap[triggerId] = append(triggerIdItemMap[triggerId], item)
-			}
+	if len(itemIds) > 0 {
+		featureView := d.fsClient.GetProject().GetFeatureView(d.itemTable)
+		if featureView == nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\trecallName=%s\terror=featureView not found, featureview:%s", context.RecommendId, d.recallName, d.itemTable))
+			return
 		}
 
+		features, err := featureView.GetOnlineFeatures(itemIds, []string{d.similarItemIdField}, nil)
+		if err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\terror=%v", context.RecommendId, err))
+			return
+		}
+		featureView.GetFeatureEntityName()
+		featureEntity := d.fsClient.GetProject().GetFeatureEntity(featureView.GetFeatureEntityName())
+		if featureEntity == nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\terror=featureEntity not found, featureEntity:%s", context.RecommendId, featureView.GetFeatureEntityName()))
+			return
+		}
+
+		for _, featureMap := range features {
+			triggerId := utils.ToString(featureMap[featureEntity.FeatureEntityJoinid], "")
+			ids := utils.ToString(featureMap[d.similarItemIdField], "")
+			preferScore := itemTriggers[triggerId]
+			list := strings.Split(ids, ",")
+			for _, str := range list {
+				strs := strings.Split(str, ":")
+				if strs[0] == "" || strs[0] == "null" {
+					continue
+				}
+				if len(strs) == 2 {
+					item := NewItem(strs[0])
+					item.RetrieveId = d.recallName
+					if tmpScore, err := strconv.ParseFloat(strings.TrimSpace(strs[1]), 64); err == nil {
+						item.Score = tmpScore * preferScore
+					} else {
+						item.Score = preferScore
+					}
+
+					ret = append(ret, item)
+					triggerIdItemMap[triggerId] = append(triggerIdItemMap[triggerId], item)
+				} else if len(strs) == 3 { // compatible format itemid1:recall1:score1
+					item := NewItem(strs[0])
+					item.RetrieveId = d.recallName
+					if tmpScore, err := strconv.ParseFloat(strings.TrimSpace(strs[2]), 64); err == nil {
+						item.Score = tmpScore * preferScore
+					} else {
+						item.Score = preferScore
+					}
+
+					ret = append(ret, item)
+					triggerIdItemMap[triggerId] = append(triggerIdItemMap[triggerId], item)
+				}
+			}
+		}
+		if d.cache != nil {
+			for triggerId, items := range triggerIdItemMap {
+				if _, exist := d.cache.GetIfPresent(triggerId); !exist {
+					d.cache.Put(triggerId, d.cloneItems(items))
+				}
+			}
+		}
+		if context.Debug {
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\ttriggerId size=%d\titemIds size=%d", context.RecommendId, len(triggerIds), len(itemIds)))
+		}
 	}
 	// sort items
 	if isSnakeMode || context.Debug {
 		for _, triggerId := range triggerIds {
 			items := triggerIdItemMap[triggerId]
-			gosort.Sort(gosort.Reverse(ItemScoreSlice(items)))
-			triggerIdItemMap[triggerId] = items
+			if len(items) > 0 {
+				gosort.Sort(gosort.Reverse(ItemScoreSlice(items)))
+				triggerIdItemMap[triggerId] = items
+			}
 		}
 	}
 	if context.Debug {
@@ -235,6 +259,16 @@ func (d *RealtimeUser2ItemFeatureStoreDao) debugItemsString(itmes []*Item) strin
 		ret = append(ret, fmt.Sprintf("%s:%f", item.Id, item.Score))
 	}
 	return strings.Join(ret, ",")
+}
+func (d *RealtimeUser2ItemFeatureStoreDao) cloneItems(items []*Item) (ret []*Item) {
+	ret = make([]*Item, len(items))
+	for i, item := range items {
+		newItem := NewItem(string(item.Id))
+		newItem.RetrieveId = item.RetrieveId
+		newItem.Score = item.Score
+		ret[i] = newItem
+	}
+	return
 }
 
 func (d *RealtimeUser2ItemFeatureStoreDao) GetTriggerInfos(user *User, context *context.RecommendContext) (triggerInfos []*TriggerInfo) {
