@@ -144,7 +144,7 @@ func (d *Datahub) createTopic() error {
 				recordSchema.AddField(alidatahub.Field{Name: schema.Field, Type: alidatahub.TIMESTAMP, AllowNull: true})
 			}
 		}
-		if _, err := d.datahubApi.CreateTupleTopic(d.projectName, d.topicName, fmt.Sprintf("create topic %s", d.topicName), 3, 3, recordSchema); err != nil {
+		if _, err := d.datahubApi.CreateTupleTopic(d.projectName, d.topicName, fmt.Sprintf("create topic %s by pairec", d.topicName), 6, 3, recordSchema); err != nil {
 			return err
 		}
 		d.recordSchema = recordSchema
