@@ -23,6 +23,14 @@ func NewColdStartRecall(config recconf.RecallConfig) *ColdStartRecall {
 		coldStartRecallDao: module.NewColdStartRecallDao(config),
 	}
 
+	// feature store cold start recall no need cache
+	// ColdStartRecallFeatureStoreDao already use cache
+	if _, ok := recall.coldStartRecallDao.(*module.ColdStartRecallFeatureStoreDao); ok {
+		if recall.cache != nil {
+			recall.cache = nil
+		}
+	}
+
 	if recall.cache != nil {
 		go recall.LoopLoadItems()
 	}
@@ -64,8 +72,9 @@ func (r *ColdStartRecall) GetCandidateItems(user *module.User, context *context.
 }
 
 func (r *ColdStartRecall) LoopLoadItems() {
+	log.Info("module=ColdStartRecall\tmsg=start loop load items")
+	user := module.NewUser("loop")
 	for {
-		user := &module.User{}
 		recommendContext := &context.RecommendContext{}
 
 		ret := r.coldStartRecallDao.ListItemsByUser(user, recommendContext)
