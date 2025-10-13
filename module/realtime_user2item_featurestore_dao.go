@@ -113,8 +113,24 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 	for id := range itemTriggers {
 		if d.cache != nil {
 			if cacheValue, ok := d.cache.GetIfPresent(id); ok {
-				if items, ok := cacheValue.([]*Item); ok {
-					newItems := d.cloneItems(items)
+				if itemStr, ok := cacheValue.(string); ok {
+					if itemStr == "" {
+						continue
+					}
+					newItems := make([]*Item, 0, 16)
+
+					itemIdList := strings.Split(string(itemStr), ",")
+					for _, itemIdStr := range itemIdList {
+						vars := strings.Split(itemIdStr, ":")
+						if len(vars) == 2 {
+							item := NewItem(vars[0])
+							f, _ := strconv.ParseFloat(vars[1], 64)
+							item.Score = f
+							item.RetrieveId = d.recallName
+							newItems = append(newItems, item)
+						}
+					}
+
 					triggerIdItemMap[id] = newItems
 					ret = append(ret, newItems...)
 					continue
@@ -183,7 +199,7 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 		if d.cache != nil {
 			for triggerId, items := range triggerIdItemMap {
 				if _, exist := d.cache.GetIfPresent(triggerId); !exist {
-					d.cache.Put(triggerId, d.cloneItems(items))
+					d.cache.Put(triggerId, d.convertItemsToString(items))
 				}
 			}
 		}
@@ -259,6 +275,24 @@ func (d *RealtimeUser2ItemFeatureStoreDao) debugItemsString(itmes []*Item) strin
 		ret = append(ret, fmt.Sprintf("%s:%f", item.Id, item.Score))
 	}
 	return strings.Join(ret, ",")
+}
+func (d *RealtimeUser2ItemFeatureStoreDao) convertItemsToString(items []*Item) string {
+	if len(items) == 0 {
+		return ""
+	}
+	var str strings.Builder
+	str.Grow(len(items) * 20)
+	for i, item := range items {
+		if i > 0 {
+			str.WriteByte(',')
+		}
+
+		str.WriteString(string(item.Id))
+		str.WriteByte(':')
+		str.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
+	}
+
+	return str.String()
 }
 func (d *RealtimeUser2ItemFeatureStoreDao) cloneItems(items []*Item) (ret []*Item) {
 	ret = make([]*Item, len(items))
