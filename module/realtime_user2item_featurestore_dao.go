@@ -141,6 +141,7 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 	}
 
 	isSnakeMode := d.isSnakeMergeMode()
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\tname=%s\ttriggerId size=%d\tcachesize=%d", context.RecommendId, d.recallName, len(triggerIds), len(triggerIds)-len(itemIds)))
 
 	if len(itemIds) > 0 {
 		featureView := d.fsClient.GetProject().GetFeatureView(d.itemTable)
@@ -202,9 +203,6 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 					d.cache.Put(triggerId, d.convertItemsToString(items))
 				}
 			}
-		}
-		if context.Debug {
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\ttriggerId size=%d\titemIds size=%d", context.RecommendId, len(triggerIds), len(itemIds)))
 		}
 	}
 	// sort items
