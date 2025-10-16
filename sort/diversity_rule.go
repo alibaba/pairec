@@ -96,6 +96,8 @@ func (r *DiversityRule) GetWeight() int {
 
 }
 
+var _ DiversityRuleInterface = (*DiversityRuleMultiDimension)(nil)
+
 type DiversityRuleMultiDimension struct {
 	DiversityRuleConfig recconf.DiversityRuleConfig
 	DimensionItemMap    map[module.ItemId][]any
