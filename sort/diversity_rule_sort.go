@@ -10,26 +10,29 @@ import (
 )
 
 type DiversityRuleSort struct {
-	diversitySize    int
-	diversityRules   []recconf.DiversityRuleConfig
-	exclusionRules   []recconf.ExclusionRuleConfig
-	excludeRecallMap map[string]bool
-	filterParam      *module.FilterParam
-	cloneInstances   map[string]*DiversityRuleSort
-	name             string
-	exploreItemSize  int
+	diversitySize           int
+	diversityRules          []recconf.DiversityRuleConfig
+	exclusionRules          []recconf.ExclusionRuleConfig
+	excludeRecallMap        map[string]bool
+	filterParam             *module.FilterParam
+	cloneInstances          map[string]*DiversityRuleSort
+	name                    string
+	exploreItemSize         int
+	multiValueDimensionConf []recconf.MultiValueDimensionConfig
+	multiDimensionMaps      []map[int]recconf.MultiValueDimensionConfig // size is equal config.DiversityRules, per entry is map of multi dimension config for each diversity rule of dimensions
 }
 
 func NewDiversityRuleSort(config recconf.SortConfig) *DiversityRuleSort {
 	sort := DiversityRuleSort{
-		diversitySize:    config.DiversitySize,
-		diversityRules:   config.DiversityRules,
-		exclusionRules:   config.ExclusionRules,
-		excludeRecallMap: make(map[string]bool, len(config.ExcludeRecalls)),
-		filterParam:      nil,
-		name:             config.Name,
-		cloneInstances:   make(map[string]*DiversityRuleSort),
-		exploreItemSize:  -1,
+		diversitySize:           config.DiversitySize,
+		diversityRules:          config.DiversityRules,
+		exclusionRules:          config.ExclusionRules,
+		excludeRecallMap:        make(map[string]bool, len(config.ExcludeRecalls)),
+		filterParam:             nil,
+		name:                    config.Name,
+		cloneInstances:          make(map[string]*DiversityRuleSort),
+		exploreItemSize:         -1,
+		multiValueDimensionConf: config.MultiValueDimensionConf,
 	}
 
 	for _, recallName := range config.ExcludeRecalls {
@@ -42,6 +45,22 @@ func NewDiversityRuleSort(config recconf.SortConfig) *DiversityRuleSort {
 	}
 	if config.ExploreItemSize > 0 {
 		sort.exploreItemSize = config.ExploreItemSize
+	}
+	if len(config.MultiValueDimensionConf) > 0 {
+		for _, diversityRuleConfig := range sort.diversityRules {
+			multiDimensionMap := make(map[int]recconf.MultiValueDimensionConfig)
+			for i, dimension := range diversityRuleConfig.Dimensions {
+				for _, multiDimension := range config.MultiValueDimensionConf {
+					if multiDimension.DimensionName == dimension {
+						multiDimensionMap[i] = multiDimension
+						break
+					}
+				}
+			}
+			sort.multiDimensionMaps = append(sort.multiDimensionMaps, multiDimensionMap)
+
+		}
+
 	}
 
 	return &sort
@@ -68,9 +87,14 @@ func (s *DiversityRuleSort) Sort(sortData *SortData) error {
 	return nil
 }
 
-func (s *DiversityRuleSort) createDiversityRules(size int) (ret []*DiversityRule) {
-	for _, config := range s.diversityRules {
-		rule := NewDiversityRule(config, size)
+func (s *DiversityRuleSort) createDiversityRules(size int) (ret []DiversityRuleInterface) {
+	for i, config := range s.diversityRules {
+		var rule DiversityRuleInterface
+		if len(s.multiValueDimensionConf) > 0 {
+			rule = NewDiversityRuleMultiDimension(config, size, s.multiDimensionMaps[i])
+		} else {
+			rule = NewDiversityRule(config, size)
+		}
 
 		ret = append(ret, rule)
 	}
