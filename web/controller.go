@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/utils/compress"
 )
 
 const (
@@ -44,6 +45,21 @@ func (c *Controller) cost() int64 {
 	duration := c.End.UnixNano() - c.Start.UnixNano()
 
 	return duration / 1e6
+}
+func (c *Controller) ReadRequestBody(r *http.Request) ([]byte, error) {
+	encoding := r.Header.Get("Content-Encoding")
+	if encoding != "" {
+		switch encoding {
+		case "zstd":
+			return compress.ZstdDecode(r.Body)
+		case "lz4":
+			return compress.LZ4Decode(r.Body)
+		case "gzip":
+			return compress.GzipDecode(r.Body)
+		default:
+		}
+	}
+	return io.ReadAll(r.Body)
 }
 
 func (c *Controller) LogRequestBegin(r *http.Request) {

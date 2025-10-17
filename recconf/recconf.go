@@ -765,8 +765,13 @@ type SortConfig struct {
 	ExclusionRules                []ExclusionRuleConfig
 	TimeInterval                  int
 	BoostScoreByWeightDao         BoostScoreByWeightDaoConfig
+	MultiValueDimensionConf       []MultiValueDimensionConfig
 }
 
+type MultiValueDimensionConfig struct {
+	DimensionName string
+	Delimiter     string
+}
 type BoostScoreByWeightDaoConfig struct {
 	DaoConfig
 	ItemFieldName   string

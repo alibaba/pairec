@@ -203,6 +203,12 @@ func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *
 					d.cache.Put(triggerId, d.convertItemsToString(items))
 				}
 			}
+			//negative cache set, if itemId(triggerId) not have data in feature store, set empty string
+			for _, itemId := range itemIds {
+				if _, exist := d.cache.GetIfPresent(itemId); !exist {
+					d.cache.Put(itemId, "")
+				}
+			}
 		}
 	}
 	// sort items
