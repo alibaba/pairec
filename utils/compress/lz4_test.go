@@ -2,21 +2,18 @@ package compress
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
-	"github.com/pierrec/lz4/v4"
+	"fortio.org/assert"
 )
 
 func TestLZ4Decode(t *testing.T) {
 	str := "hello world"
 
-	buf := bytes.NewBuffer(nil)
-	writer := lz4.NewWriter(buf)
-	writer.Write([]byte(str))
-	writer.Close()
-	fmt.Println(string(buf.Bytes()), buf.Len())
+	compressData, err := LZ4Encode([]byte(str))
+	assert.Equal(t, err, nil)
 
-	uncompressed, err := LZ4Decode(buf)
-	fmt.Println(string(uncompressed), err)
+	uncompressed, err := LZ4Decode(bytes.NewReader(compressData))
+	assert.Equal(t, err, nil)
+	assert.Equal(t, string(uncompressed), str)
 }
