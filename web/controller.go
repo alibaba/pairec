@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/utils/compress"
 )
 
 const (
@@ -45,6 +46,21 @@ func (c *Controller) cost() int64 {
 
 	return duration / 1e6
 }
+func (c *Controller) ReadRequestBody(r *http.Request) ([]byte, error) {
+	encoding := r.Header.Get("Content-Encoding")
+	if encoding != "" {
+		switch encoding {
+		case "zstd":
+			return compress.ZstdDecode(r.Body)
+		case "lz4":
+			return compress.LZ4Decode(r.Body)
+		case "gzip":
+			return compress.GzipDecode(r.Body)
+		default:
+		}
+	}
+	return io.ReadAll(r.Body)
+}
 
 func (c *Controller) LogRequestBegin(r *http.Request) {
 	info := fmt.Sprintf("requestId=%s\tevent=begin\turi=%s\taddress=%s\tbody=%s", c.RequestId, r.RequestURI, r.RemoteAddr, string(c.RequestBody))
@@ -76,4 +92,32 @@ func (c *Controller) SendError(w http.ResponseWriter, code int, msg string) {
 	}
 
 	io.WriteString(w, e.ToString())
+}
+
+func (c *Controller) Response(w http.ResponseWriter, r *http.Request, body []byte) {
+	encoding := r.Header.Get("Accept-Encoding")
+	if encoding != "" {
+		switch encoding {
+		case "zstd":
+			if buf, err := compress.ZstdEncode(body); err == nil {
+				w.Header().Add("Content-Encoding", "zstd")
+				w.Write(buf)
+				return
+			}
+		case "lz4":
+			if buf, err := compress.LZ4Encode(body); err == nil {
+				w.Header().Add("Content-Encoding", "lz4")
+				w.Write(buf)
+				return
+			}
+		case "gzip":
+			if buf, err := compress.GzipEncode(body); err == nil {
+				w.Header().Add("Content-Encoding", "gzip")
+				w.Write(buf)
+				return
+			}
+		default:
+		}
+	}
+	w.Write(body)
 }
