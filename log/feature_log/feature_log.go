@@ -1,17 +1,21 @@
 package feature_log
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/alibaba/pairec/v2/context"
-	"github.com/alibaba/pairec/v2/datasource/datahub"
-	"github.com/alibaba/pairec/v2/log"
-	"github.com/alibaba/pairec/v2/module"
 	"math/rand"
 	"strconv"
 	"strings"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
+
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/datasource/datahub"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func FeatureLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
 	scene := context.GetParameter("scene").(string)
@@ -56,24 +60,40 @@ func getFeatureData(user *module.User, userFields string, items []*module.Item, 
 		return messages
 	}
 
+	var userData string
+	userFeatures := getUserFeatures(user, userFields)
+	if len(userFeatures) > 0 {
+		data, err := json.Marshal(userFeatures)
+		if err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
+		} else {
+			userData = string(data)
+		}
+	}
+	requestTime := time.Now().Unix()
 	for i, item := range items {
 
-		logMap := make(map[string]interface{})
+		logMap := make(map[string]interface{}, 8)
 		logMap["request_id"] = context.RecommendId
 		logMap["scene_id"] = context.GetParameter("scene")
 		if context.ExperimentResult != nil {
 			logMap["exp_id"] = context.ExperimentResult.GetExpId()
 		}
-		logMap["request_time"] = time.Now().Unix()
-		userFeatures := getUserFeatures(user, userFields)
-		if len(userFeatures) > 0 {
-			data, err := json.Marshal(userFeatures)
-			if err != nil {
-				log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
-			} else {
-				logMap["user_features"] = string(data)
-			}
+		logMap["request_time"] = requestTime
+		if userData != "" {
+			logMap["user_features"] = userData
 		}
+		/*
+			userFeatures := getUserFeatures(user, userFields)
+			if len(userFeatures) > 0 {
+				data, err := json.Marshal(userFeatures)
+				if err != nil {
+					log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
+				} else {
+					logMap["user_features"] = string(data)
+				}
+			}
+		*/
 
 		logMap["user_id"] = string(user.Id)
 		logMap["item_id"] = string(item.Id)

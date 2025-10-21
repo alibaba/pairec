@@ -1,14 +1,9 @@
 package debug
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/alibaba/pairec/v2/context"
-	"github.com/alibaba/pairec/v2/datasource/datahub"
-	"github.com/alibaba/pairec/v2/datasource/kafka"
-	"github.com/alibaba/pairec/v2/log"
-	"github.com/alibaba/pairec/v2/module"
-	"github.com/alibaba/pairec/v2/recconf"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -18,6 +13,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/datasource/datahub"
+	"github.com/alibaba/pairec/v2/datasource/kafka"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/recconf"
 )
 
 type LogOutputer interface {
@@ -296,16 +298,33 @@ func (d *DebugService) init(config *recconf.DebugConfig) {
 	}
 }
 
+type debugItem struct {
+	Id         string
+	RetrieveId string
+	Score      float64
+	AlgoScores map[string]float64
+}
+
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		var buf bytes.Buffer
+		buf.Grow(4096)
+		return &buf
+	},
+}
+
 func (d *DebugService) WriteRecallLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
 	if d.logFlag {
 		triggerMap := make(map[module.ItemId]string, len(items))
-		newItems := make([]*module.Item, 0, len(items))
+		newItems := make([]*debugItem, 0, len(items))
 		for _, item := range items {
 			triggerMap[item.Id] = item.StringProperty("trigger_id")
-			newItem := module.NewItem(string(item.Id))
-			newItem.RetrieveId = item.RetrieveId
-			newItem.Score = item.Score
-			newItems = append(newItems, newItem)
+			newItem := debugItem{
+				Id:         string(item.Id),
+				RetrieveId: item.RetrieveId,
+				Score:      item.Score,
+			}
+			newItems = append(newItems, &newItem)
 		}
 		go d.doWriteRecallLog(user, newItems, context, triggerMap)
 	}
@@ -327,9 +346,15 @@ func (d *DebugService) WriteGeneralLog(user *module.User, items []*module.Item, 
 
 func (d *DebugService) WriteRankLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
 	if d.logFlag {
-		newItems := make([]*module.Item, 0, len(items))
+		newItems := make([]*debugItem, 0, len(items))
 		for _, item := range items {
-			newItems = append(newItems, item.DeepClone())
+			newItem := debugItem{
+				Id:         string(item.Id),
+				RetrieveId: item.RetrieveId,
+				Score:      item.Score,
+				AlgoScores: item.CloneAlgoScores(),
+			}
+			newItems = append(newItems, &newItem)
 		}
 		go d.doWriteRankLog(user, newItems, context)
 	}
@@ -347,8 +372,8 @@ func (d *DebugService) WriteRecommendLog(user *module.User, items []*module.Item
 	}
 }
 
-func (d *DebugService) doWriteRecallLog(user *module.User, items []*module.Item, context *context.RecommendContext, triggerMap map[module.ItemId]string) {
-	log := make(map[string]interface{})
+func (d *DebugService) doWriteRecallLog(user *module.User, items []*debugItem, context *context.RecommendContext, triggerMap map[module.ItemId]string) {
+	log := make(map[string]interface{}, 8)
 
 	log["request_id"] = context.RecommendId
 	log["module"] = "recall"
@@ -358,22 +383,34 @@ func (d *DebugService) doWriteRecallLog(user *module.User, items []*module.Item,
 	}
 	log["request_time"] = d.requestTime
 	log["uid"] = string(user.Id)
-	var itemLogInfos []string
+	//var itemLogInfos []string
 
-	itemsMap := make(map[string][]*module.Item)
+	itemsMap := make(map[string][]*debugItem)
 	for _, item := range items {
-		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
+		itemsMap[item.RetrieveId] = append(itemsMap[item.RetrieveId], item)
 	}
+
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
 
 	for name, itemList := range itemsMap {
 		log["retrieveid"] = name
-		for _, item := range itemList {
-			itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f:%s", item.Id, item.Score, triggerMap[item.Id]))
+		buf.Reset()
+		for i, item := range itemList {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			buf.WriteString(item.Id)
+			buf.WriteByte(':')
+			buf.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
+			buf.WriteByte(':')
+			buf.WriteString(triggerMap[module.ItemId(item.Id)])
+			//itemLogInfos = append(itemLogInfos, buf.String())
 		}
-		log["items"] = strings.Join(itemLogInfos, ",")
+		log["items"] = buf.String()
 		d.logOutputer.WriteLog(log)
 
-		itemLogInfos = itemLogInfos[:0]
+		//itemLogInfos = itemLogInfos[:0]
 	}
 
 }
@@ -389,21 +426,30 @@ func (d *DebugService) doWriteFilterLog(user *module.User, items []*module.Item,
 	}
 	log["request_time"] = d.requestTime
 	log["uid"] = string(user.Id)
-	var itemLogInfos []string
+	//var itemLogInfos []string
 	itemsMap := make(map[string][]*module.Item)
 	for _, item := range items {
 		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
 	}
 
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
 	for name, itemList := range itemsMap {
 		log["retrieveid"] = name
-		for _, item := range itemList {
-			itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f", item.Id, item.Score))
+		buf.Reset()
+		for i, item := range itemList {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			buf.WriteString(string(item.Id))
+			buf.WriteByte(':')
+			buf.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
+			//itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f", item.Id, item.Score))
 		}
-		log["items"] = strings.Join(itemLogInfos, ",")
+		log["items"] = buf.String()
 		d.logOutputer.WriteLog(log)
 
-		itemLogInfos = itemLogInfos[:0]
+		//itemLogInfos = itemLogInfos[:0]
 	}
 
 }
@@ -428,31 +474,38 @@ func (d *DebugService) doWriteGeneralLog(user *module.User, items []*module.Item
 	}
 	log["request_time"] = d.requestTime
 	log["uid"] = string(user.Id)
-	var itemLogInfos []string
 	itemsMap := make(map[string][]*module.Item)
 	for _, item := range logItems {
 		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
 	}
 
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
+
 	for name, itemList := range itemsMap {
 		log["retrieveid"] = name
-		for _, item := range itemList {
+		buf.Reset()
+		for i, item := range itemList {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			buf.WriteString(string(item.Id))
+			buf.WriteByte(':')
+			buf.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
 			if item != nil {
 				if b, err := json.Marshal(item.CloneAlgoScores()); err == nil {
-					itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f:%s", item.Id, item.Score, string(b)))
-				} else {
-					itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f", item.Id, item.Score))
+					buf.WriteByte(':')
+					buf.Write(b)
 				}
 			}
 		}
-		log["items"] = strings.Join(itemLogInfos, ",")
+		log["items"] = buf.String()
 		d.logOutputer.WriteLog(log)
-		itemLogInfos = itemLogInfos[:0]
 	}
 
 }
 
-func (d *DebugService) doWriteRankLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
+func (d *DebugService) doWriteRankLog(user *module.User, items []*debugItem, context *context.RecommendContext) {
 	log := make(map[string]interface{})
 
 	log["request_id"] = context.RecommendId
@@ -463,25 +516,32 @@ func (d *DebugService) doWriteRankLog(user *module.User, items []*module.Item, c
 	}
 	log["request_time"] = d.requestTime
 	log["uid"] = string(user.Id)
-	var itemLogInfos []string
-	itemsMap := make(map[string][]*module.Item)
+	itemsMap := make(map[string][]*debugItem)
 	//gosort.Sort(gosort.Reverse(sort.ItemScoreSlice(items)))
 	for _, item := range items {
-		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
+		itemsMap[item.RetrieveId] = append(itemsMap[item.RetrieveId], item)
 	}
+
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
 
 	for name, itemList := range itemsMap {
 		log["retrieveid"] = name
-		for _, item := range itemList {
-			if b, err := json.Marshal(item.CloneAlgoScores()); err == nil {
-				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f:%s", item.Id, item.Score, string(b)))
-			} else {
-				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f", item.Id, item.Score))
+		buf.Reset()
+		for i, item := range itemList {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			buf.WriteString(item.Id)
+			buf.WriteByte(':')
+			buf.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
+			if b, err := json.Marshal(item.AlgoScores); err == nil {
+				buf.WriteByte(':')
+				buf.Write(b)
 			}
 		}
-		log["items"] = strings.Join(itemLogInfos, ",")
+		log["items"] = buf.String()
 		d.logOutputer.WriteLog(log)
-		itemLogInfos = itemLogInfos[:0]
 	}
 
 }
@@ -497,24 +557,30 @@ func (d *DebugService) doWriteSortLog(user *module.User, items []*module.Item, c
 	}
 	log["request_time"] = d.requestTime
 	log["uid"] = string(user.Id)
-	var itemLogInfos []string
 	itemsMap := make(map[string][]*module.Item)
 	for _, item := range items {
 		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
 	}
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
 
 	for name, itemList := range itemsMap {
 		log["retrieveid"] = name
-		for _, item := range itemList {
+		buf.Reset()
+		for i, item := range itemList {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			buf.WriteString(string(item.Id))
+			buf.WriteByte(':')
+			buf.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
 			if b, err := json.Marshal(item.CloneAlgoScores()); err == nil {
-				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f:%s", item.Id, item.Score, string(b)))
-			} else {
-				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f", item.Id, item.Score))
+				buf.WriteByte(':')
+				buf.Write(b)
 			}
 		}
-		log["items"] = strings.Join(itemLogInfos, ",")
+		log["items"] = buf.String()
 		d.logOutputer.WriteLog(log)
-		itemLogInfos = itemLogInfos[:0]
 	}
 }
 
@@ -529,23 +595,30 @@ func (d *DebugService) doWriteRecommendLog(user *module.User, items []*module.It
 	}
 	log["request_time"] = d.requestTime
 	log["uid"] = string(user.Id)
-	var itemLogInfos []string
 	itemsMap := make(map[string][]*module.Item)
 	for _, item := range items {
 		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
 	}
 
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
+
 	for name, itemList := range itemsMap {
 		log["retrieveid"] = name
-		for _, item := range itemList {
+		buf.Reset()
+		for i, item := range itemList {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			buf.WriteString(string(item.Id))
+			buf.WriteByte(':')
+			buf.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
 			if b, err := json.Marshal(item.CloneAlgoScores()); err == nil {
-				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f:%s", item.Id, item.Score, string(b)))
-			} else {
-				itemLogInfos = append(itemLogInfos, fmt.Sprintf("%s:%f", item.Id, item.Score))
+				buf.WriteByte(':')
+				buf.Write(b)
 			}
 		}
-		log["items"] = strings.Join(itemLogInfos, ",")
+		log["items"] = buf.String()
 		d.logOutputer.WriteLog(log)
-		itemLogInfos = itemLogInfos[:0]
 	}
 }

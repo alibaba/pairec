@@ -2,6 +2,7 @@ package pairec
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -65,6 +66,13 @@ func HandleFunc(pattern string, hf handleFunc) {
 func Forward(method, url, body string) *http.Response {
 	readBuf := bytes.NewBufferString(body)
 	req := httptest.NewRequest(method, url, readBuf)
+	w := httptest.NewRecorder()
+	PairecApp.Handlers.ServeHTTP(w, req)
+	return w.Result()
+}
+
+func ForwardWithReader(method, url string, body io.Reader) *http.Response {
+	req := httptest.NewRequest(method, url, body)
 	w := httptest.NewRecorder()
 	PairecApp.Handlers.ServeHTTP(w, req)
 	return w.Result()
