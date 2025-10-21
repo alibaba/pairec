@@ -90,8 +90,8 @@ func (d *Datahub) Init() error {
 		account = alidatahub.NewAliyunAccount(d.accessId, d.accessKey)
 	}
 	config := alidatahub.NewDefaultConfig()
-	config.CompressorType = alidatahub.DEFLATE
-	config.EnableBinary = false
+	config.CompressorType = alidatahub.NOCOMPRESS
+	//config.EnableBinary = false
 	config.HttpClient = alidatahub.DefaultHttpClient()
 	dh := alidatahub.NewClientWithConfig(d.endpoint, config, account)
 	d.datahubApi = dh
@@ -216,11 +216,11 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 		log.Error("topic shards empty")
 		return
 	}
+	i := atomic.AddUint64(&d.index, 1)
+	shard := shards[(i)%uint64(len(shards))]
 	for _, messsage := range messages {
-		i := atomic.AddUint64(&d.index, 1)
-		shard := shards[(i)%uint64(len(shards))]
-		record := alidatahub.NewTupleRecord(d.recordSchema, 0)
-		record.ShardId = shard.ShardId
+		record := alidatahub.NewTupleRecord(d.recordSchema)
+		//record.ShardId = shard.ShardId
 		for k, v := range messsage {
 			record.SetValueByName(k, v)
 		}
@@ -238,7 +238,7 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 		}
 	}
 	for retryNum < maxReTry {
-		result, err := d.datahubApi.PutRecords(d.projectName, d.topicName, records)
+		_, err := d.datahubApi.PutRecordsByShard(d.projectName, d.topicName, shard.ShardId, records)
 		if err != nil {
 			if _, ok := err.(*alidatahub.LimitExceededError); ok {
 				retryNum++
@@ -249,10 +249,6 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 				retrySendMessage()
 				return
 			}
-		}
-		if len(result.FailedRecords) > 0 {
-			log.Error(fmt.Sprintf("put successful num is %d, put records failed num is %d,msg=%s\tcode=%sproject=%s\ttopic=%s\n",
-				len(records)-result.FailedRecordCount, result.FailedRecordCount, result.FailedRecords[0].ErrorMessage, result.FailedRecords[0].ErrorCode, d.projectName, d.topicName))
 		}
 		break
 	}
@@ -294,8 +290,8 @@ func (d *Datahub) doSendSingleMessage(message map[string]interface{}) error {
 	i := atomic.AddUint64(&d.index, 1)
 
 	shard := shards[(i)%uint64(len(shards))]
-	record := alidatahub.NewTupleRecord(d.recordSchema, 0)
-	record.ShardId = shard.ShardId
+	record := alidatahub.NewTupleRecord(d.recordSchema)
+	//record.ShardId = shard.ShardId
 	for k, v := range message {
 		record.SetValueByName(k, v)
 	}
@@ -305,7 +301,7 @@ func (d *Datahub) doSendSingleMessage(message map[string]interface{}) error {
 	maxReTry := 2
 	retryNum := 0
 	for retryNum < maxReTry {
-		result, err := d.datahubApi.PutRecords(d.projectName, d.topicName, records)
+		_, err := d.datahubApi.PutRecordsByShard(d.projectName, d.topicName, shard.ShardId, records)
 		if err != nil {
 			if _, ok := err.(*alidatahub.LimitExceededError); ok {
 				log.Error("maybe qps exceed limit,retry")
@@ -315,10 +311,6 @@ func (d *Datahub) doSendSingleMessage(message map[string]interface{}) error {
 			} else {
 				return err
 			}
-		}
-		if len(result.FailedRecords) > 0 {
-			retryNum++
-			continue
 		}
 		break
 	}

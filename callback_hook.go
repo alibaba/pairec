@@ -1,8 +1,10 @@
 package pairec
 
 import (
-	"encoding/json"
+	"bytes"
 	"math"
+
+	jsoniter "github.com/json-iterator/go"
 
 	randv2 "math/rand/v2"
 
@@ -11,6 +13,8 @@ import (
 	"github.com/alibaba/pairec/v2/service/hook"
 	"github.com/alibaba/pairec/v2/web"
 )
+
+var jsonFast = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	scene := context.GetParameter("scene").(string)
@@ -109,8 +113,8 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	}
 	requestData["item_list"] = itemList
 
-	d, _ := json.Marshal(requestData)
-	response := Forward("POST", "/api/callback", string(d))
+	d, _ := jsonFast.Marshal(requestData)
+	response := ForwardWithReader("POST", "/api/callback", bytes.NewReader(d))
 	response.Body.Close()
 }
 

@@ -25,7 +25,7 @@ func (f *UniqueFilter) Filter(filterData *FilterData) error {
 
 func (f *UniqueFilter) doFilter(filterData *FilterData) error {
 	items := filterData.Data.([]*module.Item)
-	newItems := make([]*module.Item, 0)
+	newItems := make([]*module.Item, 0, len(items))
 	uniq := make(map[module.ItemId]*module.Item, len(items))
 
 	for _, item := range items {

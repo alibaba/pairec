@@ -338,7 +338,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 					scores := make(map[string]float64, len(rankConfig.ScoreRewrite))
 					for source := range rankConfig.ScoreRewrite {
 						if exprAst, ok := scoreRewriteAst[source]; ok {
-							scores[source] = ast.ExprASTResultWithType(exprAst, itemList[k], rankConfig.ASTType)
+							scores[source] = ast.ExprASTResultWithType(exprAst, AstParameterData{context, itemList[k]}, rankConfig.ASTType)
 						} else {
 							scores[source] = 0
 						}
@@ -347,7 +347,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 				}
 
 				if exprAst != nil {
-					itemList[k].Score = ast.ExprASTResultWithType(exprAst, itemList[k], rankConfig.ASTType)
+					itemList[k].Score = ast.ExprASTResultWithType(exprAst, AstParameterData{context, itemList[k]}, rankConfig.ASTType)
 				}
 
 				if boostScoreFunc != nil {
