@@ -206,6 +206,9 @@ message PBRequest {
 
   // item features for each item, key is item input name
   map<string, ContextFeatures> item_features = 6;
+
+  // optional meta data for feature debug purpose
+  map<string, string> meta_data = 7;
 }
 
 // return results
