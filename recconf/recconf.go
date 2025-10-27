@@ -328,6 +328,8 @@ type RecallConfig struct {
 	MilvusVectorConf         MilvusVectorConfig
 	UserCollaborativeDaoConf UserCollaborativeDaoConfig
 	ItemCollaborativeDaoConf ItemCollaborativeDaoConfig
+	EnableMultipleItemId     bool
+	MultipleItemIdDelimiter  string
 	User2ItemDaoConf         User2ItemDaoConfig
 	UserTopicDaoConf         UserTopicDaoConfig
 	DaoConf                  DaoConfig
