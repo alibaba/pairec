@@ -138,3 +138,6 @@ func (d *ItemCollaborativeHologresDao) ListItemsByItem(user *User, context *cont
 
 	return
 }
+func (d *ItemCollaborativeHologresDao) ListItemsByMultiItemIds(item *User, context *context.RecommendContext, itemIds []any) (ret map[string][]*Item) {
+	return
+}

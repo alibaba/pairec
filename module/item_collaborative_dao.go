@@ -7,6 +7,7 @@ import (
 
 type ItemCollaborativeDao interface {
 	ListItemsByItem(item *User, context *context.RecommendContext) []*Item
+	ListItemsByMultiItemIds(item *User, context *context.RecommendContext, itemIds []any) map[string][]*Item
 }
 
 func NewItemCollaborativeDao(config recconf.RecallConfig) ItemCollaborativeDao {
