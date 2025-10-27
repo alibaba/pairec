@@ -160,6 +160,9 @@ func (r *ItemCollaborativeFilterRecall) doGetCandidateItemsByMultipleItemId(user
 			}
 		}
 		if len(ret) > 0 && len(fetchItems) == 0 {
+			if len(ret) > r.recallCount {
+				ret = ret[:r.recallCount]
+			}
 			log.Info(fmt.Sprintf("requestId=%s\tmodule=ItemCollaborativeFilterRecall\tfrom=cache\tname=%s\tcount=%d\tcost=%d", context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 			return
 		}
@@ -171,6 +174,9 @@ func (r *ItemCollaborativeFilterRecall) doGetCandidateItemsByMultipleItemId(user
 	fetchItemResult := r.itemCollaborativeDao.ListItemsByMultiItemIds(user, context, fetchItems)
 	for _, items := range fetchItemResult {
 		ret = append(ret, items...)
+	}
+	if len(ret) > r.recallCount {
+		ret = ret[:r.recallCount]
 	}
 	if r.cache != nil && len(ret) > 0 {
 		go func() {
