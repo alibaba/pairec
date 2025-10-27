@@ -220,6 +220,9 @@ func (d *ItemCollaborativeFeatureStoreDao) ListItemsByMultiItemIds(item *User, c
 				itemList = itemList[:len(itemList)-1]
 				ret[id] = itemList
 				totalCount--
+				if totalCount <= d.recallCount {
+					break
+				}
 			}
 		}
 	}
