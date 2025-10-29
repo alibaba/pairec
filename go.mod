@@ -44,7 +44,7 @@ require (
 	fortio.org/assert v1.2.1
 	github.com/alibabacloud-go/opensearch-util v1.0.1
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.7-0.20250919070609-b13950e7887b
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.1-0.20250918074701-1a2fffa5042a
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.2-0.20251029021953-297c87a311f1
 	github.com/aliyun/credentials-go v1.4.6
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
@@ -82,6 +82,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.11 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
+	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/xinsnake/go-http-digest-auth-client v0.6.0 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
