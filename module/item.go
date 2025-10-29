@@ -14,7 +14,6 @@ type ItemId string
 
 type Item struct {
 	Id         ItemId `json:"id"`
-	Name       string `json:"name,omitempty"`
 	Score      float64
 	RetrieveId string
 	ItemType   string
@@ -171,7 +170,7 @@ func (t *Item) AddAlgoScore(name string, score float64) {
 	defer t.mutex.Unlock()
 
 	if t.algoScores == nil {
-		t.algoScores = make(map[string]float64)
+		t.algoScores = make(map[string]float64, 4)
 	}
 	t.algoScores[name] = score
 }
