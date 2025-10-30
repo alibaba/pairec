@@ -64,6 +64,7 @@ require (
 	github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
+	github.com/golang/geo v0.0.0-20251029182131-33017506d313 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hamba/avro/v2 v2.28.0 // indirect

@@ -9,6 +9,8 @@ import (
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
+	"github.com/golang/geo/s2"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -62,6 +64,7 @@ func TestExpressionNormalizer(t *testing.T) {
 func TestCreateMonthNormalizer(t *testing.T) {
 
 	user := module.NewUser("123")
+	user.AddProperties(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
 	conf := recconf.FeatureLoadConfig{}
 	conf.Features = append(conf.Features,
 		recconf.FeatureConfig{
@@ -88,11 +91,19 @@ func TestCreateMonthNormalizer(t *testing.T) {
 			Normalizer:   "weekday",
 			FeatureName:  "weekday",
 		},
+		recconf.FeatureConfig{
+			FeatureType:  "new_feature",
+			FeatureStore: "user",
+			Normalizer:   "expression",
+			FeatureName:  "cellID",
+			Expression:   "s2CellID(lat, lng)",
+		},
 	)
 
 	feature := LoadWithConfig(conf)
 	feature.LoadFeatures(user, nil, context.NewRecommendContext())
 
+	assert.Equal(t, user.GetProperty("cellID"), 3886697436164390912)
 	t.Log(user.Properties)
 
 }
@@ -147,5 +158,29 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 		normalizer = NewExpressionNormalizer("hash32(key) % 100")
 		result = normalizer.Apply(map[string]interface{}{"key": key})
 		assert.Equal(t, result, float64(murmur3.Sum32([]byte(key))%100))
+	})
+	t.Run("s2CellID", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("s2CellID(lat, lng)")
+		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+
+		lat := 39.9042  // 纬度
+		lng := 116.4074 // 经度
+
+		ll := s2.LatLngFromDegrees(lat, lng)
+
+		cellID := s2.CellIDFromLatLng(ll)
+
+		level := 15
+		cellIDAtLevel := cellID.Parent(level)
+
+		assert.Equal(t, utils.ToInt(result, 1), utils.ToInt(uint64(cellIDAtLevel), 0))
+
+		normalizer = NewExpressionNormalizer("s2CellID(lat, lng, 20)")
+		result = normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+
+		level = 20
+		cellIDAtLevel = cellID.Parent(level)
+
+		assert.Equal(t, utils.ToInt(result, 1), utils.ToInt(uint64(cellIDAtLevel), 0))
 	})
 }

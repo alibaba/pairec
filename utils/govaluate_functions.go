@@ -8,6 +8,7 @@ import (
 
 	"github.com/Knetic/govaluate"
 	"github.com/cespare/xxhash/v2"
+	"github.com/golang/geo/s2"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -122,6 +123,23 @@ var (
 				return "", errors.New("args length not equal 2")
 			}
 			return math.Pow(ToFloat(arguments[0], 0), ToFloat(arguments[1], 0)), nil
+		},
+		"s2CellID": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) < 2 {
+				return "", errors.New("args must have lat and lng params")
+			}
+			lat := ToFloat(arguments[0], 0)
+			lng := ToFloat(arguments[1], 0)
+			ll := s2.LatLngFromDegrees(lat, lng)
+			cellID := s2.CellIDFromLatLng(ll)
+			level := 15
+			if len(arguments) > 2 {
+				level = ToInt(arguments[2], 15)
+			}
+
+			cellIDAtLevel := cellID.Parent(level)
+			return int(cellIDAtLevel), nil
+
 		},
 	}
 )
