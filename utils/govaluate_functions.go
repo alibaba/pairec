@@ -9,6 +9,7 @@ import (
 	"github.com/Knetic/govaluate"
 	"github.com/cespare/xxhash/v2"
 	"github.com/golang/geo/s2"
+	"github.com/mmcloughlin/geohash"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -140,6 +141,35 @@ var (
 			cellIDAtLevel := cellID.Parent(level)
 			return int(cellIDAtLevel), nil
 
+		},
+		"geoHash": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) < 2 {
+				return "", errors.New("args must have lat and lng params")
+			}
+			lat := ToFloat(arguments[0], 0)
+			lng := ToFloat(arguments[1], 0)
+			precision := 6
+			if len(arguments) > 2 {
+				precision = ToInt(arguments[2], 6)
+			}
+			return geohash.EncodeWithPrecision(lat, lng, uint(precision)), nil
+		},
+		"geoHashWithNeighbors": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) < 2 {
+				return "", errors.New("args must have lat and lng params")
+			}
+			lat := ToFloat(arguments[0], 0)
+			lng := ToFloat(arguments[1], 0)
+			precision := 6
+			if len(arguments) > 2 {
+				precision = ToInt(arguments[2], 6)
+			}
+
+			hashCode := geohash.EncodeWithPrecision(lat, lng, uint(precision))
+			neighbors := geohash.Neighbors(hashCode)
+			neighbors = append(neighbors, hashCode)
+
+			return neighbors, nil
 		},
 	}
 )

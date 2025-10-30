@@ -11,6 +11,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/golang/geo/s2"
+	"github.com/mmcloughlin/geohash"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -98,12 +99,20 @@ func TestCreateMonthNormalizer(t *testing.T) {
 			FeatureName:  "cellID",
 			Expression:   "s2CellID(lat, lng)",
 		},
+		recconf.FeatureConfig{
+			FeatureType:  "new_feature",
+			FeatureStore: "user",
+			Normalizer:   "expression",
+			FeatureName:  "geoHash",
+			Expression:   "geoHash(lat, lng)",
+		},
 	)
 
 	feature := LoadWithConfig(conf)
 	feature.LoadFeatures(user, nil, context.NewRecommendContext())
 
 	assert.Equal(t, user.GetProperty("cellID"), 3886697436164390912)
+	assert.Equal(t, user.StringProperty("geoHash"), "wx4g0b")
 	t.Log(user.Properties)
 
 }
@@ -182,5 +191,33 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 		cellIDAtLevel = cellID.Parent(level)
 
 		assert.Equal(t, utils.ToInt(result, 1), utils.ToInt(uint64(cellIDAtLevel), 0))
+	})
+	t.Run("geoHash", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("geoHash(lat, lng)")
+		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+
+		lat := 39.9042  // 纬度
+		lng := 116.4074 // 经度
+
+		hashResult := geohash.EncodeWithPrecision(lat, lng, 6)
+		assert.Equal(t, result, hashResult)
+
+		normalizer = NewExpressionNormalizer("geoHash(lat, lng, 12)")
+		result = normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+		hashResult = geohash.EncodeWithPrecision(lat, lng, 12)
+		assert.Equal(t, result, hashResult)
+	})
+	t.Run("geoHashWithNeighbors", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("geoHashWithNeighbors(lat, lng)")
+		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+
+		lat := 39.9042  // 纬度
+		lng := 116.4074 // 经度
+
+		hashResult := geohash.EncodeWithPrecision(lat, lng, 6)
+		assert.Equal(t, result.([]string)[8], hashResult)
+
+		neighbors := geohash.Neighbors(hashResult)
+		assert.Equal(t, result.([]string)[:8], neighbors)
 	})
 }
