@@ -1,12 +1,17 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
 
+	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 )
 
 const (
@@ -481,6 +486,8 @@ func NewFilterParamWithConfig(configs []recconf.FilterParamConfig) *FilterParam 
 			p.operators = append(p.operators, NewIsNotNullFilterOp(config))
 		} else if config.Operator == "bool" {
 			p.operators = append(p.operators, NewBoolFilterOp(config))
+		} else if config.Operator == "expression" {
+			p.operators = append(p.operators, NewExpressionFilterOp(config))
 		}
 	}
 
@@ -1750,4 +1757,71 @@ func (p *BoolFilterOp) DomainEvaluate(properties map[string]interface{}, userPro
 
 func (p *BoolFilterOp) OpDomain() string {
 	return ITEM
+}
+
+type ExpressionFilterOp struct {
+	Domain string
+
+	filterProg *vm.Program
+}
+
+func NewExpressionFilterOp(config recconf.FilterParamConfig) *ExpressionFilterOp {
+	op := &ExpressionFilterOp{
+		Domain: config.Domain,
+	}
+
+	if value, ok := config.Value.(string); ok {
+		if program, err := expr.Compile(value, expr.AllowUndefinedVariables()); err != nil {
+			log.Error(fmt.Sprintf("event=NewExpressionFilterOp\terr=%v", err))
+		} else {
+			op.filterProg = program
+		}
+	}
+
+	return op
+}
+func (p *ExpressionFilterOp) Evaluate(properties map[string]interface{}) (bool, error) {
+	if p.filterProg == nil {
+		return false, errors.New("filter expression not compiled, may compile failed")
+	}
+
+	if output, err := expr.Run(p.filterProg, properties); err != nil {
+		return false, err
+	} else {
+		if ret, ok := output.(bool); !ok {
+			return false, fmt.Errorf("unexpect filter expression output, want true or false, got %#v", ret)
+		} else {
+			return ret, nil
+		}
+	}
+}
+
+func (p *ExpressionFilterOp) DomainEvaluate(properties map[string]interface{}, userProperties map[string]interface{}, itemProperties map[string]interface{}) (bool, error) {
+	if p.filterProg == nil {
+		return false, errors.New("filter expression not compiled, may compile failed")
+	}
+
+	allProperties := map[string]any{
+		"properties": properties,
+		"user":       userProperties,
+		"item":       itemProperties,
+	}
+
+	if output, err := expr.Run(p.filterProg, allProperties); err != nil {
+		return false, err
+	} else {
+		if ret, ok := output.(bool); !ok {
+			return false, fmt.Errorf("unexpect filter expression output, want true or false, got %#v", ret)
+		} else {
+			return ret, nil
+		}
+	}
+}
+
+func (p *ExpressionFilterOp) OpDomain() string {
+	if p.Domain != "" {
+		return p.Domain
+	} else {
+		return ITEM
+	}
 }
