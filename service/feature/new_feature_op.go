@@ -17,6 +17,18 @@ func (op CreateNewFeatureOp) UserTransOp(featureName string, source string, remo
 	if normalizer != nil {
 		if _, ok := normalizer.(*CreateConstValueNormalizer); ok {
 			user.AddProperty(featureName, source)
+		} else if _, ok := normalizer.(*ExpressionNormalizer); ok {
+			params := user.MakeUserFeatures2()
+			result := normalizer.Apply(params)
+			if boolValue, ok := result.(bool); ok {
+				if boolValue {
+					user.AddProperty(featureName, 1)
+				} else {
+					user.AddProperty(featureName, 0)
+				}
+			} else {
+				user.AddProperty(featureName, result)
+			}
 		} else {
 			user.AddProperty(featureName, normalizer.Apply(nil))
 		}
@@ -30,6 +42,7 @@ func (op CreateNewFeatureOp) ItemTransOp(featureName string, source string, remo
 		params["recall_name"] = item.RetrieveId
 	} else if source == "" {
 		params = item.GetFeatures()
+		params["currentTime"] = fasttime.UnixTimestamp() // current time in seconds
 	} else {
 		comms := strings.Split(source, ":")
 		if len(comms) >= 2 {

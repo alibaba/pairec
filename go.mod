@@ -48,7 +48,9 @@ require (
 	github.com/aliyun/credentials-go v1.4.6
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
+	github.com/golang/geo v0.0.0-20251029182131-33017506d313
 	github.com/google/uuid v1.3.0
+	github.com/mmcloughlin/geohash v0.10.0
 	go.uber.org/automaxprocs v1.5.2
 )
 

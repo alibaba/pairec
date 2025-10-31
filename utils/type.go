@@ -32,6 +32,10 @@ func ToInt(i interface{}, defaultVal int) int {
 		} else {
 			return defaultVal
 		}
+	case uint64:
+		return int(value)
+	case uint32:
+		return int(value)
 	default:
 		return defaultVal
 	}
