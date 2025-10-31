@@ -2457,3 +2457,124 @@ func TestBoolFilterOp(t *testing.T) {
 	}
 
 }
+
+func TestExpressionFilterOp(t *testing.T) {
+	testcases := []struct {
+		Config         []recconf.FilterParamConfig
+		UserProperties map[string]interface{}
+		ItemProperties map[string]interface{}
+		Expect         bool
+	}{
+		{
+			Config: []recconf.FilterParamConfig{ // test false result
+				{
+					Operator: "expression",
+					Value:    "item.size == 43",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"size": 42,
+			},
+			Expect: false,
+		},
+		{
+			Config: []recconf.FilterParamConfig{ // test true result
+				{
+					Operator: "expression",
+					Value:    "item.size in [42, 43]",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"size": 42,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{ // test properties ref
+				{
+					Operator: "expression",
+					Value:    "properties.size in [42, 43]",
+				},
+			},
+			ItemProperties: map[string]interface{}{
+				"size": 42,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{ // test set domain
+				{
+					Domain:   USER,
+					Operator: "expression",
+					Value:    "item.size in properties.list ",
+				},
+			},
+			UserProperties: map[string]interface{}{
+				"list": []int{42, 43},
+			},
+			ItemProperties: map[string]interface{}{
+				"size": 42,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{ // test item ref and user ref
+				{
+					Operator: "expression",
+					Value:    "item.size in user.list ",
+				},
+			},
+			UserProperties: map[string]interface{}{
+				"list": []int{42, 43},
+			},
+			ItemProperties: map[string]interface{}{
+				"size": 42,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{ // test complex expr
+				{
+					Operator: "expression",
+					Value:    "!item.sold_out and item.size in user.list ",
+				},
+			},
+			UserProperties: map[string]interface{}{
+				"list": []int{42, 43},
+			},
+			ItemProperties: map[string]interface{}{
+				"size":     42,
+				"sold_out": false,
+			},
+			Expect: true,
+		},
+		{
+			Config: []recconf.FilterParamConfig{ // test nil
+				{
+					Operator: "expression",
+					Value:    "!item.sold_out and user.list != nil ? item.size in user.list : true",
+				},
+			},
+			UserProperties: map[string]interface{}{},
+			ItemProperties: map[string]interface{}{
+				"size":     42,
+				"sold_out": false,
+			},
+			Expect: true,
+		},
+	}
+
+	for _, testcase := range testcases {
+		filterParam := NewFilterParamWithConfig(testcase.Config)
+
+		result, err := filterParam.EvaluateByDomain(testcase.UserProperties, testcase.ItemProperties)
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if result != testcase.Expect {
+			t.Error(testcase, "result error", result, testcase.Expect)
+		}
+	}
+}
