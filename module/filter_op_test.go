@@ -2562,6 +2562,23 @@ func TestExpressionFilterOp(t *testing.T) {
 			},
 			Expect: true,
 		},
+		{
+			Config: []recconf.FilterParamConfig{ // test nil
+				{
+					Operator: "expression",
+					Value:    "haversine(user.lng, user.lat, item.lng, item.lat) > 1000",
+				},
+			},
+			UserProperties: map[string]interface{}{
+				"lat": 39.9042,
+				"lng": 116.4074,
+			},
+			ItemProperties: map[string]interface{}{
+				"lat": 31.2304,
+				"lng": 121.4737,
+			},
+			Expect: true,
+		},
 	}
 
 	for _, testcase := range testcases {

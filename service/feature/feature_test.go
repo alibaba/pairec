@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"fortio.org/assert"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -67,7 +68,11 @@ func TestCreateNewFeatureOp2(t *testing.T) {
 	feature.LoadFeatures(nil, items, context.NewRecommendContext())
 
 	for _, item := range items {
-		fmt.Println(item.Id, item.GetProperties())
+		if item.Id == "123" {
+			assert.Equal(t, item.StringProperty("retrived"), "mind")
+		} else if item.Id == "456" {
+			assert.Equal(t, item.StringProperty("retrived"), "dssm")
+		}
 	}
 
 }

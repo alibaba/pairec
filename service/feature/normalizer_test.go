@@ -220,4 +220,16 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 		neighbors := geohash.Neighbors(hashResult)
 		assert.Equal(t, result.([]string)[:8], neighbors)
 	})
+	t.Run("haversine", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("haversine(lng1, lat1, lng2, lat2)")
+		result := normalizer.Apply(map[string]interface{}{"lat1": 39.9042, "lng1": 116.4074, "lat2": 31.2304, "lng2": 121.4737})
+
+		assert.Equal(t, utils.ToInt(result, 0), 1067)
+	})
+	t.Run("sphereDistance", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("sphereDistance(lng1, lat1, lng2, lat2)")
+		result := normalizer.Apply(map[string]interface{}{"lat1": 39.9042, "lng1": 116.4074, "lat2": 31.2304, "lng2": 121.4737})
+
+		assert.Equal(t, utils.ToInt(result, 0), 1067)
+	})
 }
