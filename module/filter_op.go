@@ -1771,7 +1771,8 @@ func NewExpressionFilterOp(config recconf.FilterParamConfig) *ExpressionFilterOp
 	}
 
 	if value, ok := config.Value.(string); ok {
-		if program, err := expr.Compile(value, expr.AllowUndefinedVariables()); err != nil {
+		options := append([]expr.Option{expr.AllowUndefinedVariables(), expr.AsBool()}, utils.ExprFunctions()...)
+		if program, err := expr.Compile(value, options...); err != nil {
 			log.Error(fmt.Sprintf("event=NewExpressionFilterOp\terr=%v", err))
 		} else {
 			op.filterProg = program

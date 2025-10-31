@@ -8,10 +8,13 @@ import (
 
 	"github.com/Knetic/govaluate"
 	"github.com/cespare/xxhash/v2"
+	"github.com/expr-lang/expr"
 	"github.com/golang/geo/s2"
 	"github.com/mmcloughlin/geohash"
 	"github.com/spaolacci/murmur3"
 )
+
+const earthRadiusKm = 6371.0
 
 var (
 	functions = map[string]govaluate.ExpressionFunction{
@@ -171,9 +174,76 @@ var (
 
 			return neighbors, nil
 		},
+		"haversine": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) != 4 {
+				return "", errors.New("args length not equal 4")
+			}
+			lng1 := ToFloat(arguments[0], 0)
+			lat1 := ToFloat(arguments[1], 0)
+
+			lng2 := ToFloat(arguments[2], 0)
+			lat2 := ToFloat(arguments[3], 0)
+			radLat1 := degreesToRadians(lat1)
+			radLat2 := degreesToRadians(lat2)
+			radLng1 := degreesToRadians(lng1)
+			radLng2 := degreesToRadians(lng2)
+
+			deltaLat := radLat2 - radLat1
+			deltaLng := radLng2 - radLng1
+
+			a := math.Sin(deltaLat/2)*math.Sin(deltaLat/2) +
+				math.Cos(radLat1)*math.Cos(radLat2)*
+					math.Sin(deltaLng/2)*math.Sin(deltaLng/2)
+
+			c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+			distance := earthRadiusKm * c
+
+			return distance, nil
+		},
+		"sphereDistance": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) != 4 {
+				return "", errors.New("args length not equal 4")
+			}
+			lng1 := ToFloat(arguments[0], 0)
+			lat1 := ToFloat(arguments[1], 0)
+
+			lng2 := ToFloat(arguments[2], 0)
+			lat2 := ToFloat(arguments[3], 0)
+
+			radLat1 := degreesToRadians(lat1)
+			radLat2 := degreesToRadians(lat2)
+
+			deltaLng := degreesToRadians(lng2 - lng1)
+
+			cosVal := math.Sin(radLat1)*math.Sin(radLat2) +
+				math.Cos(radLat1)*math.Cos(radLat2)*math.Cos(deltaLng)
+
+			// 进行边界检查，防止 acos(x) 的 x 超出 [-1, 1] 范围
+			if cosVal > 1.0 {
+				cosVal = 1.0
+			} else if cosVal < -1.0 {
+				cosVal = -1.0
+			}
+
+			distance := math.Acos(cosVal) * earthRadiusKm
+
+			return distance, nil
+		},
 	}
 )
 
+func degreesToRadians(d float64) float64 {
+	return d * math.Pi / 180
+}
+
 func GovaluateFunctions() map[string]govaluate.ExpressionFunction {
 	return functions
+}
+func ExprFunctions() []expr.Option {
+	var options []expr.Option
+	for name, f := range functions {
+		options = append(options, expr.Function(name, f))
+	}
+	return options
 }
