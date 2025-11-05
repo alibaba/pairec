@@ -145,6 +145,31 @@ var (
 			return int(cellIDAtLevel), nil
 
 		},
+		"s2CellNeighbors": func(arguments ...interface{}) (interface{}, error) {
+			if len(arguments) < 2 {
+				return "", errors.New("args must have lat and lng params")
+			}
+			lat := ToFloat(arguments[0], 0)
+			lng := ToFloat(arguments[1], 0)
+			level := 15
+			if len(arguments) > 2 {
+				level = ToInt(arguments[2], 15)
+			}
+
+			ll := s2.LatLngFromDegrees(lat, lng)
+			centerCellID := s2.CellIDFromLatLng(ll).Parent(level)
+			neighborCellIDs := centerCellID.AllNeighbors(level)
+			allCellIDs := make([]s2.CellID, 0, 9)
+			allCellIDs = append(allCellIDs, neighborCellIDs...)
+			allCellIDs = append(allCellIDs, centerCellID)
+
+			result := make([]int, len(allCellIDs))
+			for i, id := range allCellIDs {
+				result[i] = int(id)
+			}
+
+			return result, nil
+		},
 		"geoHash": func(arguments ...interface{}) (interface{}, error) {
 			if len(arguments) < 2 {
 				return "", errors.New("args must have lat and lng params")
