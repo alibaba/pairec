@@ -50,13 +50,7 @@ func (d *UserGroupHotRecallFeatureStoreDao) ListItemsByUser(user *User, context 
 		log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecallFeatureStoreDao\ttriggerId=%s\t", context.RecommendId, triggerId))
 	}
 
-	triggerIds := strings.Split(triggerId, TIRRGER_SPLIT)
-	triggers := make([]any, 0, len(triggerIds))
-	for _, trigger := range triggerIds {
-		if trigger != "" {
-			triggers = append(triggers, trigger)
-		}
-	}
+	triggers := ParseTriggerId(triggerId)
 
 	features, err := featureView.GetOnlineFeatures(triggers, []string{"item_ids"}, map[string]string{})
 	if err != nil {

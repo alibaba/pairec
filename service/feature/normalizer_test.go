@@ -192,6 +192,26 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 
 		assert.Equal(t, utils.ToInt(result, 1), utils.ToInt(uint64(cellIDAtLevel), 0))
 	})
+	t.Run("s2CellNeighbors", func(t *testing.T) {
+		normalizer := NewExpressionNormalizer("s2CellNeighbors(lat, lng)")
+		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+		t.Log(result)
+
+		assert.Equal(t, 9, len(result.([]int)))
+		lat := 39.9042  // 纬度
+		lng := 116.4074 // 经度
+
+		ll := s2.LatLngFromDegrees(lat, lng)
+
+		cellID := s2.CellIDFromLatLng(ll)
+
+		level := 15
+		cellIDAtLevel := cellID.Parent(level)
+
+		t.Log(int(cellIDAtLevel))
+		cellIds := result.([]int)
+		assert.Equal(t, cellIds[len(cellIds)-1], int(cellIDAtLevel))
+	})
 	t.Run("geoHash", func(t *testing.T) {
 		normalizer := NewExpressionNormalizer("geoHash(lat, lng)")
 		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})

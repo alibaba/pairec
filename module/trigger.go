@@ -103,3 +103,34 @@ func (t *Trigger) GetValue(features map[string]interface{}) string {
 
 	return strings.Join(values, "_")
 }
+
+func ParseTriggerId(triggerId string) []any {
+	if !strings.ContainsAny(triggerId, TIRRGER_SPLIT) {
+		return []any{triggerId}
+	}
+	multiTriggerValues := strings.Split(triggerId, "_")
+	multiTriggerList := make([][]string, 0, len(multiTriggerValues))
+	for _, multiTrigger := range multiTriggerValues {
+		multiTriggerList = append(multiTriggerList, strings.Split(multiTrigger, TIRRGER_SPLIT))
+	}
+
+	triggers := make([]any, 0, len(multiTriggerList))
+	var backtrack func(index int, currentCombination string)
+	backtrack = func(index int, currentCombination string) {
+		if index == len(multiTriggerList) {
+			triggers = append(triggers, currentCombination)
+			return
+		}
+
+		for _, item := range multiTriggerList[index] {
+			if currentCombination == "" {
+				backtrack(index+1, item)
+			} else {
+				backtrack(index+1, currentCombination+"_"+item)
+			}
+		}
+	}
+	backtrack(0, "")
+
+	return triggers
+}

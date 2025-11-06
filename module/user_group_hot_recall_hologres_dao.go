@@ -49,7 +49,13 @@ func (d *UserGroupHotRecallHologresDao) ListItemsByUser(user *User, context *con
 	builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 	builder.Select("item_ids")
 	builder.From(d.table)
-	builder.Where(builder.Equal("trigger_id", d.trigger.GetValue(user.MakeUserFeatures2())))
+	triggerId := d.trigger.GetValue(user.MakeUserFeatures2())
+	triggers := ParseTriggerId(triggerId)
+	if len(triggers) < 2 {
+		builder.Where(builder.Equal("trigger_id", triggerId))
+	} else {
+		builder.Where(builder.In("trigger_id", triggers...))
+	}
 
 	sqlquery, args := builder.Build()
 	if d.userStmt == nil {
