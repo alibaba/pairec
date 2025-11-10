@@ -699,6 +699,7 @@ type ABTestConfig struct {
 type FilterConfig struct {
 	Name                      string
 	FilterType                string
+	FilterTypeVersion         string
 	DaoConf                   DaoConfig
 	MaxItems                  int
 	TimeInterval              int // second
