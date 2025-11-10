@@ -121,6 +121,7 @@ func (d *User2ItemExposureFeatureStoreDao) FilterByHistory(uid UID, items []*Ite
 	}
 
 	request := new(fdbserverpb.TestBloomItemsRequest)
+	request.Items = make([]string, 0, len(items))
 
 	request.Key = userData
 	for _, item := range items {
