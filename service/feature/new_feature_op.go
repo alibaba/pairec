@@ -41,8 +41,11 @@ func (op CreateNewFeatureOp) ItemTransOp(featureName string, source string, remo
 	if source == "item:recall_name" {
 		params["recall_name"] = item.RetrieveId
 	} else if source == "" {
-		params = item.GetFeatures()
+		params = item.GetCloneFeatures()
 		params["currentTime"] = fasttime.UnixTimestamp() // current time in seconds
+		if _, ok := params["recall_name"]; !ok {
+			params["recall_name"] = item.RetrieveId
+		}
 	} else {
 		comms := strings.Split(source, ":")
 		if len(comms) >= 2 {
