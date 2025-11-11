@@ -482,6 +482,8 @@ type UserTriggerDaoConfig struct {
 	TimestampFieldName string
 	EventFieldName     string
 	PlayTimeFieldName  string
+
+	AdditionUid string
 }
 type TriggerDiversityRuleConfig struct {
 	Dimensions []string
