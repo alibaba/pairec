@@ -31,6 +31,7 @@ type RealtimeUser2ItemFeatureStoreDao struct {
 	playtimeFieldName         string
 	events                    []any
 	similarItemIdField        string
+	additionUid               string
 }
 
 func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeUser2ItemFeatureStoreDao {
@@ -46,6 +47,7 @@ func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeU
 		playtimeFieldName:        "play_time",
 		timestampFieldName:       "timestamp",
 		similarItemIdField:       "similar_item_ids",
+		additionUid:              config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdditionUid,
 	}
 	if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.NoUsePlayTimeField {
 		dao.hasPlayTimeField = false
@@ -325,7 +327,15 @@ func (d *RealtimeUser2ItemFeatureStoreDao) GetTriggerInfos(user *User, context *
 	if len(d.propertyFields) > 0 {
 		selectFields = append(selectFields, d.propertyFields...)
 	}
-	features, err := featureView.GetBehaviorFeatures([]any{user.Id}, d.events, selectFields)
+
+	ids := []any{user.Id}
+	if d.additionUid != "" {
+		if uid := user.GetProperty(d.additionUid); uid != nil {
+			ids = append(ids, uid)
+		}
+	}
+
+	features, err := featureView.GetBehaviorFeatures(ids, d.events, selectFields)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\terror=featurestore error(%v)", context.RecommendId, err))
 		return
