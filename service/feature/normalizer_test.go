@@ -253,3 +253,140 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 		assert.Equal(t, utils.ToInt(result, 0), 1067)
 	})
 }
+
+func TestExprFunctionNormalizer(t *testing.T) {
+	t.Run("max function", func(t *testing.T) {
+		normalizer := NewExprNormalizer("a > b ? a : b")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, int(10))
+		// use max func
+		normalizer = NewExprNormalizer("max(a, b)")
+		result = normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, float64(10))
+
+	})
+	t.Run("min function", func(t *testing.T) {
+		normalizer := NewExprNormalizer("a > b ? b : a")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, int(8))
+
+		// use min func
+		normalizer = NewExprNormalizer("min(a, b)")
+		result = normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, float64(8))
+	})
+	t.Run("log function", func(t *testing.T) {
+		normalizer := NewExprNormalizer("log(a)")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, math.Log(10))
+	})
+	t.Run("log10 function", func(t *testing.T) {
+		normalizer := NewExprNormalizer("log10(a)")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, math.Log10(10))
+	})
+	t.Run("log2 function", func(t *testing.T) {
+		normalizer := NewExprNormalizer("log2(a)")
+		result := normalizer.Apply(map[string]interface{}{"a": 10, "b": 8})
+		assert.Equal(t, result, math.Log2(10))
+	})
+	t.Run("pow function", func(t *testing.T) {
+		normalizer := NewExprNormalizer("pow(a, b)")
+		result := normalizer.Apply(map[string]interface{}{"a": 2, "b": 3})
+		assert.Equal(t, result, float64(8))
+	})
+	t.Run("string contact", func(t *testing.T) {
+		normalizer := NewExprNormalizer("'hello ' + a")
+		result := normalizer.Apply(map[string]interface{}{"a": "world", "b": 3})
+		assert.Equal(t, result, "hello world")
+
+		key := result.(string)
+		normalizer = NewExprNormalizer("int(hash32(key)) % 100")
+		result = normalizer.Apply(map[string]interface{}{"key": key})
+		assert.Equal(t, result, int(murmur3.Sum32([]byte(key))%100))
+	})
+	t.Run("s2CellID", func(t *testing.T) {
+		normalizer := NewExprNormalizer("s2CellID(lat, lng)")
+		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+
+		lat := 39.9042  // 纬度
+		lng := 116.4074 // 经度
+
+		ll := s2.LatLngFromDegrees(lat, lng)
+
+		cellID := s2.CellIDFromLatLng(ll)
+
+		level := 15
+		cellIDAtLevel := cellID.Parent(level)
+
+		assert.Equal(t, utils.ToInt(result, 1), utils.ToInt(uint64(cellIDAtLevel), 0))
+
+		normalizer = NewExprNormalizer("s2CellID(lat, lng, 20)")
+		result = normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+
+		level = 20
+		cellIDAtLevel = cellID.Parent(level)
+
+		assert.Equal(t, utils.ToInt(result, 1), utils.ToInt(uint64(cellIDAtLevel), 0))
+	})
+	t.Run("s2CellNeighbors", func(t *testing.T) {
+		normalizer := NewExprNormalizer("s2CellNeighbors(lat, lng)")
+		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+		t.Log(result)
+
+		assert.Equal(t, 9, len(result.([]int)))
+		lat := 39.9042  // 纬度
+		lng := 116.4074 // 经度
+
+		ll := s2.LatLngFromDegrees(lat, lng)
+
+		cellID := s2.CellIDFromLatLng(ll)
+
+		level := 15
+		cellIDAtLevel := cellID.Parent(level)
+
+		t.Log(int(cellIDAtLevel))
+		cellIds := result.([]int)
+		assert.Equal(t, cellIds[len(cellIds)-1], int(cellIDAtLevel))
+	})
+	t.Run("geoHash", func(t *testing.T) {
+		normalizer := NewExprNormalizer("geoHash(lat, lng)")
+		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+
+		lat := 39.9042  // 纬度
+		lng := 116.4074 // 经度
+
+		hashResult := geohash.EncodeWithPrecision(lat, lng, 6)
+		assert.Equal(t, result, hashResult)
+
+		normalizer = NewExprNormalizer("geoHash(lat, lng, 12)")
+		result = normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+		hashResult = geohash.EncodeWithPrecision(lat, lng, 12)
+		assert.Equal(t, result, hashResult)
+	})
+	t.Run("geoHashWithNeighbors", func(t *testing.T) {
+		normalizer := NewExprNormalizer("geoHashWithNeighbors(lat, lng)")
+		result := normalizer.Apply(map[string]interface{}{"lat": 39.9042, "lng": 116.4074})
+
+		lat := 39.9042  // 纬度
+		lng := 116.4074 // 经度
+
+		hashResult := geohash.EncodeWithPrecision(lat, lng, 6)
+		assert.Equal(t, result.([]string)[8], hashResult)
+
+		neighbors := geohash.Neighbors(hashResult)
+		assert.Equal(t, result.([]string)[:8], neighbors)
+	})
+	t.Run("haversine", func(t *testing.T) {
+		normalizer := NewExprNormalizer("haversine(lng1, lat1, lng2, lat2)")
+		result := normalizer.Apply(map[string]interface{}{"lat1": 39.9042, "lng1": 116.4074, "lat2": 31.2304, "lng2": 121.4737})
+
+		assert.Equal(t, utils.ToInt(result, 0), 1067)
+	})
+	t.Run("sphereDistance", func(t *testing.T) {
+		normalizer := NewExprNormalizer("sphereDistance(lng1, lat1, lng2, lat2)")
+		result := normalizer.Apply(map[string]interface{}{"lat1": 39.9042, "lng1": 116.4074, "lat2": 31.2304, "lng2": 121.4737})
+
+		assert.Equal(t, utils.ToInt(result, 0), 1067)
+	})
+}

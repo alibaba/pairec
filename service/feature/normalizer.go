@@ -8,6 +8,8 @@ import (
 	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 )
 
 type Normalizer interface {
@@ -31,6 +33,8 @@ func NewNormalizer(name, expression string) Normalizer {
 		normalize = &CreateMonthNormalizer{}
 	} else if name == "week" {
 		normalize = &CreateWeekNormalizer{}
+	} else if name == "expr" {
+		normalize = NewExprNormalizer(expression)
 	}
 
 	return normalize
@@ -130,6 +134,37 @@ func (n *ExpressionNormalizer) Apply(value interface{}) interface{} {
 			log.Error(fmt.Sprintf("event=ExpressionNormalizer\terror=%v", err))
 		}
 
+	}
+
+	return ""
+}
+
+type ExprNormalizer struct {
+	prog *vm.Program
+}
+
+func NewExprNormalizer(expression string) *ExprNormalizer {
+	normalizer := &ExprNormalizer{}
+
+	options := append([]expr.Option{expr.AllowUndefinedVariables()}, utils.ExprFunctions()...)
+	if program, err := expr.Compile(expression, options...); err != nil {
+		log.Error(fmt.Sprintf("event=ExprNormalizer\terr=%v", err))
+	} else {
+		normalizer.prog = program
+	}
+	return normalizer
+}
+func (n *ExprNormalizer) Apply(value interface{}) interface{} {
+	if n.prog == nil {
+		return ""
+	}
+
+	if params, ok := value.(map[string]interface{}); ok {
+		if result, err := expr.Run(n.prog, params); err == nil {
+			return result
+		} else {
+			log.Error(fmt.Sprintf("event=ExprNormalizer\terror=%v", err))
+		}
 	}
 
 	return ""
