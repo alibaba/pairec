@@ -46,6 +46,8 @@ func NewUser2ItemExposureDao(config recconf.FilterConfig) User2ItemExposureDao {
 		dao = NewUser2ItemExposureMysqlDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_TableStore {
 		dao = NewUser2ItemExposureTableStoreDao(config)
+	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres && config.FilterTypeVersion == "v2" {
+		dao = NewUser2ItemExposureHologresV2Dao(config)
 	} else if config.DaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
 		dao = NewUser2ItemExposureHologresDao(config)
 	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
