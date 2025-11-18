@@ -29,11 +29,11 @@ clean:
 
 var gomodS = `module ${BINNAME} 
 
-go 1.20
+go 1.24
 
 require (
-	github.com/alibaba/pairec/v2 v2.5.1
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.0.8
+	github.com/alibaba/pairec/v2 v2.6.0
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.2-0.20251029021953-297c87a311f1
 )
 `
 
@@ -97,6 +97,7 @@ var mainfileS = `package main
 
 import (
 	"${BINNAME}/src/controller"
+	
 	"github.com/alibaba/pairec/v2"
 )
 
@@ -110,7 +111,7 @@ func main() {
 }
 `
 
-var dockerfileS = `FROM mybigpai-public-registry.cn-beijing.cr.aliyuncs.com/mybigpai/golang:1.23 AS builder
+var dockerfileS = `FROM mybigpai-public-registry.cn-beijing.cr.aliyuncs.com/mybigpai/golang:1.24 AS builder
 WORKDIR /usr/src/app
 ENV GOPROXY=https://goproxy.cn,direct
 COPY go.mod go.sum ./
@@ -143,12 +144,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -156,6 +155,7 @@ import (
 	"github.com/alibaba/pairec/v2/service"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/alibaba/pairec/v2/web"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
 )
 
 type RecommendParam struct {
@@ -206,11 +206,20 @@ type ItemData struct {
 	"    ItemId     string `json:\"item_id\"` \n" +
 	"    Score      float64 `json:\"score\"` \n" +
 	"    RetrieveId string `json:\"retrieve_id\"` \n" +
+	"	 OriginPosition interface{} `json:\"origin_position,omitempty\"` \n" +
+	"	 NewPosition interface{} `json:\"new_position,omitempty\"` \n" +
+	"	 TrafficControlId interface{} `json:\"traffic_control_id,omitempty\"` \n" +
+	"	 Extra map[string]any `json:\"extra,omitempty\"` \n" +
 	`}
 
 func (r *RecommendResponse) ToString() string {
 	j, _ := json.Marshal(r)
 	return string(j)
+}
+
+func (r *RecommendResponse) ToBytes() []byte {
+	j, _ := json.Marshal(r)
+	return j
 }
 
 type FeedController struct {
@@ -222,7 +231,7 @@ type FeedController struct {
 func (c *FeedController) Process(w http.ResponseWriter, r *http.Request) {
 	c.Start = time.Now()
 	var err error
-	c.RequestBody, err = ioutil.ReadAll(r.Body)
+	c.RequestBody, err = c.ReadRequestBody(r)
 	if err != nil {
 		c.SendError(w, web.ERROR_PARAMETER_CODE, "read parammeter error")
 		return
@@ -283,7 +292,7 @@ func (r *FeedController) CheckParameter() error {
 func (c *FeedController) doProcess(w http.ResponseWriter, r *http.Request) {
 	c.makeRecommendContext()
 	userRecommendService := service.NewUserRecommendService()
-	items := userRecommendService.Recommend(c.context)
+	items := userRecommendService.TryRecommendWithFallback(c.context)
 	data := make([]*ItemData, 0)
 	for _, item := range items {
 		if c.param.Debug {
@@ -294,6 +303,33 @@ func (c *FeedController) doProcess(w http.ResponseWriter, r *http.Request) {
 			ItemId:     string(item.Id),
 			Score:   item.Score,
 			RetrieveId: item.RetrieveId,
+		}
+		if categoryConf, ok := c.context.Config.SceneConfs[c.param.SceneId]; ok {
+			if conf, ok := categoryConf[c.param.Category]; ok {
+
+				if len(conf.OutputFields) > 0 {
+					extra := make(map[string]any, len(conf.OutputFields))
+					for _, output := range conf.OutputFields {
+						strs := strings.Split(output, ":")
+						if len(strs) == 2 {
+							if strs[0] == "item" {
+								extra[strs[1]] = item.GetProperty(strs[1])
+							} else if strs[0] == "score" && strs[1] == "*" {
+								extra["algo_scores"] = item.CloneAlgoScores()
+							} else if strs[0] == "score" {
+								extra[strs[1]] = item.GetAlgoScore(strs[1])
+							}
+						}
+					}
+					idata.Extra = extra
+				}
+			}
+		}
+
+		if c.param.Debug {
+			idata.OriginPosition = item.GetProperty("_ORIGIN_POSITION_")
+			idata.NewPosition = item.GetProperty("_NEW_POSITION_")
+			idata.TrafficControlId = item.GetProperty("__traffic_control_id__")
 		}
 
 		data = append(data, idata)
@@ -315,7 +351,10 @@ func (c *FeedController) doProcess(w http.ResponseWriter, r *http.Request) {
 				Message:   "items size not enough",
 			},
 		}
-		io.WriteString(w, response.ToString())
+		if c.param.Debug {
+			response.Logs = c.context.Log
+		}
+		c.Response(w, r, response.ToBytes())
 		return
 	}
 
@@ -329,7 +368,10 @@ func (c *FeedController) doProcess(w http.ResponseWriter, r *http.Request) {
 			Message:   "success",
 		},
 	}
-	io.WriteString(w, response.ToString())
+	if c.param.Debug {
+		response.Logs = c.context.Log
+	}
+	c.Response(w, r, response.ToBytes())
 }
 func (c *FeedController) makeRecommendContext() {
 	c.context = context.NewRecommendContext()
@@ -339,10 +381,17 @@ func (c *FeedController) makeRecommendContext() {
 	c.context.RecommendId = c.RequestId
 	c.context.Config = recconf.Config
 
+	filterParams := make(map[string]interface{})
+	if c.param.Features != nil {
+		for k, v := range c.param.Features {
+			filterParams[k] = v
+		}
+	}
+
 	abcontext := model.ExperimentContext{
 		Uid:          c.param.Uid,
 		RequestId:    c.RequestId,
-		FilterParams: map[string]interface{}{},
+		FilterParams: filterParams,
 	}
 
 	if abtest.GetExperimentClient() != nil {
