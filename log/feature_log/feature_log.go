@@ -38,7 +38,7 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 		return
 	}
 
-	messages := getFeatureData(user, config.UserFeatures, items, config.ItemFeatures, context)
+	messages := getFeatureData(user, config.UserFeatures, items, config.ItemFeatures, config.SplitUserItemLogs, context)
 
 	if len(messages) == 0 {
 		return
@@ -54,7 +54,7 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 	}
 }
 
-func getFeatureData(user *module.User, userFields string, items []*module.Item, itemFields string, context *context.RecommendContext) []map[string]interface{} {
+func getFeatureData(user *module.User, userFields string, items []*module.Item, itemFields string, splitLog bool, context *context.RecommendContext) []map[string]interface{} {
 	messages := make([]map[string]interface{}, 0, len(items))
 	if len(items) == 0 {
 		return messages
@@ -71,6 +71,26 @@ func getFeatureData(user *module.User, userFields string, items []*module.Item, 
 		}
 	}
 	requestTime := time.Now().Unix()
+
+	if splitLog {
+		userLogMap := map[string]interface{}{
+			"request_id":   context.RecommendId,
+			"scene_id":     context.GetParameter("scene"),
+			"user_id":      string(user.Id),
+			"request_time": requestTime,
+		}
+
+		if context.ExperimentResult != nil {
+			userLogMap["exp_id"] = context.ExperimentResult.GetExpId()
+		}
+
+		if userData != "" {
+			userLogMap["user_features"] = userData
+		}
+
+		messages = append(messages, userLogMap)
+	}
+
 	for i, item := range items {
 
 		logMap := make(map[string]interface{}, 8)
@@ -80,7 +100,7 @@ func getFeatureData(user *module.User, userFields string, items []*module.Item, 
 			logMap["exp_id"] = context.ExperimentResult.GetExpId()
 		}
 		logMap["request_time"] = requestTime
-		if userData != "" {
+		if userData != "" && !splitLog {
 			logMap["user_features"] = userData
 		}
 		/*
