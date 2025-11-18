@@ -153,10 +153,16 @@ type feature struct {
 
 func (f *feature) defaultValue() interface{} {
 	switch f.valueType.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16:
 		return int(0)
-	case reflect.Float32, reflect.Float64:
+	case reflect.Int32:
+		return int32(0)
+	case reflect.Int64:
+		return int64(0)
+	case reflect.Float64:
 		return float64(0)
+	case reflect.Float32:
+		return float32(0)
 	case reflect.String:
 		return ""
 	default:
