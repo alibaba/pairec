@@ -1,6 +1,7 @@
 package module
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -131,7 +132,16 @@ func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 }
 
 func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
-	cacheKey := string(user.Id)
+	var cacheKey string
+	if d.filterParam != nil {
+		contextFeatures := context.GetParameter("features").(map[string]interface{})
+		if data, err := json.Marshal(contextFeatures); err == nil {
+			cacheKey = fmt.Sprintf("%s_%s", string(user.Id), string(data))
+
+		}
+	} else {
+		cacheKey = string(user.Id)
+	}
 	if cacheValue, ok := d.cache.GetIfPresent(cacheKey); ok {
 		if items, ok := cacheValue.([]*Item); ok {
 			return items
