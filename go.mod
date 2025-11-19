@@ -22,7 +22,7 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.5.4
 	github.com/golang/snappy v0.0.4
-	github.com/gomodule/redigo v2.0.0+incompatible
+	github.com/gomodule/redigo v1.9.3
 	github.com/huandu/go-sqlbuilder v1.21.0
 	github.com/lib/pq v1.10.9
 	github.com/mailru/easyjson v0.7.6
