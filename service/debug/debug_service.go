@@ -338,8 +338,16 @@ func (d *DebugService) WriteFilterLog(user *module.User, items []*module.Item, c
 
 func (d *DebugService) WriteGeneralLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
 	if d.logFlag {
-		newItems := make([]*module.Item, len(items))
-		copy(newItems, items)
+		newItems := make([]*debugItem, 0, len(items))
+		for _, item := range items {
+			newItem := debugItem{
+				Id:         string(item.Id),
+				RetrieveId: item.RetrieveId,
+				Score:      item.Score,
+				AlgoScores: item.CloneAlgoScores(),
+			}
+			newItems = append(newItems, &newItem)
+		}
 		go d.doWriteGeneralLog(user, newItems, context)
 	}
 }
@@ -454,15 +462,13 @@ func (d *DebugService) doWriteFilterLog(user *module.User, items []*module.Item,
 
 }
 
-func (d *DebugService) doWriteGeneralLog(user *module.User, items []*module.Item, context *context.RecommendContext) {
+func (d *DebugService) doWriteGeneralLog(user *module.User, items []*debugItem, context *context.RecommendContext) {
 	defer func() {
 		if err := recover(); err != nil {
 			stack := string(debug.Stack())
 			log.Error(fmt.Sprintf("error=%v, stack=%s", err, strings.ReplaceAll(stack, "\n", "\t")))
 		}
 	}()
-	logItems := make([]*module.Item, len(items))
-	copy(logItems, items)
 
 	log := make(map[string]interface{})
 
@@ -474,9 +480,9 @@ func (d *DebugService) doWriteGeneralLog(user *module.User, items []*module.Item
 	}
 	log["request_time"] = d.requestTime
 	log["uid"] = string(user.Id)
-	itemsMap := make(map[string][]*module.Item)
-	for _, item := range logItems {
-		itemsMap[item.GetRecallName()] = append(itemsMap[item.GetRecallName()], item)
+	itemsMap := make(map[string][]*debugItem)
+	for _, item := range items {
+		itemsMap[item.RetrieveId] = append(itemsMap[item.RetrieveId], item)
 	}
 
 	buf := bufferPool.Get().(*bytes.Buffer)
@@ -489,14 +495,12 @@ func (d *DebugService) doWriteGeneralLog(user *module.User, items []*module.Item
 			if i > 0 {
 				buf.WriteByte(',')
 			}
-			buf.WriteString(string(item.Id))
+			buf.WriteString(item.Id)
 			buf.WriteByte(':')
 			buf.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
-			if item != nil {
-				if b, err := json.Marshal(item.CloneAlgoScores()); err == nil {
-					buf.WriteByte(':')
-					buf.Write(b)
-				}
+			if b, err := json.Marshal(item.AlgoScores); err == nil {
+				buf.WriteByte(':')
+				buf.Write(b)
 			}
 		}
 		log["items"] = buf.String()
