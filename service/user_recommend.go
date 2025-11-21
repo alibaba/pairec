@@ -117,7 +117,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 		metrics.GeneralRankDurSecs.WithLabelValues(scene, expId).Observe(time.Since(generalRankStart).Seconds())
 	}
 
-	//debugService.WriteGeneralLog(user, items, context)
+	debugService.WriteGeneralLog(user, items, context)
 
 	//loadFeatureStart = time.Now()
 
