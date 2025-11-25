@@ -938,6 +938,8 @@ type FeatureLogConfig struct {
 	KafKaName    string
 	UserFeatures string
 	ItemFeatures string
+
+	SplitUserItemLogs bool
 }
 
 type PipelineConfig struct {
