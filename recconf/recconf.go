@@ -658,6 +658,7 @@ type CategoryConfig struct {
 	AutoInvokeCallBack     bool
 	AutoInvokeCallBackRate int
 	OutputFields           []string
+	SubRank                map[string]any
 }
 
 type FallbackConfig struct {
