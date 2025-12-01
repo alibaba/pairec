@@ -14,6 +14,8 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/alibaba/pairec/v2/utils/sqlutil"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"github.com/goburrow/cache"
 	"github.com/huandu/go-sqlbuilder"
 )
@@ -23,16 +25,17 @@ var (
 )
 
 type ItemStateFilterHologresDao struct {
-	db                 *sql.DB
-	table              string
-	whereClause        string
-	itemFieldName      string
-	selectFields       string
-	filterParam        *FilterParam
-	defaultFieldValues map[string]any
-	mu                 sync.RWMutex
-	stmtMap            map[int]*sql.Stmt
-	itmCache           cache.Cache
+	db                  *sql.DB
+	table               string
+	whereClause         string
+	itemFieldName       string
+	selectFields        string
+	filterParam         *FilterParam
+	defaultFieldValues  map[string]any
+	mu                  sync.RWMutex
+	stmtMap             map[int]*sql.Stmt
+	itmCache            cache.Cache
+	generateUserProgram *vm.Program
 }
 
 func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilterHologresDao {
@@ -61,6 +64,13 @@ func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilter
 	if len(config.FilterParams) > 0 {
 		dao.filterParam = NewFilterParamWithConfig(config.FilterParams)
 	}
+	if config.GenerateUserDataExpr != "" {
+		if p, err := expr.Compile(config.GenerateUserDataExpr, expr.AllowUndefinedVariables()); err != nil {
+			panic(err)
+		} else {
+			dao.generateUserProgram = p
+		}
+	}
 	return dao
 }
 
@@ -75,11 +85,17 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)
 	requestCh := make(chan []interface{}, cpuCount)
 	maps := make(map[int][]interface{}, cpuCount)
-	itemMap := make(map[ItemId]*Item, len(items))
+	itemMap := make(map[string]*Item, len(items))
 	index := 0
 	userFeatures := user.MakeUserFeatures2()
+	var itemIdGenMap map[string]string
+	if d.generateUserProgram != nil {
+		if m, err := generateItemKeyData(userFeatures, items, d.generateUserProgram); err == nil {
+			itemIdGenMap = m
+		}
+	}
 	for i, item := range items {
-		itemId := string(item.Id)
+		itemId := getItemKeyData(itemIdGenMap, item)
 		if d.itmCache != nil {
 			if attrs, ok := d.itmCache.GetIfPresent(itemId); ok {
 				properties := attrs.(map[string]interface{})
@@ -95,7 +111,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 				continue
 			}
 		}
-		itemMap[item.Id] = item
+		itemMap[itemId] = item
 		maps[index%cpuCount] = append(maps[index%cpuCount], itemId)
 		if (i+1)%requestCount == 0 {
 			index++
@@ -124,7 +140,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 			select {
 			case idlist := <-requestCh:
 				fieldMap := make(map[string]bool, len(idlist))
-				addPropertyMap := make(map[string]bool, len(idlist))
+				addPropertyMap := make(map[string]struct{}, len(idlist))
 				builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
 				builder.Select(d.itemFieldName)
 				if d.selectFields != "" {
@@ -265,9 +281,9 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 						if d.itmCache != nil {
 							d.itmCache.Put(id, properties)
 						}
-						if item, ok := itemMap[ItemId(id)]; ok {
+						if item, ok := itemMap[id]; ok {
 							item.AddProperties(properties)
-							addPropertyMap[id] = true
+							addPropertyMap[id] = struct{}{}
 						}
 						if d.filterParam != nil {
 							result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
@@ -283,7 +299,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 					for _, id := range idlist {
 						itemId := id.(string)
 						if _, ok := addPropertyMap[itemId]; !ok {
-							if item, ok := itemMap[ItemId(itemId)]; ok {
+							if item, ok := itemMap[itemId]; ok {
 								item.AddProperties(d.defaultFieldValues)
 								if d.itmCache != nil {
 									d.itmCache.Put(itemId, d.defaultFieldValues)
@@ -309,7 +325,8 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 	wg.Wait()
 
 	for _, item := range items {
-		if _, ok := fields[string(item.Id)]; ok {
+		itemId := getItemKeyData(itemIdGenMap, item)
+		if _, ok := fields[itemId]; ok {
 			ret = append(ret, item)
 		}
 	}

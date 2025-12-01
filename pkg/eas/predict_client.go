@@ -63,6 +63,7 @@ type PredictClient struct {
 	endpointType       string
 	endpointName       string
 	serviceName        string
+	requestPath        string
 	stop               int32
 	client             http.Client
 }
@@ -170,13 +171,21 @@ func (p *PredictClient) tryNext(host string) string {
 	return p.endpoint.TryNext(host)
 }
 
+// SetRequestPath sets requestPath for client
+func (p *PredictClient) SetRequestPath(requestPath string) {
+	if len(requestPath) > 0 && requestPath[0] != '/' {
+		requestPath = "/" + requestPath
+	}
+	p.requestPath = requestPath
+}
 func (p *PredictClient) createUrl(host string) string {
 	if len(p.serviceName) != 0 {
 		if p.serviceName[len(p.serviceName)-1] == '/' {
 			p.serviceName = p.serviceName[:len(p.serviceName)-1]
 		}
 	}
-	return fmt.Sprintf("http://%s/api/predict/%s", host, p.serviceName)
+
+	return fmt.Sprintf("http://%s/api/predict/%s%s", host, p.serviceName, p.requestPath)
 }
 
 // generateSignature computes the signature header using the access token with hmac sha1 algorithm.
