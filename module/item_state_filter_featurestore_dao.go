@@ -228,12 +228,12 @@ func generateItemKeyData(userFeatures map[string]any, items []*Item, p *vm.Progr
 			itemFeatures["item_id"] = string(item.Id)
 			params["item"] = itemFeatures
 			if output, err := expr.Run(p, params); err != nil {
-				log.Error(fmt.Sprintf("module=ItemStateFilterFeatureStoreDao\terror=generate item key data failed, params:%v, err:%v", params, err))
+				log.Error(fmt.Sprintf("module=ItemStateFilterDao\terror=generate item key data failed, params:%v, err:%v", params, err))
 			} else {
 				if str := utils.ToString(output, ""); str != "" {
 					m[string(item.Id)] = str
 				} else {
-					log.Error(fmt.Sprintf("module=ItemStateFilterFeatureStoreDao\terror=output error(%v), output:%v ", err, output))
+					log.Error(fmt.Sprintf("module=ItemStateFilterDao\terror=output error(%v), output:%v ", err, output))
 				}
 
 			}
