@@ -737,6 +737,7 @@ type FilterConfig struct {
 		DefaultFilterName string
 	}
 
+	Features []FeatureConfig // use in ItemStateFilter to transform item feature
 	// for memory alignment
 	ShuffleItem           bool
 	WriteLog              bool

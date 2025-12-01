@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -25,9 +26,10 @@ type ItemStateFilterFeatureStoreDao struct {
 	itmCache            cache.Cache
 	defaultFieldValues  map[string]any
 	generateUserProgram *vm.Program
+	transFunc           FeatureTransFunc
 }
 
-func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig) *ItemStateFilterFeatureStoreDao {
+func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig, transFunc FeatureTransFunc) *ItemStateFilterFeatureStoreDao {
 
 	fsclient, err := fs.GetFeatureStoreClient(config.ItemStateDaoConf.FeatureStoreName)
 	if err != nil {
@@ -41,6 +43,7 @@ func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig) *ItemStateFi
 		selectFields:  []string{"*"},
 		//selectFields:  config.ItemStateDaoConf.SelectFields,
 		defaultFieldValues: config.ItemStateDaoConf.DefaultFieldValues,
+		transFunc:          transFunc,
 	}
 	if config.ItemStateDaoConf.SelectFields != "" {
 		fields := strings.Split(config.ItemStateDaoConf.SelectFields, ",")
@@ -71,7 +74,7 @@ func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig) *ItemStateFi
 	return dao
 }
 
-func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret []*Item) {
+func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *context.RecommendContext) (ret []*Item) {
 	fields := make(map[string]bool, len(items))
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)
 
@@ -163,6 +166,10 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 							}
 							item.AddProperties(itemFeatures)
 							addPropertyMap[itemId] = struct{}{}
+							if d.transFunc != nil {
+								d.transFunc(user, item, ctx)
+								itemFeatures = item.GetProperties()
+							}
 							if d.itmCache != nil {
 								d.itmCache.Put(itemId, itemFeatures)
 							}
@@ -183,11 +190,17 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 						if _, ok := addPropertyMap[itemId]; !ok {
 							if item, ok := itemMap[itemId]; ok {
 								item.AddProperties(d.defaultFieldValues)
-								if d.itmCache != nil {
-									d.itmCache.Put(itemId, d.defaultFieldValues)
+								properties := d.defaultFieldValues
+								if d.transFunc != nil {
+									d.transFunc(user, item, ctx)
+									properties = item.GetProperties()
 								}
+								if d.itmCache != nil {
+									d.itmCache.Put(itemId, properties)
+								}
+
 								if d.filterParam != nil {
-									result, err := d.filterParam.EvaluateByDomain(userFeatures, d.defaultFieldValues)
+									result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 									if err == nil && result {
 										fieldMap[itemId] = true
 									}

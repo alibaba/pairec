@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -36,9 +37,10 @@ type ItemStateFilterHologresDao struct {
 	stmtMap             map[int]*sql.Stmt
 	itmCache            cache.Cache
 	generateUserProgram *vm.Program
+	transFunc           FeatureTransFunc
 }
 
-func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilterHologresDao {
+func NewItemStateFilterHologresDao(config recconf.FilterConfig, transFunc FeatureTransFunc) *ItemStateFilterHologresDao {
 	hologres, err := holo.GetPostgres(config.ItemStateDaoConf.HologresName)
 	if err != nil {
 		panic(fmt.Sprintf("%v", err))
@@ -52,6 +54,7 @@ func NewItemStateFilterHologresDao(config recconf.FilterConfig) *ItemStateFilter
 		selectFields:       config.ItemStateDaoConf.SelectFields,
 		stmtMap:            make(map[int]*sql.Stmt),
 		defaultFieldValues: config.ItemStateDaoConf.DefaultFieldValues,
+		transFunc:          transFunc,
 	}
 	if config.ItemStateCacheSize > 0 {
 		cacheTime := 3600
@@ -80,7 +83,7 @@ func (d *ItemStateFilterHologresDao) getStmt(key int) *sql.Stmt {
 	return d.stmtMap[key]
 }
 
-func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*Item) {
+func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item, context *context.RecommendContext) (ret []*Item) {
 	fields := make(map[string]bool, len(items))
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)
 	requestCh := make(chan []interface{}, cpuCount)
@@ -278,12 +281,16 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 								properties[name] = value
 							}
 						}
-						if d.itmCache != nil {
-							d.itmCache.Put(id, properties)
-						}
 						if item, ok := itemMap[id]; ok {
 							item.AddProperties(properties)
 							addPropertyMap[id] = struct{}{}
+							if d.transFunc != nil {
+								d.transFunc(user, item, context)
+								properties = item.GetProperties()
+							}
+						}
+						if d.itmCache != nil {
+							d.itmCache.Put(id, properties)
 						}
 						if d.filterParam != nil {
 							result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
@@ -301,11 +308,16 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item) (ret []*I
 						if _, ok := addPropertyMap[itemId]; !ok {
 							if item, ok := itemMap[itemId]; ok {
 								item.AddProperties(d.defaultFieldValues)
+								properties := d.defaultFieldValues
+								if d.transFunc != nil {
+									d.transFunc(user, item, context)
+									properties = item.GetProperties()
+								}
 								if d.itmCache != nil {
-									d.itmCache.Put(itemId, d.defaultFieldValues)
+									d.itmCache.Put(itemId, properties)
 								}
 								if d.filterParam != nil {
-									result, err := d.filterParam.EvaluateByDomain(userFeatures, d.defaultFieldValues)
+									result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 									if err == nil && result {
 										fieldMap[itemId] = true
 									}
