@@ -7,24 +7,29 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"github.com/goburrow/cache"
 )
 
 type ItemStateFilterFeatureStoreDao struct {
-	fsClient           *fs.FSClient
-	table              string
-	itemFieldName      string
-	selectFields       []string
-	filterParam        *FilterParam
-	itmCache           cache.Cache
-	defaultFieldValues map[string]any
+	fsClient            *fs.FSClient
+	table               string
+	itemFieldName       string
+	selectFields        []string
+	filterParam         *FilterParam
+	itmCache            cache.Cache
+	defaultFieldValues  map[string]any
+	generateUserProgram *vm.Program
+	transFunc           FeatureTransFunc
 }
 
-func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig) *ItemStateFilterFeatureStoreDao {
+func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig, transFunc FeatureTransFunc) *ItemStateFilterFeatureStoreDao {
 
 	fsclient, err := fs.GetFeatureStoreClient(config.ItemStateDaoConf.FeatureStoreName)
 	if err != nil {
@@ -38,6 +43,7 @@ func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig) *ItemStateFi
 		selectFields:  []string{"*"},
 		//selectFields:  config.ItemStateDaoConf.SelectFields,
 		defaultFieldValues: config.ItemStateDaoConf.DefaultFieldValues,
+		transFunc:          transFunc,
 	}
 	if config.ItemStateDaoConf.SelectFields != "" {
 		fields := strings.Split(config.ItemStateDaoConf.SelectFields, ",")
@@ -58,24 +64,41 @@ func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig) *ItemStateFi
 	if len(config.FilterParams) > 0 {
 		dao.filterParam = NewFilterParamWithConfig(config.FilterParams)
 	}
+	if config.GenerateUserDataExpr != "" {
+		if p, err := expr.Compile(config.GenerateUserDataExpr, expr.AllowUndefinedVariables()); err != nil {
+			panic(err)
+		} else {
+			dao.generateUserProgram = p
+		}
+	}
 	return dao
 }
 
-func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret []*Item) {
+func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *context.RecommendContext) (ret []*Item) {
 	fields := make(map[string]bool, len(items))
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)
 
 	requestCh := make(chan []interface{}, cpuCount)
 	maps := make(map[int][]interface{}, cpuCount)
-	itemMap := make(map[ItemId]*Item, len(items))
+	itemMap := make(map[string]*Item, len(items))
+	var itemIdGenMap map[string]string
 	index := 0
 	userFeatures := user.MakeUserFeatures2()
+	if d.generateUserProgram != nil {
+		if m, err := generateItemKeyData(userFeatures, items, d.generateUserProgram); err == nil {
+			itemIdGenMap = m
+		}
+	}
 	for i, item := range items {
-		itemId := string(item.Id)
+		itemId := getItemKeyData(itemIdGenMap, item)
 		if d.itmCache != nil {
 			if attrs, ok := d.itmCache.GetIfPresent(itemId); ok {
 				properties := attrs.(map[string]interface{})
 				item.AddProperties(properties)
+				if d.transFunc != nil {
+					d.transFunc(user, item, ctx)
+					properties = item.GetProperties()
+				}
 				if d.filterParam != nil {
 					result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 					if err == nil && result {
@@ -87,7 +110,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 				continue
 			}
 		}
-		itemMap[item.Id] = item
+		itemMap[itemId] = item
 		maps[index%cpuCount] = append(maps[index%cpuCount], itemId)
 		if (i+1)%requestCount == 0 {
 			index++
@@ -116,7 +139,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 			select {
 			case idlist := <-requestCh:
 				fieldMap := make(map[string]bool, len(idlist))
-				addPropertyMap := make(map[string]bool, len(idlist))
+				addPropertyMap := make(map[string]struct{}, len(idlist))
 
 				featureView := d.fsClient.GetProject().GetFeatureView(d.table)
 				if featureView == nil {
@@ -141,11 +164,18 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 				for _, itemFeatures := range features {
 					itemId := utils.ToString(itemFeatures[featureEntity.FeatureEntityJoinid], "")
 					if itemId != "" {
-						if item, ok := itemMap[ItemId(itemId)]; ok {
+						if item, ok := itemMap[itemId]; ok {
+							if d.generateUserProgram != nil && featureEntity.FeatureEntityJoinid == "item_id" { // if featureEntity.FeatureEntityJoinid is item_id
+								itemFeatures[featureEntity.FeatureEntityJoinid] = string(item.Id)
+							}
 							item.AddProperties(itemFeatures)
-							addPropertyMap[itemId] = true
+							addPropertyMap[itemId] = struct{}{}
 							if d.itmCache != nil {
 								d.itmCache.Put(itemId, itemFeatures)
+							}
+							if d.transFunc != nil {
+								d.transFunc(user, item, ctx)
+								itemFeatures = item.GetProperties()
 							}
 							if d.filterParam != nil {
 								result, err := d.filterParam.EvaluateByDomain(userFeatures, itemFeatures)
@@ -162,13 +192,19 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 					for _, id := range idlist {
 						itemId := id.(string)
 						if _, ok := addPropertyMap[itemId]; !ok {
-							if item, ok := itemMap[ItemId(itemId)]; ok {
+							if item, ok := itemMap[itemId]; ok {
 								item.AddProperties(d.defaultFieldValues)
 								if d.itmCache != nil {
 									d.itmCache.Put(itemId, d.defaultFieldValues)
 								}
+								properties := d.defaultFieldValues
+								if d.transFunc != nil {
+									d.transFunc(user, item, ctx)
+									properties = item.GetProperties()
+								}
+
 								if d.filterParam != nil {
-									result, err := d.filterParam.EvaluateByDomain(userFeatures, d.defaultFieldValues)
+									result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 									if err == nil && result {
 										fieldMap[itemId] = true
 									}
@@ -188,9 +224,49 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item) (ret 
 	wg.Wait()
 
 	for _, item := range items {
-		if _, ok := fields[string(item.Id)]; ok {
+		itemId := getItemKeyData(itemIdGenMap, item)
+		if _, ok := fields[itemId]; ok {
 			ret = append(ret, item)
 		}
 	}
 	return
+}
+
+func generateItemKeyData(userFeatures map[string]any, items []*Item, p *vm.Program) (map[string]string, error) {
+	m := make(map[string]string, len(items))
+	if p != nil {
+		params := map[string]any{
+			"user": userFeatures,
+		}
+
+		for _, item := range items {
+			itemFeatures := item.GetProperties()
+			itemFeatures["recall_name"] = item.RetrieveId
+			itemFeatures["item_id"] = string(item.Id)
+			params["item"] = itemFeatures
+			if output, err := expr.Run(p, params); err != nil {
+				log.Error(fmt.Sprintf("module=ItemStateFilterDao\terror=generate item key data failed, params:%v, err:%v", params, err))
+			} else {
+				if str := utils.ToString(output, ""); str != "" {
+					m[string(item.Id)] = str
+				} else {
+					log.Error(fmt.Sprintf("module=ItemStateFilterDao\terror=output error(%v), output:%v ", err, output))
+				}
+
+			}
+		}
+	}
+
+	return m, nil
+
+}
+
+func getItemKeyData(itemIdMap map[string]string, item *Item) string {
+	if len(itemIdMap) == 0 {
+		return string(item.Id)
+	}
+	if data, ok := itemIdMap[string(item.Id)]; ok {
+		return data
+	}
+	return string(item.Id)
 }

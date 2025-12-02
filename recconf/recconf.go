@@ -659,6 +659,7 @@ type CategoryConfig struct {
 	AutoInvokeCallBack     bool
 	AutoInvokeCallBackRate int
 	OutputFields           []string
+	SubRank                map[string]any
 }
 
 type FallbackConfig struct {
@@ -707,10 +708,7 @@ type FilterConfig struct {
 	MaxItems                  int
 	TimeInterval              int // second
 	RetainNum                 int
-	ShuffleItem               bool
-	WriteLog                  bool
 	ClearLogIfNotEnoughScene  string
-	OnlyLogUserExposeFlag     bool
 	Dimension                 string
 	ScoreWeight               float64
 	GroupMinNum               int
@@ -726,7 +724,6 @@ type FilterConfig struct {
 	FilterParams              []FilterParamConfig
 	DiversityDaoConf          DiversityDaoConfig
 	DiversityMinCount         int
-	EnsureDiversity           bool
 	FilterVal                 FilterValue
 	ItemStateCacheSize        int
 	ItemStateCacheTime        int
@@ -740,6 +737,13 @@ type FilterConfig struct {
 		}
 		DefaultFilterName string
 	}
+
+	Features []FeatureConfig // use in ItemStateFilter to transform item feature
+	// for memory alignment
+	ShuffleItem           bool
+	WriteLog              bool
+	OnlyLogUserExposeFlag bool
+	EnsureDiversity       bool
 }
 type BeFilterConfig struct {
 	FilterConfig
@@ -749,29 +753,30 @@ type FilterValue struct {
 	WhereClause string
 }
 type SortConfig struct {
+	Name                    string
+	SortType                string
+	SortByField             string
+	SwitchThreshold         float64
+	DiversitySize           int
+	ExploreItemSize         int
+	Size                    int
+	DPPConf                 DPPSortConfig
+	SSDConf                 SSDSortConfig
+	PIDConf                 PIDControllerConfig
+	MixSortRules            []MixSortConfig
+	BoostScoreConditions    []BoostScoreCondition
+	DistinctIdConditions    []DistinctIdCondition
+	Conditions              []FilterParamConfig
+	ExcludeRecalls          []string
+	DiversityRules          []DiversityRuleConfig
+	ExclusionRules          []ExclusionRuleConfig
+	TimeInterval            int
+	BoostScoreByWeightDao   BoostScoreByWeightDaoConfig
+	MultiValueDimensionConf []MultiValueDimensionConfig
+
 	Debug                         bool
 	RemainItem                    bool
-	Name                          string
-	SortType                      string
-	SortByField                   string
-	SwitchThreshold               float64
-	DiversitySize                 int
-	ExploreItemSize               int
-	Size                          int
-	DPPConf                       DPPSortConfig
-	SSDConf                       SSDSortConfig
-	PIDConf                       PIDControllerConfig
-	MixSortRules                  []MixSortConfig
 	BoostScoreConditionsFilterAll bool
-	BoostScoreConditions          []BoostScoreCondition
-	DistinctIdConditions          []DistinctIdCondition
-	Conditions                    []FilterParamConfig
-	ExcludeRecalls                []string
-	DiversityRules                []DiversityRuleConfig
-	ExclusionRules                []ExclusionRuleConfig
-	TimeInterval                  int
-	BoostScoreByWeightDao         BoostScoreByWeightDaoConfig
-	MultiValueDimensionConf       []MultiValueDimensionConfig
 }
 
 type MultiValueDimensionConfig struct {

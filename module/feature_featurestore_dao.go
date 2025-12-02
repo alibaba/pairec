@@ -273,7 +273,6 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntityAppendKeys(user *Us
 		return
 	}
 
-	// features, err := model.GetOnlineFeaturesWithEntity(map[string][]interface{}{entity.FeatureEntityJoinid: {key}}, d.fsEntity)
 	appendSequenceKeys := make([]interface{}, 0, len(appendKeys)+1)
 	appendSequenceKeys = append(appendSequenceKeys, key)
 	for _, appendKey := range appendKeys {
@@ -297,7 +296,7 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntityAppendKeys(user *Us
 					_, labelOK := labelFieldMap[k]
 					_, modelOK := modelFieldMap[k]
 					if modelOK && labelOK {
-						features[0][k] = v
+						features[k] = v
 					}
 				}
 			}
@@ -305,12 +304,12 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntityAppendKeys(user *Us
 	}
 
 	if d.cacheFeaturesName != "" {
-		user.AddCacheFeatures(d.cacheFeaturesName, features[0])
+		user.AddCacheFeatures(d.cacheFeaturesName, features)
 	} else {
-		user.AddProperties(features[0])
+		user.AddProperties(features)
 	}
 	if d.cache != nil {
-		d.cache.Put(key, features[0])
+		d.cache.Put(key, features)
 	}
 }
 
