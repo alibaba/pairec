@@ -175,6 +175,7 @@ type FeatureDaoConfig struct {
 	DaoConfig
 	NoUsePlayTimeField      bool
 	FeatureKey              string
+	FeatureAppendKey        string
 	FeatureStore            string // user or item
 	UserFeatureKeyName      string
 	ItemFeatureKeyName      string

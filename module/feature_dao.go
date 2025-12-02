@@ -84,6 +84,7 @@ func NewFeatureDao(config recconf.FeatureDaoConfig) FeatureDao {
 
 type FeatureBaseDao struct {
 	featureKey                string // use the value of key to featch data
+	featureAppendKey          string // use the value of append key to featch data
 	featureStore              string // user or item
 	featureType               string
 	cacheFeaturesName         string
@@ -104,6 +105,7 @@ type FeatureBaseDao struct {
 func NewFeatureBaseDao(config *recconf.FeatureDaoConfig) *FeatureBaseDao {
 	dao := FeatureBaseDao{
 		featureKey:                config.FeatureKey,
+		featureAppendKey:          config.FeatureAppendKey,
 		featureStore:              config.FeatureStore,
 		featureType:               config.FeatureType,
 		cacheFeaturesName:         config.CacheFeaturesName,
