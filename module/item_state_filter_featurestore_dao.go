@@ -95,6 +95,10 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 			if attrs, ok := d.itmCache.GetIfPresent(itemId); ok {
 				properties := attrs.(map[string]interface{})
 				item.AddProperties(properties)
+				if d.transFunc != nil {
+					d.transFunc(user, item, ctx)
+					properties = item.GetProperties()
+				}
 				if d.filterParam != nil {
 					result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 					if err == nil && result {
@@ -166,12 +170,12 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 							}
 							item.AddProperties(itemFeatures)
 							addPropertyMap[itemId] = struct{}{}
+							if d.itmCache != nil {
+								d.itmCache.Put(itemId, itemFeatures)
+							}
 							if d.transFunc != nil {
 								d.transFunc(user, item, ctx)
 								itemFeatures = item.GetProperties()
-							}
-							if d.itmCache != nil {
-								d.itmCache.Put(itemId, itemFeatures)
 							}
 							if d.filterParam != nil {
 								result, err := d.filterParam.EvaluateByDomain(userFeatures, itemFeatures)
@@ -190,13 +194,13 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 						if _, ok := addPropertyMap[itemId]; !ok {
 							if item, ok := itemMap[itemId]; ok {
 								item.AddProperties(d.defaultFieldValues)
+								if d.itmCache != nil {
+									d.itmCache.Put(itemId, d.defaultFieldValues)
+								}
 								properties := d.defaultFieldValues
 								if d.transFunc != nil {
 									d.transFunc(user, item, ctx)
 									properties = item.GetProperties()
-								}
-								if d.itmCache != nil {
-									d.itmCache.Put(itemId, properties)
 								}
 
 								if d.filterParam != nil {
