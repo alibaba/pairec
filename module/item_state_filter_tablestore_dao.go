@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/tablestoredb"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -42,7 +43,7 @@ func NewItemStateFilterTablestoreDao(config recconf.FilterConfig) *ItemStateFilt
 	return dao
 }
 
-func (d *ItemStateFilterTablestoreDao) Filter(user *User, items []*Item) (ret []*Item) {
+func (d *ItemStateFilterTablestoreDao) Filter(user *User, items []*Item, ctx *context.RecommendContext) (ret []*Item) {
 	requestCount := 100
 	fields := make(map[string]bool, len(items))
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)
