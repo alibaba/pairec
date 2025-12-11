@@ -278,6 +278,7 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntityAppendKeys(user *Us
 	for _, appendKey := range appendKeys {
 		appendSequenceKeys = append(appendSequenceKeys, appendKey)
 	}
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\tmsg=get online features with aggregated sequence(%v)", context.RecommendId, appendSequenceKeys))
 	features, err := model.GetOnlineFeaturesWithAggregatedSequence(key, appendSequenceKeys, d.fsEntity)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features error(%s)", context.RecommendId, err))
