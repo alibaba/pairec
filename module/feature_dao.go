@@ -58,6 +58,7 @@ func (d *EmptyFeatureDao) userFeatureFetch(user *User, context *context.Recommen
 // NewFeatureDao create FeatureDao from config
 // config.AdapterType is decide the implement
 func NewFeatureDao(config recconf.FeatureDaoConfig) FeatureDao {
+	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewFeatureDaoDebug\tmsg=NewFeatureDao(%s)\tfeatureAppendKey(%s)", config.FeatureKey, config.AdapterType, config.FeatureAppendKey))
 	if config.AdapterType == recconf.DaoConf_Adapter_Redis {
 		return NewFeatureRedisDao(config)
 	} else if config.AdapterType == recconf.DaoConf_Adapter_Hologres {
