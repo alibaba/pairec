@@ -104,6 +104,7 @@ type FeatureBaseDao struct {
 }
 
 func NewFeatureBaseDao(config *recconf.FeatureDaoConfig) *FeatureBaseDao {
+	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewFeatureBaseDaoDebug\tmsg=NewFeatureBaseDaoDebugInfo\tfeatureAppendKey(%s)", config.FeatureKey, config.FeatureAppendKey))
 	dao := FeatureBaseDao{
 		featureKey:                config.FeatureKey,
 		featureAppendKey:          config.FeatureAppendKey,
