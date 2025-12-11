@@ -71,7 +71,7 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 		return
 	}
 	appendKeys := make([]string, 0)
-	log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\tmsg=featureAppendKey(%s)", context.RecommendId, d.featureAppendKey))
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\tmsg=featureAppendKey(%s)\tfs_model(%s)\tfs_featureview(%s)", context.RecommendId, d.featureAppendKey, d.fsModel, d.fsViewName))
 	if d.featureAppendKey != "" {
 		appendComms := strings.Split(d.featureAppendKey, ":")
 		if len(appendComms) < 2 {
