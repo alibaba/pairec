@@ -71,6 +71,7 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 		return
 	}
 	appendKeys := make([]string, 0)
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\tmsg=featureAppendKey(%s)", context.RecommendId, d.featureAppendKey))
 	if d.featureAppendKey != "" {
 		appendComms := strings.Split(d.featureAppendKey, ":")
 		if len(appendComms) < 2 {
@@ -83,6 +84,7 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 			log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=property error(%s):%s", context.RecommendId, appendComms[1], err))
 			return
 		}
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\tmsg=appendKeys(%v)", context.RecommendId, appendKeys))
 	}
 	// hit user cache
 	if d.cache != nil {
