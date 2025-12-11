@@ -30,11 +30,13 @@ type EmptyFeatureDao struct {
 }
 
 func NewEmptyFeatureDao(config recconf.FeatureDaoConfig) *EmptyFeatureDao {
+	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewEmptyFeatureDaoDebugInfo\tmsg=NewEmptyFeatureDao\tfeatureAppendKey(%s)", config.FeatureKey, config.FeatureAppendKey))
 	return &EmptyFeatureDao{
 		FeatureBaseDao: NewFeatureBaseDao(&config),
 	}
 }
 func (d *EmptyFeatureDao) FeatureFetch(user *User, items []*Item, context *context.RecommendContext) {
+	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=EmptyFeatureDaoDebugInfo\tmsg=FeatureFetch(%s)\tfeatureAppendKey(%s)", d.featureKey, d.featureStore, d.featureAppendKey))
 	if d.featureStore == Feature_Store_User {
 		d.userFeatureFetch(user, context)
 	}
@@ -144,5 +146,6 @@ func NewFeatureBaseDao(config *recconf.FeatureDaoConfig) *FeatureBaseDao {
 		dao.cache = cache.New(cache.WithMaximumSize(config.CacheSize),
 			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
 	}
+	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewFeatureBaseDaoDebugInfo\tmsg=NewFeatureBaseDaoDebugInfo\tfeatureAppendKey(%s)", dao.featureKey, dao.featureAppendKey))
 	return &dao
 }

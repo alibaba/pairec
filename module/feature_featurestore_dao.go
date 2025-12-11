@@ -24,6 +24,7 @@ type FeatureFeatureStoreDao struct {
 }
 
 func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureStoreDao {
+	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewFeatureFeatureStoreDaoDebugInfo\tmsg=NewFeatureFeatureStoreDao\tfeatureAppendKey(%s)", config.FeatureKey, config.FeatureAppendKey))
 	dao := &FeatureFeatureStoreDao{
 		FeatureBaseDao:   NewFeatureBaseDao(&config),
 		fsModel:          config.FeatureStoreModelName,
@@ -38,6 +39,7 @@ func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureS
 		return nil
 	}
 	dao.client = client
+	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewFeatureFeatureStoreDaoDebugInfo\tmsg=NewFeatureFeatureStoreDaoDebugInfo\tfeatureAppendKey(%s)", dao.featureKey, dao.featureAppendKey))
 	return dao
 }
 
