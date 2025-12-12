@@ -30,13 +30,11 @@ type EmptyFeatureDao struct {
 }
 
 func NewEmptyFeatureDao(config recconf.FeatureDaoConfig) *EmptyFeatureDao {
-	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewEmptyFeatureDaoDebugInfo\tmsg=NewEmptyFeatureDao\tfeatureAppendKey(%s)", config.FeatureKey, config.FeatureAppendKey))
 	return &EmptyFeatureDao{
 		FeatureBaseDao: NewFeatureBaseDao(&config),
 	}
 }
 func (d *EmptyFeatureDao) FeatureFetch(user *User, items []*Item, context *context.RecommendContext) {
-	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=EmptyFeatureDaoDebugInfo\tmsg=FeatureFetch(%s)\tfeatureAppendKey(%s)", d.featureKey, d.featureStore, d.featureAppendKey))
 	if d.featureStore == Feature_Store_User {
 		d.userFeatureFetch(user, context)
 	}
@@ -60,7 +58,6 @@ func (d *EmptyFeatureDao) userFeatureFetch(user *User, context *context.Recommen
 // NewFeatureDao create FeatureDao from config
 // config.AdapterType is decide the implement
 func NewFeatureDao(config recconf.FeatureDaoConfig) FeatureDao {
-	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewFeatureDaoDebug\tmsg=NewFeatureDao(%s)\tfeatureAppendKey(%s)", config.FeatureKey, config.AdapterType, config.FeatureAppendKey))
 	if config.AdapterType == recconf.DaoConf_Adapter_Redis {
 		return NewFeatureRedisDao(config)
 	} else if config.AdapterType == recconf.DaoConf_Adapter_Hologres {
@@ -106,7 +103,6 @@ type FeatureBaseDao struct {
 }
 
 func NewFeatureBaseDao(config *recconf.FeatureDaoConfig) *FeatureBaseDao {
-	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewFeatureBaseDaoDebug\tmsg=NewFeatureBaseDaoDebugInfo\tfeatureAppendKey(%s)\tfeatureType(%s)", config.FeatureKey, config.FeatureAppendKey, config.FeatureType))
 	dao := FeatureBaseDao{
 		featureKey:                config.FeatureKey,
 		featureAppendKey:          config.FeatureAppendKey,
@@ -146,6 +142,5 @@ func NewFeatureBaseDao(config *recconf.FeatureDaoConfig) *FeatureBaseDao {
 		dao.cache = cache.New(cache.WithMaximumSize(config.CacheSize),
 			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
 	}
-	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=NewFeatureBaseDaoDebugInfo\tmsg=NewFeatureBaseDaoDebugInfo\tfeatureAppendKey(%s)", dao.featureKey, dao.featureAppendKey))
 	return &dao
 }

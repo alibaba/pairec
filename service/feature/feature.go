@@ -1,10 +1,7 @@
 package feature
 
 import (
-	"fmt"
-
 	"github.com/alibaba/pairec/v2/context"
-	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 )
@@ -22,7 +19,6 @@ func LoadWithConfig(config recconf.FeatureLoadConfig) *Feature {
 		featureDao:   module.NewFeatureDao(config.FeatureDaoConf),
 		featureTrans: make([]FeatureTrans, 0),
 	}
-	log.Info(fmt.Sprintf("FeatureKey=%s\tmodule=LoadWithConfigDebug\tmsg=LoadWithConfig(%s)", config.FeatureDaoConf.FeatureKey, config.FeatureDaoConf.FeatureAppendKey))
 
 	for _, conf := range config.Features {
 		source := conf.FeatureSource
