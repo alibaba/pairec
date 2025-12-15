@@ -362,6 +362,39 @@ func ToStringArray(values interface{}) (ret []string) {
 
 	return
 }
+func ToFloatArray(values interface{}) (ret []float64) {
+	switch vals := values.(type) {
+	case []any:
+		for _, v := range vals {
+			val := ToFloat(v, 0)
+			ret = append(ret, val)
+		}
+	case []float64:
+		return vals
+	case []float32:
+		for _, v := range vals {
+			ret = append(ret, float64(v))
+		}
+	case []int:
+		for _, v := range vals {
+			val := ToFloat(v, 0)
+			ret = append(ret, val)
+		}
+	case []int32:
+		for _, v := range vals {
+			val := ToFloat(v, 0)
+			ret = append(ret, val)
+		}
+	case []int64:
+		for _, v := range vals {
+			val := ToFloat(v, 0)
+			ret = append(ret, val)
+		}
+
+	}
+
+	return
+}
 
 // IndexOfArray returns the index of the first occurrence of val in arrs, or -1 if not present.
 func IndexOfArray[T comparable](arrs []T, val T) int {
