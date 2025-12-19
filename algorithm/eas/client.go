@@ -98,6 +98,10 @@ func (r *EasRequest) SetResponseFunc(name string) {
 		r.responseFunc = torchrecEmbeddingItemsResponseFuncDebug
 	} else if name == "tfUseEmbResponseFunc" {
 		r.responseFunc = tfUseEmbResponseFunc
+	} else if name == "torchrecMutClassificationResponseFunc" {
+		r.responseFunc = torchrecMutClassificationResponseFunc
+	} else if name == "torchrecMutClassificationResponseFuncDebug" {
+		r.responseFunc = torchrecMutClassificationResponseFuncDebug
 	}
 
 	r.responseFuncName = name

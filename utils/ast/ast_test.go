@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"fortio.org/assert"
 	"github.com/alibaba/pairec/v2/module"
 	valuate "github.com/bruceding/go-antlr-valuate"
 )
@@ -261,4 +262,31 @@ func TestASTWithType(t *testing.T) {
 	if !reflect.DeepEqual(result1, result2) {
 		t.Fatalf("result not equal, result1:%v, result2:%v\n", result1, result2)
 	}
+}
+
+func TestASTWithTypeV2(t *testing.T) {
+	expression := "maxIndex(${many_class_dbmtl_v1_probs_is_click})"
+
+	astType := "antlr"
+	ast, err := GetExpASTWithType(expression, astType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := module.NewItem("item_1")
+	item.AddProperty("many_class_dbmtl_v1_probs_is_click", []float64{0.1, 0.2, 0.4, 0.3})
+
+	result := ExprASTResultWithType(ast, item, astType)
+
+	assert.Equal(t, int(result), 2)
+	t.Log(result)
+	expression = "maxValue(${many_class_dbmtl_v1_probs_is_click})"
+
+	ast, err = GetExpASTWithType(expression, astType)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result = ExprASTResultWithType(ast, item, astType)
+
+	assert.Equal(t, result, float64(0.4))
 }

@@ -534,6 +534,90 @@ func torchrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoRespo
 
 	return
 }
+func torchrecMutClassificationResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("torchrecMutClassificationResponseFunc,invalid data type, %v", data)
+		return
+	}
+	var response []map[string][]float64
+	for i := range resp.ItemIds {
+		scores := make(map[string][]float64)
+		for output, arrayProto := range resp.GetMapOutputs() {
+			if len(arrayProto.ArrayShape.Dim) == 1 {
+				scores[output] = []float64{float64(arrayProto.GetFloatVal()[i])}
+			} else if len(arrayProto.ArrayShape.Dim) == 2 {
+				d := int(arrayProto.ArrayShape.Dim[1])
+				arr := make([]float64, 0, d)
+				for j := 0; j < d; j++ {
+					arr = append(arr, float64(arrayProto.GetFloatVal()[i*d+j]))
+				}
+				scores[output] = arr
+			}
+		}
+
+		response = append(response, scores)
+	}
+
+	for _, v := range response {
+		ret = append(ret, &EasyrecClassificationResponse{mulClassifyArr: v, EasyrecResponse: EasyrecResponse{multiValModule: false}})
+	}
+
+	return
+}
+func torchrecMutClassificationResponseFuncDebug(data interface{}) (ret []response.AlgoResponse, err error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok {
+		err = fmt.Errorf("torchrecMutClassificationResponseFuncDebug, invalid data type, %v", data)
+		return
+	}
+
+	var response []map[string][]float64
+	for i := range resp.ItemIds {
+		scores := make(map[string][]float64)
+		for output, arrayProto := range resp.GetMapOutputs() {
+			if len(arrayProto.ArrayShape.Dim) == 1 {
+				scores[output] = []float64{float64(arrayProto.GetFloatVal()[i])}
+			} else if len(arrayProto.ArrayShape.Dim) == 2 {
+				var arr []float64
+				d := int(arrayProto.ArrayShape.Dim[1])
+				for j := 0; j < d; j++ {
+					arr = append(arr, float64(arrayProto.GetFloatVal()[i*d+j]))
+				}
+				scores[output] = arr
+			}
+		}
+
+		response = append(response, scores)
+	}
+	var (
+		itemFeatures     []string
+		generateFeatures []*bytes.Buffer
+	)
+	for _, itemId := range resp.ItemIds {
+		if f, ok := resp.RawFeatures[itemId]; ok {
+			itemFeatures = append(itemFeatures, f)
+		} else {
+			itemFeatures = append(itemFeatures, "")
+		}
+
+		if g, ok := resp.GenerateFeatures[itemId]; ok {
+			generateFeatures = append(generateFeatures, bytes.NewBufferString(g))
+		} else {
+			generateFeatures = append(generateFeatures, new(bytes.Buffer))
+		}
+	}
+
+	for i, v := range response {
+		ret = append(ret, &EasyrecClassificationResponse{
+			mulClassifyArr: v,
+			EasyrecResponse: EasyrecResponse{multiValModule: false, RawFeatures: itemFeatures[i],
+				GenerateFeatures: generateFeatures[i]},
+		})
+	}
+
+	return
+}
 
 type TorchrecEmbeddingResponse struct {
 	embeddings []float32
