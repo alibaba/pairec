@@ -187,6 +187,41 @@ func (u *User) StringProperty(key string) string {
 	}
 	return ""
 }
+func (u *User) ListStringProperty(key string) ([]string, error) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	val, ok := u.Properties[key]
+	if !ok {
+		return nil, nil
+	}
+	switch value := val.(type) {
+	case []string:
+		return value, nil
+	case []interface{}:
+		strings := make([]string, 0, len(value))
+		for _, v := range value {
+			switch v := v.(type) {
+			case string:
+				strings = append(strings, v)
+			case int:
+				strings = append(strings, strconv.Itoa(v))
+			case float64:
+				strings = append(strings, strconv.FormatFloat(v, 'f', -1, 64))
+			case int32:
+				strings = append(strings, strconv.Itoa(int(v)))
+			case int64:
+				strings = append(strings, strconv.Itoa(int(v)))
+			default:
+				return nil, errors.New("unsupported type for list string property")
+			}
+		}
+		return strings, nil
+	case string:
+		return strings.Split(value, ","), nil
+	default:
+		return nil, errors.New("unsupported type for list string property")
+	}
+}
 
 func (u *User) SetProperties(p map[string]interface{}) {
 	u.mutex.Lock()
