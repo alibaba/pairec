@@ -264,7 +264,6 @@ type PIDControllerConfig struct {
 	DefaultKp              float64
 	DefaultKi              float64
 	DefaultKd              float64
-	Timestamp              int64
 	AheadMinutes           int
 	MembershipCacheSeconds int
 	IntegralMin            float64
@@ -272,7 +271,9 @@ type PIDControllerConfig struct {
 	IntegralThreshold      float64
 	ErrThreshold           float64
 	ErrDiscount            float64
-	BoostScoreConditions   []BoostScoreCondition
+	MinExpTraffic          float64
+	FreezeMinutes          int
+	BatchCount             int
 }
 
 type LookupConfig struct {
@@ -828,10 +829,9 @@ type DistinctIdCondition struct {
 }
 type ItemStateDaoConfig struct {
 	DaoConfig
-	ItemFieldName      string
-	WhereClause        string
-	SelectFields       string
-	DefaultFieldValues map[string]any
+	ItemFieldName string
+	WhereClause   string
+	SelectFields  string
 }
 type DiversityDaoConfig struct {
 	DaoConfig

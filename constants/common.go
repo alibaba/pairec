@@ -12,3 +12,8 @@ const (
 	TrafficControlTargetStatisPeriodHour       = "Hour"
 	TrafficControlTargetStatusClosed           = "Closed"
 )
+
+const (
+	RunEnvironmentOfProduction = "product"
+	RunEnvironmentOfPrepub     = "prepub"
+)
