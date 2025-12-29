@@ -273,7 +273,6 @@ type PIDControllerConfig struct {
 	ErrDiscount            float64
 	MinExpTraffic          float64
 	FreezeMinutes          int
-	BatchCount             int
 }
 
 type LookupConfig struct {

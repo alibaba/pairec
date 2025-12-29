@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/constants"
-	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
 	"github.com/expr-lang/expr"
 	"math"
@@ -34,7 +33,6 @@ type TrafficControlSort struct {
 	controllersMap map[string]*PIDController // key: targetId
 	controllerLock sync.RWMutex
 	cloneInstances map[string]*TrafficControlSort
-	batchCount     int
 }
 
 var positionWeight []float64
@@ -77,7 +75,6 @@ func NewTrafficControlSort(config recconf.SortConfig) *TrafficControlSort {
 		controllersMap: make(map[string]*PIDController),
 		name:           config.Name,
 		cloneInstances: make(map[string]*TrafficControlSort),
-		batchCount:     conf.BatchCount,
 	}
 
 	go func() {
@@ -112,13 +109,6 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		d, _ := json.Marshal(experimentParams)
 		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\texperiment params: %s", string(d)))
 	}
-	if experimentParams.PidBatchCount == nil {
-		if p.batchCount != 0 {
-			experimentParams.PidBatchCount = &p.batchCount
-		} else {
-			experimentParams.PidBatchCount = tea.Int(100)
-		}
-	}
 
 	sort.Sort(sort.Reverse(ItemScoreSlice(items)))
 	for i, item := range items {
@@ -137,7 +127,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 
 	globalControls, singleControls := splitControllers(validControllersMap)
 	if len(globalControls) == 0 && len(singleControls) == 0 {
-		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tcount=%d\tboth global traffic control and single traffic control are zero", len(items)))
+		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tboth global traffic control and single traffic control are zero"))
 		sortData.Data = items
 		return nil
 	}
@@ -153,34 +143,35 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		go macroControl(ctx, globalControls, items, &wgCtrl, experimentParams)
 	}
 	wgCtrl.Wait()
-	pageNumber := utils.ToInt(ctx.GetParameter("page_number"), 1)
-	pageSize := ctx.Size // utils.ToInt(ctx.GetParameter("pageSize"), 10)
-	if pageNumber < 1 {
-		pageNumber = 1
-	}
-	var candidateCount int
-	if experimentParams.CandidateCountAfterFirstPage != nil {
-		candidateCount = *experimentParams.CandidateCountAfterFirstPage
-		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tlimit_uplift_at_first_page=%d", candidateCount))
-	} else {
-		candidateCount = 0
-	}
+	//pageNumber := utils.ToInt(ctx.GetParameter("page_number"), 1)
+	//pageSize := ctx.Size
+	//if pageNumber < 1 {
+	//	pageNumber = 1
+	//}
+	//var candidateCount int
+	//if experimentParams.CandidateCountAfterFirstPage != nil {
+	//	candidateCount = *experimentParams.CandidateCountAfterFirstPage
+	//	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tlimit_uplift_at_first_page=%d", candidateCount))
+	//} else {
+	//	candidateCount = 0
+	//}
 	for i, item := range items {
 		finalDeltaRank := item.GetAlgoScore("__delta_rank__")
 		if finalDeltaRank != 0.0 {
 			rank := float64(i+1) - finalDeltaRank
-			if pageNumber <= 1 && candidateCount != 0 {
-				if i < pageSize {
-					item.AddProperty("_NEW_POSITION_", i+1)
-				} else {
-					if rank <= float64(pageSize) { // 保证第一页流量调控的结果仅作为打散的候补出现
-						rank = float64(pageSize) + 1 + tanh(0.001*rank) // rank > pageSize
-					}
-					item.AddProperty("_NEW_POSITION_", rank)
-				}
-			} else {
-				item.AddProperty("_NEW_POSITION_", rank)
-			}
+			//if pageNumber <= 1 && candidateCount != 0 {
+			//	if i < pageSize {
+			//		item.AddProperty("_NEW_POSITION_", i+1)
+			//	} else {
+			//		if rank <= float64(pageSize) { // 保证第一页流量调控的结果仅作为打散的候补出现
+			//			rank = float64(pageSize) + 1 + tanh(0.001*rank) // rank > pageSize
+			//		}
+			//		item.AddProperty("_NEW_POSITION_", rank)
+			//	}
+			//} else {
+			//
+			//}
+			item.AddProperty("_NEW_POSITION_", rank)
 		} else {
 			item.AddProperty("_NEW_POSITION_", i+1)
 		}
@@ -192,9 +183,9 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 }
 
 func splitControllers(controllers map[string]*PIDController) (map[string]*PIDController, map[string]*PIDController) {
-	wholeCtrls := make(map[string]*PIDController)
-	singleCtrls := make(map[string]*PIDController)
-	if nil == controllers || len(controllers) == 0 {
+	wholeCtrls := make(map[string]*PIDController, 0)
+	singleCtrls := make(map[string]*PIDController, 0)
+	if controllers == nil || len(controllers) == 0 {
 		return wholeCtrls, singleCtrls
 	}
 	for targetId, controller := range controllers {
@@ -217,9 +208,12 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 		ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttraffic control task output is zero"))
 		return
 	}
-	ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttarget out put: %v", targetAlphaMap))
+	if ctx.Debug {
+		d, _ := json.Marshal(targetAlphaMap)
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\tthe relationship between target and alpha: %s", string(d)))
+	}
 
-	itemScores := make([]float64, len(items))
+	itemScores := make([]float64, 0, len(items))
 	// 计算各个目标的偏好分的全局占比
 	totalScore := 0.0
 	maxScore := 0.0 // item 列表中的最大分
@@ -301,28 +295,18 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 		pageNo = 1
 	}
 
-	var (
-		keepCtrlIdScore = 1.0
-	)
-	if experimentParams.PidKeepIdTargetScoreWeight != nil {
-		keepCtrlIdScore = *experimentParams.PidKeepIdTargetScoreWeight
-	}
-	if keepCtrlIdScore < 0.3 {
-		keepCtrlIdScore = 0.3
-	}
 	ctrlParams := &controlParams{
-		targetScore:     targetScore,
-		itemScores:      itemScores,
-		eta:             pidEta,
-		pageNo:          pageNo,
-		keepCtrlIdScore: keepCtrlIdScore,
+		targetScore: targetScore,
+		itemScores:  itemScores,
+		eta:         pidEta,
+		pageNo:      pageNo,
 	}
 
 	targetControlledNum := make(map[string]int, len(controllerMap))
-	mu := sync.Mutex{}
+	mu := sync.RWMutex{}
 
 	// compute delta rank
-	parallel := 50
+	parallel := 10
 	ch := make(chan int, parallel)
 	defer close(ch)
 	var wg sync.WaitGroup
@@ -564,11 +548,10 @@ func sampleControlTargetsByScore(ctx *context.RecommendContext, maxUpliftTargetC
 }
 
 type controlParams struct {
-	targetScore     map[string]float64
-	itemScores      []float64
-	eta             float64
-	pageNo          int
-	keepCtrlIdScore float64
+	targetScore map[string]float64
+	itemScores  []float64
+	eta         float64
+	pageNo      int
 }
 
 // computeDeltaRank 计算位置偏移值
@@ -585,7 +568,7 @@ func computeDeltaRank(c *PIDController, item *module.Item, itemIndex int, alpha 
 	} else { // uplift
 		deltaRank *= itemScore // item.Score 越大，提权越多；用来在不同提取目标间竞争
 		distinctStartPos := ctx.Size
-		if scoreWeight > args.keepCtrlIdScore && args.pageNo > 1 {
+		if args.pageNo > 1 {
 			multiple := (scoreWeight - 0.3) * 10
 			distinctStartPos += int(multiple * float64(ctx.Size))
 		}
@@ -611,7 +594,7 @@ func computeDeltaRank(c *PIDController, item *module.Item, itemIndex int, alpha 
 // 微观调控，针对单个item
 func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDController, items []*module.Item, wg *sync.WaitGroup, experimentParams *ExperimentParams) {
 	defer wg.Done()
-	targetItemActualTrafficMap := getItemActualTraffic(controllerMap, items, experimentParams) // key1: targetId, key2: itemId, value: traffic
+	targetItemActualTrafficMap := getItemActualTraffic(controllerMap, items, experimentParams) // key1: targetId
 	if ctx.Debug {
 		data, _ := json.Marshal(targetItemActualTrafficMap)
 		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\titem target traffic:%s", string(data)))
@@ -632,8 +615,6 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 			maxScore = score
 		}
 	}
-	//params := ctx.ExperimentResult.GetExperimentParams()
-	//maxUpliftCnt := params.GetInt("pid_max_uplift_item_cnt", 5)
 
 	//Calculate the number of items controlled by each target, key:targetId; value:controlled item sum
 	var mu sync.Mutex
@@ -641,19 +622,26 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 
 	upliftCount := 0
 
-	batchCount := *experimentParams.PidBatchCount
+	parallel := 10
 	// 控制并发的组数量
-	sem := make(chan struct{}, len(items)/batchCount+1)
-
+	sem := make(chan int, parallel)
+	defer close(sem)
+	batchSize := len(items) / parallel
+	if len(items)%parallel != 0 {
+		batchSize++
+	}
+	if batchSize < 1 {
+		batchSize = 1
+	}
 	var innerWg sync.WaitGroup
-	for begin, end := 0, batchCount; begin < len(items); begin, end = end, end+batchCount {
+	for begin, end := 0, batchSize; begin < len(items); begin, end = end, end+batchSize {
 		var candidates []*module.Item
 		if end < len(items) {
 			candidates = items[begin:end]
 		} else {
 			candidates = items[begin:]
 		}
-		sem <- struct{}{}
+		sem <- begin
 		innerWg.Add(1)
 		go func(begin int, items []*module.Item) {
 			defer innerWg.Done()
@@ -1008,9 +996,7 @@ type ExperimentParams struct {
 	LimitCountOnFirstPage        *int     `json:"limit_count_on_first_page,omitempty"`
 	CandidateCountAfterFirstPage *int     `json:"candidate_count_after_first_page,omitempty"` // 启用此参数，第一页不会放调控的item，会排在第一页后，如果有其他重排，可能会被调控到第一页
 	PidSingleControlLimitCount   *int     `json:"pid_single_control_limit_count,omitempty"`   // 单品调控时，限制单品调控数量，默认为5
-	PidKeepIdTargetScoreWeight   *float64 `json:"pid_keep_id_target_score_weight,omitempty"`
 	PidMaxUpliftItemCnt          *int     `json:"pid_max_uplift_item_cnt,omitempty"`
-	PidBatchCount                *int     `json:"pid_batch_count,omitempty"`
 
 	PidGamma             *float64             `json:"pid_gamma,omitempty"`
 	PidBeta              *float64             `json:"pid_beta,omitempty"`

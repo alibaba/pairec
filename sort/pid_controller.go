@@ -122,7 +122,7 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 	}
 
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed || p.task.ControlLogic == "" {
-		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回 0
+		// 调控类型为保量，并且当前时刻目标已达成的情况下，alpha值直接返回 0
 		if isPercentageTask {
 			if lastMeasurement >= (aimValue / 100) {
 				ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] expId=%s, lastMeasurement=%.6f, achieved", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, expId, lastMeasurement))
@@ -228,7 +228,7 @@ func (p *PIDController) setMeasurement(expId, itemId string, measurement float64
 
 	isPercentageTask := p.task.ControlType == constants.TrafficControlTaskControlTypePercent
 	var achieved bool
-	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed {
+	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed || p.task.ControlLogic == "" {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，直接返回
 		if isPercentageTask {
 			if measurement >= (aimValue / 100) {
@@ -246,9 +246,6 @@ func (p *PIDController) setMeasurement(expId, itemId string, measurement float64
 			currentError = 1.0 - measurement/aimValue
 		}
 	}
-
-	status.mu.Lock()
-	defer status.mu.Unlock()
 
 	if achieved || status.lastTime.IsZero() {
 		status.lastTime = measureTime
@@ -474,7 +471,6 @@ func (p *PIDController) GenerateUserExpress() {
 }
 
 type PIDStatus struct {
-	mu              sync.Mutex
 	controlAimValue float64   // 调控目标值
 	integralSum     float64   // 积分项累积值
 	lastError       float64   // 上次计算的误差
