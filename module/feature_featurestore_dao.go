@@ -150,10 +150,12 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 		}
 		d.fieldsMap.Store(model.Name, modelFieldMap)
 	}
+
+	var deleteProperties []string
+
 	if len(labelFieldMap) > 0 {
 		contextFeatures := context.GetParameter("features")
 		if contextFeatures != nil {
-			var deleteProperties []string
 			if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
 				for k := range ctxFeatures {
 					_, labelOK := labelFieldMap[k]
@@ -192,6 +194,19 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 					_, modelOK := modelFieldMap[k]
 					if modelOK && labelOK {
 						features[0][k] = v
+					}
+				}
+			}
+		}
+	}
+
+	if len(deleteProperties) > 0 {
+		contextFeatures := context.GetParameter("features")
+		if contextFeatures != nil {
+			if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
+				for _, k := range deleteProperties {
+					if _, exist := features[0][k]; !exist {
+						features[0][k] = ctxFeatures[k]
 					}
 				}
 			}
