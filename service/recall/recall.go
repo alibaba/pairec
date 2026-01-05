@@ -82,6 +82,8 @@ func Load(config *recconf.RecommendConfig) {
 			recall = NewOpenSearchRecall(conf)
 		} else if conf.RecallType == "OnlineVectorRecall" {
 			recall = NewOnlineVectorRecall(conf)
+		} else if conf.RecallType == "RecallEngineRecall" {
+			recall = NewRecallEngineRecall(conf)
 		}
 
 		if recall == nil {
