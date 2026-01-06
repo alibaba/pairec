@@ -235,14 +235,26 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 					if processor == eas.Eas_Processor_EASYREC {
 						itemList := algoData.GetItems()
 						for j := 0; j < len(result) && j < len(itemList); j++ {
-							response, _ := (result[j]).(*eas.EasyrecResponse)
-							if writeRawFeatrues {
-								itemList[j].AddProperty("raw_features", response.RawFeatures)
-							}
+							switch response := result[j].(type) {
+							case *eas.EasyrecResponse:
+								if writeRawFeatrues {
+									itemList[j].AddProperty("raw_features", response.RawFeatures)
+								}
 
-							itemList[j].AddProperty("generate_features", response.GenerateFeatures)
-							//itemList[j].Properties["generate_features"] = response.GenerateFeatures
-							itemList[j].AddProperty("context_features", response.ContextFeatures)
+								itemList[j].AddProperty("generate_features", response.GenerateFeatures)
+								//itemList[j].Properties["generate_features"] = response.GenerateFeatures
+								itemList[j].AddProperty("context_features", response.ContextFeatures)
+							case *eas.EasyrecClassificationResponse:
+								if writeRawFeatrues {
+									itemList[j].AddProperty("raw_features", response.RawFeatures)
+								}
+
+								itemList[j].AddProperty("generate_features", response.GenerateFeatures)
+								//itemList[j].Properties["generate_features"] = response.GenerateFeatures
+								itemList[j].AddProperty("context_features", response.ContextFeatures)
+							default:
+								log.Error(fmt.Sprintf("requestId=%s\tmodule=callback\terror=algo response type(%T) not supported", context.RecommendId, response))
+							}
 						}
 					}
 				}

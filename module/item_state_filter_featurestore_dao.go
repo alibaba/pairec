@@ -101,7 +101,9 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 				}
 				if d.filterParam != nil {
 					result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
-					if err == nil && result {
+					if err != nil {
+						log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterFeatureStoreDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
+					} else if err == nil && result {
 						fields[itemId] = true
 					}
 				} else {
@@ -179,7 +181,9 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 							}
 							if d.filterParam != nil {
 								result, err := d.filterParam.EvaluateByDomain(userFeatures, itemFeatures)
-								if err == nil && result {
+								if err != nil {
+									log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterFeatureStoreDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
+								} else if err == nil && result {
 									fieldMap[itemId] = true
 								}
 							} else {
@@ -205,7 +209,9 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 
 								if d.filterParam != nil {
 									result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
-									if err == nil && result {
+									if err != nil {
+										log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterFeatureStoreDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
+									} else if err == nil && result {
 										fieldMap[itemId] = true
 									}
 								} else {
