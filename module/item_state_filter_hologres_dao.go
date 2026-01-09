@@ -109,7 +109,9 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item, context *
 				}
 				if d.filterParam != nil {
 					result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
-					if err == nil && result {
+					if err != nil {
+						log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHologresDao\tevent=EvaluateFilterParam\terror=%v", context.RecommendId, err))
+					} else if err == nil && result {
 						fields[itemId] = true
 					}
 				} else {
@@ -298,7 +300,9 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item, context *
 						}
 						if d.filterParam != nil {
 							result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
-							if err == nil && result {
+							if err != nil {
+								log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHologresDao\tevent=EvaluateFilterParam\terror=%v", context.RecommendId, err))
+							} else if err == nil && result {
 								fieldMap[id] = true
 							}
 						} else {
@@ -322,7 +326,9 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item, context *
 								}
 								if d.filterParam != nil {
 									result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
-									if err == nil && result {
+									if err != nil {
+										log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHologresDao\tevent=EvaluateFilterParam\terror=%v", context.RecommendId, err))
+									} else if err == nil && result {
 										fieldMap[itemId] = true
 									}
 								} else {
