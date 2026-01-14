@@ -46,7 +46,7 @@ func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRe
 		itemIds:     make([]string, 0, 1024),
 
 		cache:     cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Minute)),
-		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(10*time.Minute)),
+		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Hour)),
 	}
 	featureView := dao.fsClient.GetProject().GetFeatureView(dao.table)
 	if featureView == nil {

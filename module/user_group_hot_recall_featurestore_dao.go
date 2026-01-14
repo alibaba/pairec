@@ -47,7 +47,7 @@ func (d *UserGroupHotRecallFeatureStoreDao) ListItemsByUser(user *User, context 
 	}
 	triggerId := d.trigger.GetValue(user.MakeUserFeatures2())
 	if context.Debug {
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecallFeatureStoreDao\ttriggerId=%s\t", context.RecommendId, triggerId))
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecallFeatureStoreDao\tname=%s\ttriggerId=%s\t", context.RecommendId, d.recallName, triggerId))
 	}
 
 	triggers := ParseTriggerId(triggerId)
