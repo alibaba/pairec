@@ -89,15 +89,18 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 	}
 	controller.GenerateItemExpress()
 	controller.GenerateUserExpress()
-	log.Info(fmt.Sprintf("NewPIDController:\ttaskId:%s\ttaskName=%s\ttargetId:%s\ttargetName:%s", controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId, controller.target.Name))
+	log.Info(fmt.Sprintf("NewPIDController:\t[taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s]", controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId, controller.target.Name))
 	return &controller
 }
 
 // Compute 测量值更新与实际控制分离设计，控制计算始终使用最新可用测量值和实时分解的目标值
 func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId string, controllerParams controllerParams) (alpha float64, aimValue float64) {
 	status := p.getPIDStatus(expId, itemId)
-	//status.mu.Lock()
-	//defer status.mu.Unlock()
+	if itemId != "" {
+		ctx.LogDebug(fmt.Sprintf("item id:%s", itemId))
+	} else {
+		ctx.LogDebug(fmt.Sprintf("exp id:%s", expId))
+	}
 
 	isPercentageTask := p.task.ControlType == constants.TrafficControlTaskControlTypePercent
 	lastMeasurement := status.GetLastMeasurement()
@@ -120,7 +123,11 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 			aimValue = value
 		}
 	}
-
+	if itemId != "" {
+		ctx.LogDebug(fmt.Sprintf("item id:%v\taim value:%v", itemId, aimValue))
+	} else {
+		ctx.LogDebug(fmt.Sprintf("exp id:%v\taim value:%v", expId, aimValue))
+	}
 	if p.task.ControlLogic == constants.TrafficControlTaskControlLogicGuaranteed || p.task.ControlLogic == "" {
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，alpha值直接返回 0
 		if isPercentageTask {
@@ -177,6 +184,11 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 	} else {
 		currentError = 1.0 - lastMeasurement/aimValue
 	}
+	if itemId != "" {
+		ctx.LogDebug(fmt.Sprintf("item id:%v\tcurrent error:%v", itemId, currentError))
+	} else {
+		ctx.LogDebug(fmt.Sprintf("exp id:%v\tcurrent error:%v", expId, currentError))
+	}
 	var kp, ki, kd float64
 	if controllerParams.Kp != nil {
 		kp = *controllerParams.Kp
@@ -193,7 +205,15 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 	} else {
 		kd = p.kd
 	}
-
+	if itemId != "" {
+		ctx.LogDebug(fmt.Sprintf("item id:%v\tkp:%v,ki:%v,kd:%v", itemId, kp, ki, kd))
+		ctx.LogDebug(fmt.Sprintf("item id:%v\tderivative:%v", itemId, status.derivative))
+		ctx.LogDebug(fmt.Sprintf("item id:%v\tintegral sum:%v", itemId, status.integralSum))
+	} else {
+		ctx.LogDebug(fmt.Sprintf("exp id:%v\tkp:%v,ki:%v,kd:%v", expId, kp, ki, kd))
+		ctx.LogDebug(fmt.Sprintf("exp id:%v\tderivative:%v", expId, status.derivative))
+		ctx.LogDebug(fmt.Sprintf("exp id:%v\tintegral sum:%v", expId, status.integralSum))
+	}
 	pTerm := kp * currentError
 	dTerm := kd * status.derivative
 	var iTerm float64
@@ -203,6 +223,11 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 	status.lastOutput = pTerm + iTerm + dTerm
 	if status.lastOutput == 0 {
 		ctx.LogDebug(fmt.Sprintf("module=PIDController\t<taskId:%s/targetId:%s>[targetName:%s] itemId=%s, expId=%s lastMeasurement=%f, err=%.6f, output=0", p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name, itemId, expId, lastMeasurement, currentError))
+	}
+	if itemId != "" {
+		ctx.LogDebug(fmt.Sprintf("item id:%v\talpha:%v", itemId, status.lastOutput))
+	} else {
+		ctx.LogDebug(fmt.Sprintf("exp id:%v\talpha:%v", expId, status.lastOutput))
 	}
 	return status.lastOutput, aimValue
 }
@@ -462,6 +487,9 @@ func (p *PIDController) GenerateUserExpress() {
 		log.Error(fmt.Sprintf("module=PIDControl\tparse user condition field, please check %s or %s",
 			p.task.UserConditionArray, p.task.UserConditionExpress))
 	}
+	if taskUserExpression == "" {
+		return
+	}
 	p.userExprProg, err = expr.Compile(taskUserExpression, expr.AsBool())
 	if err != nil {
 		log.Error(fmt.Sprintf("module=PIDController\tcompile user expression field, expression:%s, err:%v", taskUserExpression, err))
@@ -594,8 +622,7 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 			if condition.Option == "=" {
 				condition.Option = "=="
 
-				switch condition.Value.(type) {
-				case string:
+				if condition.Type == "STRING" {
 					condition.Value = fmt.Sprintf("'%s'", condition.Value)
 				}
 			} else if condition.Option == "in" {
@@ -608,7 +635,12 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 				} else {
 					condition.Value = fmt.Sprintf("[%v]", condition.Value)
 				}
+			} else {
+				if condition.Type == "STRING" {
+					condition.Value = fmt.Sprintf("'%s'", condition.Value)
+				}
 			}
+
 			conditionExpr := fmt.Sprintf("%s %s %v", condition.Field, condition.Option, condition.Value)
 			if express == "" {
 				express = conditionExpr

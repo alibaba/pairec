@@ -116,6 +116,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 		item.AddProperty("_ORIGIN_POSITION_", i+1)
 	}
 
+	// 如果服务启动时，没有加载成功，这里再次尝试
 	var allControllersMap map[string]*PIDController
 	if len(p.controllersMap) == 0 {
 		allControllersMap = p.loadTrafficControllersMap()
@@ -127,7 +128,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 
 	globalControls, singleControls := splitControllers(validControllersMap)
 	if len(globalControls) == 0 && len(singleControls) == 0 {
-		ctx.LogInfo(fmt.Sprintf("module=TrafficControlSort\tboth global traffic control and single traffic control are zero"))
+		ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tboth global traffic control and single traffic control are zero"))
 		sortData.Data = items
 		return nil
 	}
@@ -203,8 +204,8 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 	defer traceTime(ctx, "macroControl", time.Now())
 	defer wgCtrl.Done()
 	begin := time.Now()
-	targetAlphaMap, count := computeMacroControlAlpha(ctx, controllerMap, experimentParams)
-	if len(targetAlphaMap) == 0 || count == 0 {
+	targetAlphaMap := computeMacroControlAlpha(ctx, controllerMap, experimentParams)
+	if len(targetAlphaMap) == 0 {
 		ctx.LogWarning(fmt.Sprintf("module=TrafficControlSort\tmacro control\ttraffic control task output is zero"))
 		return
 	}
@@ -363,7 +364,7 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 }
 
 // FlowControl 非单品（整体）目标流量调控，返回各个目标的调控力度
-func computeMacroControlAlpha(ctx *context.RecommendContext, controllerMap map[string]*PIDController, experimentParams *ExperimentParams) (map[string]float64, int) {
+func computeMacroControlAlpha(ctx *context.RecommendContext, controllerMap map[string]*PIDController, experimentParams *ExperimentParams) map[string]float64 {
 	defer traceTime(ctx, "FlowControl", time.Now())
 	// 获取ControlGranularity="Global"(调控粒度是全局)类型的调控目标 当前已累计完成的流量
 	targetAlphaMap := make(map[string]float64)
@@ -474,14 +475,12 @@ func computeMacroControlAlpha(ctx *context.RecommendContext, controllerMap map[s
 			}
 		}(gCtx, targetId, controller, experimentParams)
 	}
-	cnt := 0
 Loop:
 	for range controllerMap {
 		select {
 		case pair := <-retCh:
 			alpha := pair.Alpha
 			if alpha != 0 {
-				cnt++
 				targetAlphaMap[pair.TargetId] = alpha
 			}
 		case <-gCtx.Done():
@@ -496,9 +495,8 @@ Loop:
 		for k := range targetAlphaMap {
 			delete(targetAlphaMap, k)
 		}
-		cnt = 0
 	}
-	return targetAlphaMap, cnt
+	return targetAlphaMap
 }
 
 // SampleControlTargetsByScore 按照偏好分权重选择n个上提目标，未被选中的目标调控值置0
@@ -597,7 +595,7 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 	targetItemActualTrafficMap := getItemActualTraffic(controllerMap, items, experimentParams) // key1: targetId
 	if ctx.Debug {
 		data, _ := json.Marshal(targetItemActualTrafficMap)
-		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmicro control\titem target traffic:%s", string(data)))
+		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tevent=microControl\titem traffic:%s", string(data)))
 	}
 	var limitCount int
 	if experimentParams.PidSingleControlLimitCount != nil {
@@ -617,9 +615,10 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 	}
 
 	//Calculate the number of items controlled by each target, key:targetId; value:controlled item sum
-	var mu sync.Mutex
+	var mapMu sync.Mutex
 	controlNumberMap := make(map[string]int)
 
+	var countMu sync.Mutex
 	upliftCount := 0
 
 	parallel := 10
@@ -650,11 +649,12 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 				deltaRank := 0.0
 				for targetId, controller := range controllerMap {
 					if !isControlledItem(controller, item) {
+						ctx.LogDebug(fmt.Sprintf("item id:%v is not controller", item.Id))
 						continue
 					}
-					mu.Lock()
+					mapMu.Lock()
 					controlNumberMap[targetId] = controlNumberMap[targetId] + 1
-					mu.Unlock()
+					mapMu.Unlock()
 
 					params := parseControllerParams(controller.task.TrafficControlTaskId, targetId, experimentParams)
 					alpha, aimValue := controller.compute(ctx, "", string(item.Id), params)
@@ -677,20 +677,20 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 					}
 					deltaRank += delta // 多个目标调控方向不一致时，需要扳手腕看谁力气大
 					if ctx.Debug {
-						ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t[targetId:%s/targetName:%s], itemId:%s, "+
-							"origiPosition=%d, aimValue=%f, alpha=%f, deltaRank=%f",
-							targetId, controller.target.Name, item.Id, originPosition, aimValue, alpha, delta))
+						ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t[targetId:%s/targetName:%s], itemId:%s,origiPosition=%d, aimValue=%f, alpha=%f, deltaRank=%f", targetId, controller.target.Name, item.Id, originPosition, aimValue, alpha, delta))
 					}
 				}
 				if deltaRank != 0.0 {
 					if ctx.Debug {
-						ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\titem:%v\tdelta rank:%v", item.Id, deltaRank))
+						ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\titem:%v\tfinal delta rank:%v", item.Id, deltaRank))
 					}
 					if deltaRank < 0 {
 						item.IncrAlgoScore("__delta_rank__", deltaRank)
 					} else if upliftCount < limitCount { // uplift
 						item.IncrAlgoScore("__delta_rank__", deltaRank)
+						countMu.Lock()
 						upliftCount++
+						countMu.Unlock()
 						pos, _ := item.IntProperty("_ORIGIN_POSITION_")
 						if pos > ctx.Size {
 							item.AddProperty("__traffic_control_id__", 0)
@@ -725,32 +725,6 @@ func getItemActualTraffic(controllerMap map[string]*PIDController, items []*modu
 		}
 	}
 	return actualTrafficsMap
-	//// sdk 可能会返回已过期的Target下Item的历史流量，这样的话取最大值就是不对的
-	//result := make(map[string]map[string]float64) // key1: targetId, key2:expId, value: traffic
-
-	//hasTraffic := false
-	//for _, traffic := range traffics {
-	//	if ctrl, ok := controllerMap[traffic.TrafficControlTargetId]; ok {
-	//		ctrl.SetMeasurement(traffic.ItemOrExpId, traffic.TargetTraffic, traffic.RecordTime)
-	//	} else {
-	//		continue
-	//	}
-	//
-	//	if traffic.TargetTraffic <= 0 {
-	//		continue
-	//	}
-	//	hasTraffic = true
-	//	if dict, ok := result[traffic.TrafficControlTargetId]; ok {
-	//		dict[traffic.ItemOrExpId] = traffic.TargetTraffic
-	//	} else {
-	//		dict = make(map[string]float64)
-	//		dict[traffic.ItemOrExpId] = traffic.TargetTraffic
-	//		result[traffic.TrafficControlTargetId] = dict
-	//	}
-	//}
-	//if hasTraffic {
-	//	return result
-	//}
 }
 
 func (p *TrafficControlSort) loadTrafficControllersMap() map[string]*PIDController {
@@ -761,7 +735,7 @@ func (p *TrafficControlSort) loadTrafficControllersMap() map[string]*PIDControll
 		log.Info(fmt.Sprintf("module=TrafficControlSort\tthere are no running tasks."))
 		return nil
 	}
-	var oldControllerMap map[string]*PIDController
+	oldControllerMap := make(map[string]*PIDController, 0)
 	p.controllerLock.RLock()
 	for targetId, controller := range p.controllersMap {
 		oldControllerMap[targetId] = controller
@@ -840,11 +814,11 @@ func isControlledByUser(user *module.User, controllerMap map[string]*PIDControll
 			continue
 		}
 
-		properties := user.Properties
+		properties := user.MakeUserFeatures2()
 
 		result, err := expr.Run(controller.userExprProg, properties)
 		if err != nil {
-			log.Error(fmt.Sprintf("module=PIDController\tcompute user expression field, err:%v", err))
+			log.Warning(fmt.Sprintf("module=PIDController\tcompute user expression field, err:%v", err))
 			return controllerNewMap
 		}
 		if result.(bool) { // 这里一定是 bool
@@ -858,22 +832,25 @@ func isControlledByUser(user *module.User, controllerMap map[string]*PIDControll
 func isControlledByParams(ctx *context.RecommendContext, superParams *ExperimentParams, controllerMap map[string]*PIDController) map[string]*PIDController {
 	newControllerMap := make(map[string]*PIDController)
 
-	for targetId, controller := range controllerMap {
-		// 判断页数
-		if superParams.StartPageNumber != nil {
-			pageNumber := utils.ToInt(ctx.GetParameter("page_number"), 1)
-			if pageNumber >= *superParams.StartPageNumber {
-				newControllerMap[targetId] = controller
-			}
+	// 判断页数
+	if superParams.StartPageNumber != nil {
+		pageNumber := utils.ToInt(ctx.GetParameter("page_number"), 1)
+		if pageNumber <= *superParams.StartPageNumber {
+			return newControllerMap
 		}
+	}
+
+	for targetId, controller := range controllerMap {
+		newControllerMap[targetId] = controller
+	}
+	for targetId, controller := range controllerMap {
 		// 判断 task param
 		if superParams.PidTaskParams != nil {
 			for taskId, taskParams := range superParams.PidTaskParams {
 				if taskId == controller.task.TrafficControlTaskId {
 					if taskParams.TurnOff != nil && *taskParams.TurnOff == true {
-						break
-					} else {
-						newControllerMap[targetId] = controller
+						delete(newControllerMap, targetId)
+						continue
 					}
 				}
 			}
@@ -883,9 +860,7 @@ func isControlledByParams(ctx *context.RecommendContext, superParams *Experiment
 			for paramTargetId, targetParams := range superParams.PidTargetParams {
 				if paramTargetId == controller.target.TrafficControlTargetId {
 					if targetParams.TurnOff != nil && *targetParams.TurnOff == true {
-						break
-					} else {
-						newControllerMap[targetId] = controller
+						delete(newControllerMap, targetId)
 					}
 				}
 			}
@@ -930,11 +905,11 @@ func isControlledItem(controller *PIDController, item *module.Item) bool {
 	if controller.itemExprProg == nil {
 		return true
 	}
-	properties := item.GetCloneFeatures()
+	properties := item.GetFeatures()
 
 	result, err := expr.Run(controller.itemExprProg, properties)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tcompute item expression field, err:%v", err))
+		log.Warning(fmt.Sprintf("module=TrafficControlSort\titem_id:%v\tcompute item expression field, err:%v", item.Id, err))
 		return false
 	}
 

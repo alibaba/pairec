@@ -828,9 +828,10 @@ type DistinctIdCondition struct {
 }
 type ItemStateDaoConfig struct {
 	DaoConfig
-	ItemFieldName string
-	WhereClause   string
-	SelectFields  string
+	ItemFieldName      string
+	WhereClause        string
+	SelectFields       string
+	DefaultFieldValues map[string]any
 }
 type DiversityDaoConfig struct {
 	DaoConfig
