@@ -1,6 +1,7 @@
 module github.com/alibaba/pairec/v2
 
-go 1.24
+go 1.24.0
+
 
 require (
 	github.com/ClickHouse/clickhouse-go v1.5.4
@@ -8,7 +9,7 @@ require (
 	github.com/alibabacloud-go/darabonba-encode-util v0.0.2
 	github.com/alibabacloud-go/darabonba-map v0.0.2
 	github.com/alibabacloud-go/darabonba-string v1.0.2
-	github.com/alibabacloud-go/tea v1.3.12
+	github.com/alibabacloud-go/tea v1.3.13
 	github.com/alibabacloud-go/tea-utils v1.4.5
 	github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c
 	github.com/aliyun/aliyun-datahub-sdk-go v1.1.1
@@ -44,7 +45,7 @@ require (
 	fortio.org/assert v1.2.1
 	github.com/alibabacloud-go/opensearch-util v1.0.1
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.7-0.20251121071039-7e2c4c6cb31c
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.2-0.20260104015642-ea86d145746e
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260118093615-e7919c666daf
 	github.com/aliyun/credentials-go v1.4.6
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
@@ -56,7 +57,7 @@ require (
 
 require (
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
-	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.12 // indirect
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.13 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
 	github.com/alibabacloud-go/openapi-util v0.1.1 // indirect
 	github.com/alibabacloud-go/paifeaturestore-20230621/v4 v4.0.0 // indirect
@@ -66,7 +67,7 @@ require (
 	github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
-	github.com/google/flatbuffers v23.1.21+incompatible // indirect
+	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hamba/avro/v2 v2.28.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
@@ -86,8 +87,8 @@ require (
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/xinsnake/go-http-digest-auth-client v0.6.0 // indirect
-	golang.org/x/crypto v0.24.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
@@ -127,9 +128,9 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.43.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/net v0.26.0
-	golang.org/x/sys v0.21.0
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/net v0.46.1-0.20251013234738-63d1a5100f82
+	golang.org/x/sys v0.37.0
+	golang.org/x/text v0.30.0 // indirect
 	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	modernc.org/b v1.0.0 // indirect
