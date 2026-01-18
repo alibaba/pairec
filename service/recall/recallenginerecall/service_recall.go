@@ -17,6 +17,38 @@ import (
 	re "github.com/aliyun/aliyun-pairec-config-go-sdk/v2/recallengine"
 )
 
+// sliceToAny converts a typed slice to []any using generics.
+func sliceToAny[T any](s []T) []any {
+	result := make([]any, len(s))
+	for i, v := range s {
+		result[i] = v
+	}
+	return result
+}
+
+// mergeFeaturesToContextParams merges features map into contextParams,
+// converting slice types to []any.
+func mergeFeaturesToContextParams(features map[string]interface{}, contextParams map[string]interface{}) {
+	for k, v := range features {
+		switch val := v.(type) {
+		case []string:
+			contextParams[k] = sliceToAny(val)
+		case []int:
+			contextParams[k] = sliceToAny(val)
+		case []int32:
+			contextParams[k] = sliceToAny(val)
+		case []int64:
+			contextParams[k] = sliceToAny(val)
+		case []float32:
+			contextParams[k] = sliceToAny(val)
+		case []float64:
+			contextParams[k] = sliceToAny(val)
+		default:
+			contextParams[k] = v
+		}
+	}
+}
+
 var _ RecallEngineBaseRecall = (*RecallEngineServiceRecall)(nil)
 
 type RecallEngineServiceRecall struct {
@@ -77,22 +109,17 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 
 			r.recallMap[param.RecallName] = recall
 		case recconf.RecallEngine_RecallType_Random:
-			/*
-				recall := &RecallEngineX2IRecall{
-					recallName:      param.RecallName,
-					returnCount:     param.Count,
-					scorerClause:    param.ScorerClause,
-					itemIdName:      param.ItemIdName,
-					triggerIdName:   param.TriggerIdName,
-					recallTableName: param.RecallTableName,
-					diversityParam:  param.DiversityParam,
-					customParams:    param.CustomParams,
-					triggerKey:      NewTriggerKey(&param, client),
-					client:          client,
-					cloneInstances:  make(map[string]*RecallEngineX2IRecall),
-				}
-				r.recallMap[param.RecallName] = recall
-			*/
+			recall := &RecallEngineRandomRecall{
+				recallName:      param.RecallName,
+				returnCount:     param.Count,
+				scorerClause:    param.ScorerClause,
+				recallTableName: param.RecallTableName,
+				diversityParam:  param.DiversityParam,
+				customParams:    param.CustomParams,
+				client:          client,
+				cloneInstances:  make(map[string]*RecallEngineRandomRecall),
+			}
+			r.recallMap[param.RecallName] = recall
 			/*
 				case recconf.BE_RecallType_Vector:
 					recall := &BeVectorRecall{
@@ -243,6 +270,10 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 			}
 		}
 	}
+	features := context.GetParameter("features").(map[string]interface{})
+	if len(features) > 0 {
+		mergeFeaturesToContextParams(features, recallRequest.ContextParams)
+	}
 	wg.Wait()
 
 	/*
@@ -290,7 +321,6 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 					ret[i] = module.NewItem(itemId)
 					if scoreColumn != nil {
 						if v, err := scoreColumn.Get(index); err == nil {
-							fmt.Println("score", v)
 							ret[i].Score = utils.ToFloat(v, 0)
 						}
 					}
@@ -332,12 +362,6 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 		context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 	return
 }
-
-/**
-func (r *RecallEngineServiceRecall) BuildRecallParam(user *module.User, context *context.RecommendContext) *be.RecallParam {
-	return nil
-}
-**/
 
 func (r *RecallEngineServiceRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
 	return
