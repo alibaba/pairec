@@ -34,9 +34,9 @@ const (
 	BE_RecallType_Vector     = "vector_recall"
 	BE_RecallType_MultiMerge = "multi_merge_recall"
 
-	RecallEngine_RecallType_X2I    = "x2i_recall"
-	RecallEngine_RecallType_Vector = "vector_recall"
-	RecallEngine_RecallType_Random = "random_recall"
+	RecallEngine_RecallType_X2I    = "x2i"
+	RecallEngine_RecallType_Vector = "vector"
+	RecallEngine_RecallType_Random = "random"
 	//BE_RecallType_MultiMerge = "multi_merge_recall"
 )
 
@@ -656,9 +656,11 @@ type BEConfig struct {
 	ReleaseType string // values: product or dev or prepub
 }
 type REConfig struct {
-	Username string
-	Password string
-	Endpoint string
+	Username      string
+	Password      string
+	Endpoint      string
+	Authorization string
+	InstanceId    string
 }
 type Ha3EngineConfig struct {
 	Username   string

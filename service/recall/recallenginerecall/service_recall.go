@@ -2,6 +2,7 @@ package recallenginerecall
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +14,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/recall/berecall"
 	"github.com/alibaba/pairec/v2/utils"
-	be "github.com/aliyun/aliyun-be-go-sdk"
+	re "github.com/aliyun/aliyun-pairec-config-go-sdk/v2/recallengine"
 )
 
 var _ RecallEngineBaseRecall = (*RecallEngineServiceRecall)(nil)
@@ -23,8 +24,8 @@ type RecallEngineServiceRecall struct {
 	modelName         string // recall engine recall name
 	bizName           string
 	serviceName       string
+	versionName       string
 	itemIdName        string
-	beClient          *be.Client
 	client            *recallengine.RecallEngineClient
 	recallMap         map[string]RecallEngineBaseRecall
 	beFilterNames     []string
@@ -37,14 +38,12 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 		return nil
 	}
 
-	//beClient := client.BeClient
 	r := RecallEngineServiceRecall{
-		returnCount: conf.Count,
-		modelName:   modelName,
-		serviceName: conf.ServiceName,
-		//beClient:          beClient,
-		client: client,
-		//itemIdName:        conf.BeRecallParams[0].ItemIdName,
+		returnCount:       conf.Count,
+		modelName:         modelName,
+		serviceName:       conf.ServiceName,
+		versionName:       conf.VersionName,
+		client:            client,
 		beFilterNames:     conf.BeFilterNames,
 		beABParams:        conf.BeABParams,
 		recallMap:         make(map[string]RecallEngineBaseRecall, 8),
@@ -67,18 +66,33 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 				recallName:      param.RecallName,
 				returnCount:     param.Count,
 				scorerClause:    param.ScorerClause,
-				itemIdName:      param.ItemIdName,
 				triggerIdName:   param.TriggerIdName,
 				recallTableName: param.RecallTableName,
 				diversityParam:  param.DiversityParam,
 				customParams:    param.CustomParams,
 				triggerKey:      NewTriggerKey(&param, client),
-				//beClient:        beClient,
-				//client:          client,
-				cloneInstances: make(map[string]*RecallEngineX2IRecall),
+				client:          client,
+				cloneInstances:  make(map[string]*RecallEngineX2IRecall),
 			}
 
 			r.recallMap[param.RecallName] = recall
+		case recconf.RecallEngine_RecallType_Random:
+			/*
+				recall := &RecallEngineX2IRecall{
+					recallName:      param.RecallName,
+					returnCount:     param.Count,
+					scorerClause:    param.ScorerClause,
+					itemIdName:      param.ItemIdName,
+					triggerIdName:   param.TriggerIdName,
+					recallTableName: param.RecallTableName,
+					diversityParam:  param.DiversityParam,
+					customParams:    param.CustomParams,
+					triggerKey:      NewTriggerKey(&param, client),
+					client:          client,
+					cloneInstances:  make(map[string]*RecallEngineX2IRecall),
+				}
+				r.recallMap[param.RecallName] = recall
+			*/
 			/*
 				case recconf.BE_RecallType_Vector:
 					recall := &BeVectorRecall{
@@ -162,33 +176,45 @@ func (r *RecallEngineServiceRecall) getRecalls(user *module.User, context *conte
 	log.Info(fmt.Sprintf("requestId=%s\tbizName=%s\trecall_names=%s", context.RecommendId, r.bizName, strings.Join(recallNames, ",")))
 	return
 }
-func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *context.RecommendContext) *be.ReadRequest {
-	multiReadRequest := be.NewReadRequest(r.bizName, r.returnCount)
-	multiReadRequest.IsRawRequest = true
-	multiReadRequest.IsPost = true
-	params := make(map[string]string, 16)
-	params["user_id"] = string(user.Id)
+func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *context.RecommendContext) *re.RecallRequest {
+	recallRequest := re.RecallRequest{
+		Recalls:       make(map[string]re.RecallConf),
+		ContextParams: make(map[string]interface{}),
+		InstanceId:    r.client.InstanceId(),
+	}
+	recallRequest.RequestId = context.RecommendId
+	if context.Debug {
+		recallRequest.Debug = true
+	}
+	recallRequest.Uid = string(user.Id)
+	recallRequest.Service = r.serviceName
+	if r.versionName != "" {
+		recallRequest.Version = r.versionName
+	}
+
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	beABParams := r.beABParams
-	if context.ExperimentResult != nil {
-		params := context.ExperimentResult.GetExperimentParams().Get(fmt.Sprintf("recall.%s.beABParams", r.modelName), nil)
-		if params != nil {
-			if abparams, ok := params.(map[string]interface{}); ok {
-				beABParams = abparams
+	/*
+		beABParams := r.beABParams
+		if context.ExperimentResult != nil {
+			params := context.ExperimentResult.GetExperimentParams().Get(fmt.Sprintf("recall.%s.beABParams", r.modelName), nil)
+			if params != nil {
+				if abparams, ok := params.(map[string]interface{}); ok {
+					beABParams = abparams
+				}
 			}
 		}
-	}
+	*/
 	recalls := r.getRecalls(user, context)
 	for _, recall := range recalls {
 		wg.Add(1)
-		go func(beRecall RecallEngineBaseRecall) {
+		go func(recall RecallEngineBaseRecall) {
 			defer wg.Done()
-			recallParams := beRecall.BuildQueryParams(user, context)
-			mu.Lock()
-			defer mu.Unlock()
-			for k, v := range recallParams {
-				params[k] = v
+			recallConf := recall.BuildQueryParams(user, context)
+			if recallConf.Count > 0 {
+				mu.Lock()
+				defer mu.Unlock()
+				recallRequest.Recalls[recall.GetRecallName()] = recallConf
 			}
 
 		}(recall)
@@ -219,89 +245,91 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 	}
 	wg.Wait()
 
-	for k, v := range beABParams {
-		params[k] = utils.ToString(v, "")
-	}
+	/*
+		for k, v := range beABParams {
+			params[k] = utils.ToString(v, "")
+		}
+	*/
 
-	multiReadRequest.SetQueryParams(params)
 	if context.Debug {
-		uri := multiReadRequest.BuildParams()
-		log.Info(fmt.Sprintf("requestId=%s\tbizName=%s\turl=%s", context.RecommendId, r.bizName, uri))
+		log.Info(fmt.Sprintf("requestId=%s\tname=%s\tserviceName=%s\tversionName=%srequest=%v", context.RecommendId,
+			r.modelName, r.serviceName, r.versionName, recallRequest))
 	}
-	return multiReadRequest
+	return &recallRequest
 }
 
 func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context.RecommendContext) (ret []*module.Item, err error) {
-	multiReadRequest := r.buildRequest(user, context)
-
 	start := time.Now()
-	multiReadResponse, err := r.beClient.Read(*multiReadRequest)
-	log.Info(fmt.Sprintf("requestId=%s\tbizName=%s\tcost=%d", context.RecommendId, r.bizName, utils.CostTime(start)))
+	recallRequest := r.buildRequest(user, context)
+
+	response, err := r.client.GetRecallEngineClient().Recall(recallRequest)
 	if err != nil {
-		uri := multiReadRequest.BuildParams()
-		log.Error(fmt.Sprintf("requestId=%s\tbizName=%s\turl=%serror=%s", context.RecommendId, r.bizName, uri, err.Error()))
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=RecallEngineRecall\tname=%s\tserviceName=%s\tversionName=%s\trequest=%v\terror=%v",
+			context.RecommendId, r.modelName, r.serviceName, r.versionName, *recallRequest, err))
 		return
 	}
 
-	matchItems := multiReadResponse.Result.MatchItems
-	if matchItems == nil || len(matchItems.FieldValues) == 0 {
-		return
-	}
+	if response != nil && response.Result != nil {
+		record := response.Result
+		ret = make([]*module.Item, record.Size())
+		fieldNames := record.FieldNames()
+		tableIndex := record.TableIndex()
+		size := record.Size()
 
-	fieldNames := matchItems.FieldNames
-	var (
-		itemId string
-		score  float64
-		//matchType int
-		recallName string
-	)
-	for _, values := range matchItems.FieldValues {
-		properties := make(map[string]interface{})
-
-		for i, value := range values {
-			if fieldNames[i] == r.itemIdName {
-				itemId = utils.ToString(value, "")
-				/*
-					} else if fieldNames[i] == beScoreFieldName {
-						score = value.(float64)
-					} else if fieldNames[i] == beMatchTypeFieldName {
-						continue
-					} else if fieldNames[i] == beRecallName {
-						recallName = value.(string)
-					} else if fieldNames[i] == beRecallNameV2 {
-						recallName = value.(string)
-				*/
-			} else {
-				properties[matchItems.FieldNames[i]] = value
-			}
+		itemIdColumn := record.GetColumn(REItemIdFieldName)
+		scoreColumn := record.GetColumn(REScoreFieldName)
+		recallNameColumn := record.GetColumn(RERecallName)
+		if itemIdColumn == nil {
+			return nil, fmt.Errorf("item_id column not found")
 		}
 
-		if itemId != "" {
-			item := module.NewItem(itemId)
-			item.Score = score
-			item.AddProperties(properties)
-			/*
-				if config, exist := r.recallNameMapping[recallName]; exist {
-					var values []any
-					for _, field := range config.Fields {
-						if field == beRecallNameV2 {
-							values = append(values, recallName)
-						} else {
-							values = append(values, properties[field])
+		for i := 0; i < size; i++ {
+			index := tableIndex.GetIndex(i)
+			if v, err := itemIdColumn.Get(index); err == nil {
+				if itemId := utils.ToString(v, ""); itemId != "" {
+					ret[i] = module.NewItem(itemId)
+					if scoreColumn != nil {
+						if v, err := scoreColumn.Get(index); err == nil {
+							fmt.Println("score", v)
+							ret[i].Score = utils.ToFloat(v, 0)
 						}
 					}
-
-					item.RetrieveId = fmt.Sprintf(config.Format, values...)
-
-				} else {
-					item.RetrieveId = recallName
+					if recallNameColumn != nil {
+						if v, err := recallNameColumn.Get(index); err == nil {
+							ret[i].RetrieveId = utils.ToString(v, "")
+						}
+					}
 				}
-			*/
-			item.RetrieveId = recallName
-
-			ret = append(ret, item)
+			}
 		}
+		//  slices.DeleteFunc (Go 1.21+)
+		fieldNames = slices.DeleteFunc(fieldNames, func(name string) bool {
+			return name == REItemIdFieldName || name == REScoreFieldName || name == RERecallName
+		})
+		for i := 0; i < size; i++ {
+			properties := make(map[string]interface{}, len(fieldNames))
+			for _, name := range fieldNames {
+				column := record.GetColumn(name)
+				if column == nil {
+					continue
+				}
+				if v, err := column.Get(tableIndex.GetIndex(i)); err == nil {
+					properties[name] = v
+				}
+			}
+			item := ret[i]
+			if item != nil {
+				item.AddProperties(properties)
+			}
+
+		}
+		ret = slices.DeleteFunc(ret, func(item *module.Item) bool {
+			return item == nil
+		})
 	}
+
+	log.Info(fmt.Sprintf("requestId=%s\ttmodule=RecallEngineRecall\tname=%s\tcount=%d\tcost=%d",
+		context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 	return
 }
 
@@ -311,10 +339,13 @@ func (r *RecallEngineServiceRecall) BuildRecallParam(user *module.User, context 
 }
 **/
 
-func (r *RecallEngineServiceRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret map[string]string) {
+func (r *RecallEngineServiceRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
 	return
 }
 
 func (r *RecallEngineServiceRecall) CloneWithConfig(params map[string]interface{}) RecallEngineBaseRecall {
 	return r
+}
+func (r *RecallEngineServiceRecall) GetRecallName() string {
+	return r.modelName
 }

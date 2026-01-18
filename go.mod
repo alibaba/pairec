@@ -2,7 +2,6 @@ module github.com/alibaba/pairec/v2
 
 go 1.24.0
 
-
 require (
 	github.com/ClickHouse/clickhouse-go v1.5.4
 	github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible
@@ -45,7 +44,7 @@ require (
 	fortio.org/assert v1.2.1
 	github.com/alibabacloud-go/opensearch-util v1.0.1
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.7-0.20251121071039-7e2c4c6cb31c
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260118093615-e7919c666daf
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260118121243-7144fe85b935
 	github.com/aliyun/credentials-go v1.4.6
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
@@ -62,6 +61,7 @@ require (
 	github.com/alibabacloud-go/openapi-util v0.1.1 // indirect
 	github.com/alibabacloud-go/paifeaturestore-20230621/v4 v4.0.0 // indirect
 	github.com/alibabacloud-go/pairecservice-20221213/v3 v3.3.0 // indirect
+	github.com/alibabacloud-go/pairecservice-20221213/v4 v4.0.0 // indirect
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.7 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.92 // indirect
 	github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 // indirect
