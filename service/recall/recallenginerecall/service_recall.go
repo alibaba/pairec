@@ -270,7 +270,7 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 			}
 		}
 	}
-	features := context.GetParameter("features").(map[string]interface{})
+	features := user.MakeUserFeatures2()
 	if len(features) > 0 {
 		mergeFeaturesToContextParams(features, recallRequest.ContextParams)
 	}
