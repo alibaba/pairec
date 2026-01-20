@@ -300,6 +300,11 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 		return
 	}
 
+	if context.Debug {
+		log.Info(fmt.Sprintf("requestId=%s\ttmodule=RecallEngineRecall\tname=%s\tserviceName=%s\tevent=invoke recall engine \tcost=%d",
+			context.RecommendId, r.modelName, r.serviceName, utils.CostTime(start)))
+	}
+
 	if response != nil && response.Result != nil {
 		record := response.Result
 		ret = make([]*module.Item, record.Size())
@@ -357,9 +362,20 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 			return item == nil
 		})
 	}
+	if context.Debug {
+		if len(ret) > 0 {
+			m := make(map[string][]*module.Item)
+			for _, item := range ret {
+				m[item.RetrieveId] = append(m[item.RetrieveId], item)
+			}
+			for recallName, items := range m {
+				log.Info(fmt.Sprintf("requestId=%s\ttmodule=RecallEngineRecall\tname=%s\tserviceName=%s\trecallName=%s\tcount=%d",
+					context.RecommendId, r.modelName, r.serviceName, recallName, len(items)))
+			}
+		}
 
-	log.Info(fmt.Sprintf("requestId=%s\ttmodule=RecallEngineRecall\tname=%s\tcount=%d\tcost=%d",
-		context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
+	}
+
 	return
 }
 

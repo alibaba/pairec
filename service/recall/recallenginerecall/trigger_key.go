@@ -30,6 +30,9 @@ func NewTriggerKey(recallParam *recconf.RecallEngineParam, client *recallengine.
 	case "fixvalue":
 		trigger := &FixValueTrigger{value: recallParam.TriggerValue}
 		return trigger
+	case "item":
+		trigger := NewItemTrigger()
+		return trigger
 	/*
 		case "user_vector":
 			trigger := NewUserVectorTrigger(&recallParam.UserVectorTrigger)
@@ -118,5 +121,24 @@ type FixValueTrigger struct {
 func (t *FixValueTrigger) GetTriggerKey(user *module.User, context *context.RecommendContext) *TriggerResult {
 	return &TriggerResult{
 		TriggerItem: fmt.Sprintf("%s:%d", t.value, 1),
+	}
+}
+
+type ItemTrigger struct {
+}
+
+func NewItemTrigger() *ItemTrigger {
+	t := ItemTrigger{}
+
+	return &t
+}
+func (t *ItemTrigger) GetTriggerKey(user *module.User, context *context.RecommendContext) *TriggerResult {
+	item_id := utils.ToString(context.GetParameter("item_id"), "")
+	if item_id == "" {
+		return &TriggerResult{}
+	}
+
+	return &TriggerResult{
+		TriggerItem: item_id,
 	}
 }

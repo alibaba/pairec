@@ -13,14 +13,6 @@ import (
 	"github.com/alibaba/pairec/v2/utils"
 )
 
-const (
-	reScoreFieldName  = "score"
-	reItemIdFieldName = "item_id"
-	//beMatchTypeFieldName = "match_type"
-	reRecallName   = "recall_name"
-	reRecallNameV2 = "__recall_name__"
-)
-
 type RecallEngineRecall struct {
 	*BaseRecall
 	bizRecall recallenginerecall.RecallEngineBaseRecall
