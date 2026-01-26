@@ -386,7 +386,6 @@ type RecallEngineConfig struct {
 	RecallEngineName   string // recall engine name (datasource name)
 	ServiceName        string
 	VersionName        string
-	BeRecallType       string
 	RecallNameMapping  map[string]RecallNameMappingConfig
 	RecallEngineParams []RecallEngineParam
 	BeFilterNames      []string

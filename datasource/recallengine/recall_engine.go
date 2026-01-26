@@ -74,7 +74,7 @@ func NewRecallEngineClient(username, password, endpoint, authorization string) *
 		if err != nil {
 			panic(err)
 		}
-		client := re.NewClient(endpoint, username, password, re.WithRetryTimes(2), re.WithLogger(logger), re.WithEndpointSchema("https"))
+		client := re.NewClient(endpoint, username, password, re.WithRetryTimes(2), re.WithLogger(logger), re.WithEndpointSchema("http"))
 		p.client = client
 		p.instanceId = instanceId
 	}
