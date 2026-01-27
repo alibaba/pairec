@@ -5,10 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alibaba/pairec/v2/abtest"
-	"github.com/alibaba/pairec/v2/constants"
-	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
-	"github.com/expr-lang/expr"
 	"math"
 	"os"
 	"sort"
@@ -16,6 +12,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/alibaba/pairec/v2/abtest"
+	"github.com/alibaba/pairec/v2/constants"
+	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
+	"github.com/expr-lang/expr"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -184,8 +185,8 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 }
 
 func splitControllers(controllers map[string]*PIDController) (map[string]*PIDController, map[string]*PIDController) {
-	wholeCtrls := make(map[string]*PIDController, 0)
-	singleCtrls := make(map[string]*PIDController, 0)
+	wholeCtrls := make(map[string]*PIDController)
+	singleCtrls := make(map[string]*PIDController)
 	if controllers == nil || len(controllers) == 0 {
 		return wholeCtrls, singleCtrls
 	}
@@ -201,7 +202,6 @@ func splitControllers(controllers map[string]*PIDController) (map[string]*PIDCon
 
 // 宏观调控，针对目标整体
 func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDController, items []*module.Item, wgCtrl *sync.WaitGroup, experimentParams *ExperimentParams) {
-	defer traceTime(ctx, "macroControl", time.Now())
 	defer wgCtrl.Done()
 	begin := time.Now()
 	targetAlphaMap := computeMacroControlAlpha(ctx, controllerMap, experimentParams)
@@ -214,7 +214,7 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\tthe relationship between target and alpha: %s", string(d)))
 	}
 
-	itemScores := make([]float64, 0, len(items))
+	itemScores := make([]float64, len(items))
 	// 计算各个目标的偏好分的全局占比
 	totalScore := 0.0
 	maxScore := 0.0 // item 列表中的最大分
@@ -365,7 +365,6 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 
 // FlowControl 非单品（整体）目标流量调控，返回各个目标的调控力度
 func computeMacroControlAlpha(ctx *context.RecommendContext, controllerMap map[string]*PIDController, experimentParams *ExperimentParams) map[string]float64 {
-	defer traceTime(ctx, "FlowControl", time.Now())
 	// 获取ControlGranularity="Global"(调控粒度是全局)类型的调控目标 当前已累计完成的流量
 	targetAlphaMap := make(map[string]float64)
 
@@ -504,8 +503,8 @@ func sampleControlTargetsByScore(ctx *context.RecommendContext, maxUpliftTargetC
 	if maxUpliftTargetCnt >= len(targetScore) || maxUpliftTargetCnt <= 0 {
 		return
 	}
-	targetIds := make([]string, 0, len(targetScore))
-	scores := make([]float64, 0, len(targetScore))
+	targetIds := make([]string, len(targetScore))
+	scores := make([]float64, len(targetScore))
 	sum := 0.0
 	for targetId, score := range targetScore {
 		if targetAlpha[targetId] > 0 { // only affect targets to be uplifted
@@ -706,7 +705,7 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 
 // 获取线上真实的曝光流量
 func getItemActualTraffic(controllerMap map[string]*PIDController, items []*module.Item, experimentParams *ExperimentParams) map[string][]*experiments.TrafficControlTargetTraffic {
-	itemIds := make([]string, len(items), len(items))
+	itemIds := make([]string, len(items))
 	for i, item := range items {
 		itemIds[i] = string(item.Id)
 	}
@@ -1052,16 +1051,6 @@ func parseControllerParams(taskId, targetId string, experimentParams *Experiment
 		}
 	}
 	return params
-}
-
-func traceTime(ctx *context.RecommendContext, name string, start time.Time) {
-	elapsed := time.Since(start)
-	span := elapsed.Milliseconds()
-	if span > 10 {
-		ctx.LogInfo(fmt.Sprintf("TrafficControlSort\tFunc %s Cost: %d ms\n", name, span))
-	} else {
-		ctx.LogDebug(fmt.Sprintf("TrafficControlSort\tFunc %s Cost: %d ms\n", name, span))
-	}
 }
 
 func ToBool(i interface{}, defaultVal bool) bool {
