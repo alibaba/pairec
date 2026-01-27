@@ -388,7 +388,8 @@ type RecallEngineConfig struct {
 	VersionName        string
 	RecallNameMapping  map[string]RecallNameMappingConfig
 	RecallEngineParams []RecallEngineParam
-	BeFilterNames      []string
+	UserFeatures       []string
+	FilterNames        []string
 	BeABParams         map[string]interface{}
 }
 type RecallEngineParam struct {

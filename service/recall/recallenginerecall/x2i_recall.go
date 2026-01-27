@@ -25,7 +25,6 @@ type RecallEngineX2IRecall struct {
 	diversityParam  string
 	customParams    map[string]interface{}
 	triggerKey      TriggerKey
-	beFilterNames   []string
 	client          *recallengine.RecallEngineClient
 	mu              sync.RWMutex
 	cloneInstances  map[string]*RecallEngineX2IRecall
@@ -46,7 +45,6 @@ func NewRecallEngineX2IRecall(client *recallengine.RecallEngineClient, conf recc
 		recallTableName: conf.RecallEngineParams[0].RecallTableName,
 		diversityParam:  conf.RecallEngineParams[0].DiversityParam,
 		customParams:    conf.RecallEngineParams[0].CustomParams,
-		beFilterNames:   conf.BeFilterNames,
 		triggerKey:      NewTriggerKey(&conf.RecallEngineParams[0], nil),
 		client:          client,
 		cloneInstances:  make(map[string]*RecallEngineX2IRecall),
@@ -152,7 +150,6 @@ func (r *RecallEngineX2IRecall) CloneWithConfig(params map[string]interface{}) R
 	recall = &RecallEngineX2IRecall{
 		serviceName:     r.serviceName,
 		client:          r.client,
-		beFilterNames:   r.beFilterNames,
 		returnCount:     recallParams.Count,
 		recallName:      r.recallName,
 		triggerIdName:   recallParams.TriggerIdName,

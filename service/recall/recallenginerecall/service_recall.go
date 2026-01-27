@@ -9,10 +9,10 @@ import (
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/recallengine"
+	"github.com/alibaba/pairec/v2/filter"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
-	"github.com/alibaba/pairec/v2/service/recall/berecall"
 	"github.com/alibaba/pairec/v2/utils"
 	re "github.com/aliyun/aliyun-pairec-config-go-sdk/v2/recallengine"
 )
@@ -22,6 +22,17 @@ func sliceToAny[T any](s []T) []any {
 	result := make([]any, len(s))
 	for i, v := range s {
 		result[i] = v
+	}
+	return result
+}
+
+// intersectMapKeys returns a new map containing only the keys that exist in the allowedKeys slice.
+func intersectMapKeys(features map[string]interface{}, allowedKeys []string) map[string]interface{} {
+	result := make(map[string]interface{})
+	for _, key := range allowedKeys {
+		if v, ok := features[key]; ok {
+			result[key] = v
+		}
 	}
 	return result
 }
@@ -60,7 +71,8 @@ type RecallEngineServiceRecall struct {
 	itemIdName        string
 	client            *recallengine.RecallEngineClient
 	recallMap         map[string]RecallEngineBaseRecall
-	beFilterNames     []string
+	userFeatures      []string
+	filterNames       []string
 	beABParams        map[string]interface{}
 	recallNameMapping map[string]recconf.RecallNameMappingConfig
 }
@@ -76,7 +88,8 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 		serviceName:       conf.ServiceName,
 		versionName:       conf.VersionName,
 		client:            client,
-		beFilterNames:     conf.BeFilterNames,
+		userFeatures:      conf.UserFeatures,
+		filterNames:       conf.FilterNames,
 		beABParams:        conf.BeABParams,
 		recallMap:         make(map[string]RecallEngineBaseRecall, 8),
 		recallNameMapping: make(map[string]recconf.RecallNameMappingConfig),
@@ -89,6 +102,10 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 		copy(recallNameMappingConfig.Fields, config.Fields)
 
 		r.recallNameMapping[name] = recallNameMappingConfig
+	}
+
+	if len(r.userFeatures) > 0 {
+		r.userFeatures = append(r.userFeatures, "uid")
 	}
 
 	for _, param := range conf.RecallEngineParams {
@@ -247,34 +264,36 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 		}(recall)
 	}
 
-	if len(r.beFilterNames) > 0 {
-		for _, name := range r.beFilterNames {
-			if filter, err := berecall.GetFilter(name); err == nil {
+	var exposeList []string
+	if len(r.filterNames) > 0 {
+		for _, name := range r.filterNames {
+			if f, err := filter.GetFilter(name); err == nil {
 				wg.Add(1)
-				go func(filer berecall.IBeFilter) {
+				go func(f filter.IFilter) {
 					defer wg.Done()
-					//filterParams := filter.BuildQueryParams(user, context)
-					mu.Lock()
-					defer mu.Unlock()
-					/*
-						for k, v := range filterParams {
-							if r.client.IsProductReleased() {
-								params[k] = strings.ReplaceAll(v, ",", "|")
-							} else {
-								params[k] = v
-							}
+					if recallEngineFilter, ok := f.(filter.RecallEngineFilter); ok {
+						exposeItemIds := recallEngineFilter.GetExposureItemIds(user, context)
+						if exposeItemIds != "" {
+							mu.Lock()
+							exposeList = append(exposeList, exposeItemIds)
+							mu.Unlock()
 						}
-					*/
-
-				}(filter)
+					}
+				}(f)
 			}
 		}
 	}
 	features := user.MakeUserFeatures2()
 	if len(features) > 0 {
+		if len(r.userFeatures) > 0 {
+			features = intersectMapKeys(features, r.userFeatures)
+		}
 		mergeFeaturesToContextParams(features, recallRequest.ContextParams)
 	}
 	wg.Wait()
+	if len(exposeList) > 0 {
+		recallRequest.ExposureList = strings.Join(exposeList, ",")
+	}
 
 	/*
 		for k, v := range beABParams {
@@ -283,7 +302,7 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 	*/
 
 	if context.Debug {
-		log.Info(fmt.Sprintf("requestId=%s\tname=%s\tserviceName=%s\tversionName=%srequest=%v", context.RecommendId,
+		log.Info(fmt.Sprintf("requestId=%s\tname=%s\tserviceName=%s\tversionName=%s\trequest=%v", context.RecommendId,
 			r.modelName, r.serviceName, r.versionName, recallRequest))
 	}
 	return &recallRequest
