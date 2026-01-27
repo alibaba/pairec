@@ -327,6 +327,10 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 	if response != nil && response.Result != nil {
 		record := response.Result
 		ret = make([]*module.Item, record.Size())
+		if record.Size() == 0 {
+			return
+		}
+
 		fieldNames := record.FieldNames()
 		tableIndex := record.TableIndex()
 		size := record.Size()

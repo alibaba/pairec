@@ -28,6 +28,7 @@ const (
 	DataSource_Type_Lindorm      = "lindorm"
 	DataSource_Type_HBase_Thrift = "hbase_thrift"
 	DataSource_Type_FeatureStore = "featurestore"
+	DataSource_Type_RecallEngine = "recallengine"
 	Datasource_Type_Graph        = "graph"
 
 	BE_RecallType_X2I        = "x2i_recall"
@@ -160,6 +161,10 @@ type DaoConfig struct {
 	// lindorm
 	LindormTableName string
 	LindormName      string
+
+	// recall engine
+	RecallEngineName      string
+	RecallEngineTableName string
 }
 type SceneFeatureConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig

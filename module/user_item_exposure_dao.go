@@ -58,6 +58,8 @@ func NewUser2ItemExposureDao(config recconf.FilterConfig) User2ItemExposureDao {
 		dao = NewUser2ItemExposureBeDao(config)
 	} else if config.DaoConf.AdapterType == recconf.Datasource_Type_Graph {
 		dao = NewUser2ItemExposureGraphDao(config)
+	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_RecallEngine {
+		dao = NewUser2ItemExposureRecallEngineDao(config)
 	} else {
 		panic("not found User2ItemExposureDao implement")
 	}
