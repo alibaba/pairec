@@ -23,7 +23,6 @@ type RecallEngineRandomRecall struct {
 	recallTableName string
 	diversityParam  string
 	customParams    map[string]interface{}
-	beFilterNames   []string
 	client          *recallengine.RecallEngineClient
 	mu              sync.RWMutex
 	cloneInstances  map[string]*RecallEngineRandomRecall
@@ -43,7 +42,6 @@ func NewRecallEngineRandomRecall(client *recallengine.RecallEngineClient, conf r
 		recallTableName: conf.RecallEngineParams[0].RecallTableName,
 		diversityParam:  conf.RecallEngineParams[0].DiversityParam,
 		customParams:    conf.RecallEngineParams[0].CustomParams,
-		beFilterNames:   conf.BeFilterNames,
 		client:          client,
 		cloneInstances:  make(map[string]*RecallEngineRandomRecall),
 	}
@@ -96,7 +94,6 @@ func (r *RecallEngineRandomRecall) CloneWithConfig(params map[string]interface{}
 	recall = &RecallEngineRandomRecall{
 		serviceName:     r.serviceName,
 		client:          r.client,
-		beFilterNames:   r.beFilterNames,
 		returnCount:     recallParams.Count,
 		recallName:      r.recallName,
 		recallTableName: recallParams.RecallTableName,
