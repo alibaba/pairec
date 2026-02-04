@@ -598,12 +598,13 @@ type KafkaConfig struct {
 	Topic            string
 }
 type DatahubConfig struct {
-	AccessId    string
-	AccessKey   string
-	Endpoint    string
-	ProjectName string
-	TopicName   string
-	Schemas     []DatahubTopicSchema
+	AccessId       string
+	AccessKey      string
+	Endpoint       string
+	ProjectName    string
+	TopicName      string
+	CompressorType string
+	Schemas        []DatahubTopicSchema
 }
 type BEConfig struct {
 	Username    string

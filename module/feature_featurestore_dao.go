@@ -347,7 +347,7 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithFeatureView(user *User, c
 		return
 	}
 	if len(features) == 0 {
-		log.Warning(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features empty", context.RecommendId))
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\tfeatureView=%s\terror=get features empty", context.RecommendId, d.fsViewName))
 		return
 	}
 
