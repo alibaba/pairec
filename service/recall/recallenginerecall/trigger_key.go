@@ -5,11 +5,9 @@ import (
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/recallengine"
-	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
-	be "github.com/aliyun/aliyun-be-go-sdk"
 )
 
 type TriggerResult struct {
@@ -76,42 +74,6 @@ func (t *UserTrigger) GetTriggerKey(user *module.User, context *context.Recommen
 	return &TriggerResult{
 		TriggerItem: fmt.Sprintf("%s:%d", t.trigger.GetValue(user.MakeUserFeatures2()), 1),
 	}
-}
-
-type BeTrigger struct {
-	bizName   string
-	fieldName string
-	beClient  *be.Client
-}
-
-func (t *BeTrigger) GetTriggerKey(user *module.User, context *context.RecommendContext) *TriggerResult {
-	x2iReadRequest := be.NewReadRequest(t.bizName, 1)
-	x2iRecallParams := be.NewRecallParam().
-		SetTriggerItems([]string{string(user.Id) + ":1"}).
-		SetRecallType(be.RecallTypeX2I)
-	x2iRecallParams.ReturnCount = 1
-	x2iReadRequest.AddRecallParam(x2iRecallParams)
-
-	triggerResult := &TriggerResult{}
-	x2iReadResponse, err := t.beClient.Read(*x2iReadRequest)
-	if err != nil {
-		log.Error(fmt.Sprintf("BeTrigger read error:%v", err))
-		return triggerResult
-	}
-
-	mathItems := x2iReadResponse.Result.MatchItems
-	if mathItems == nil || len(mathItems.FieldValues) == 0 {
-		return triggerResult
-	}
-
-	for i, name := range mathItems.FieldNames {
-		if name == t.fieldName {
-			triggerResult.TriggerItem = utils.ToString(mathItems.FieldValues[0][i], "")
-			return triggerResult
-		}
-	}
-
-	return triggerResult
 }
 
 type FixValueTrigger struct {
