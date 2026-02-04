@@ -385,18 +385,16 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 			return item == nil
 		})
 	}
-	if context.Debug {
-		if len(ret) > 0 {
-			m := make(map[string][]*module.Item)
-			for _, item := range ret {
-				m[item.RetrieveId] = append(m[item.RetrieveId], item)
-			}
-			for recallName, items := range m {
-				log.Info(fmt.Sprintf("requestId=%s\ttmodule=RecallEngineRecall\tname=%s\tserviceName=%s\trecallName=%s\tcount=%d",
-					context.RecommendId, r.modelName, r.serviceName, recallName, len(items)))
-			}
-		}
 
+	if len(ret) > 0 {
+		m := make(map[string][]*module.Item)
+		for _, item := range ret {
+			m[item.RetrieveId] = append(m[item.RetrieveId], item)
+		}
+		for recallName, items := range m {
+			log.Info(fmt.Sprintf("requestId=%s\ttmodule=RecallEngineRecall\tname=%s\tserviceName=%s\trecallName=%s\tcount=%d",
+				context.RecommendId, r.modelName, r.serviceName, recallName, len(items)))
+		}
 	}
 
 	return
