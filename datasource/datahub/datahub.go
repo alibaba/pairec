@@ -100,6 +100,8 @@ func (d *Datahub) Init() error {
 		config.CompressorType = alidatahub.ZSTD
 	case "deflate":
 		config.CompressorType = alidatahub.DEFLATE
+	case "none":
+		config.CompressorType = alidatahub.NOCOMPRESS
 	default:
 		config.CompressorType = alidatahub.LZ4
 	}
