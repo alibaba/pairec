@@ -111,7 +111,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item, context *
 					result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 					if err != nil {
 						log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHologresDao\tevent=EvaluateFilterParam\terror=%v", context.RecommendId, err))
-					} else if err == nil && result {
+					} else if result {
 						fields[itemId] = true
 					}
 				} else {
@@ -302,7 +302,7 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item, context *
 							result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 							if err != nil {
 								log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHologresDao\tevent=EvaluateFilterParam\terror=%v", context.RecommendId, err))
-							} else if err == nil && result {
+							} else if result {
 								fieldMap[id] = true
 							}
 						} else {
@@ -310,30 +310,31 @@ func (d *ItemStateFilterHologresDao) Filter(user *User, items []*Item, context *
 						}
 					}
 				}
-				if len(d.defaultFieldValues) > 0 {
-					for _, id := range idlist {
-						itemId := id.(string)
-						if _, ok := addPropertyMap[itemId]; !ok {
-							if item, ok := itemMap[itemId]; ok {
+				// negative cache support: cache items not found in hologres
+				for _, id := range idlist {
+					itemId := id.(string)
+					if _, ok := addPropertyMap[itemId]; !ok {
+						if item, ok := itemMap[itemId]; ok {
+							if len(d.defaultFieldValues) > 0 {
 								item.AddProperties(d.defaultFieldValues)
-								if d.itmCache != nil {
-									d.itmCache.Put(itemId, d.defaultFieldValues)
-								}
-								properties := d.defaultFieldValues
-								if d.transFunc != nil {
-									d.transFunc(user, item, context)
-									properties = item.GetProperties()
-								}
-								if d.filterParam != nil {
-									result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
-									if err != nil {
-										log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHologresDao\tevent=EvaluateFilterParam\terror=%v", context.RecommendId, err))
-									} else if err == nil && result {
-										fieldMap[itemId] = true
-									}
-								} else {
+							}
+							if d.itmCache != nil {
+								d.itmCache.Put(itemId, d.defaultFieldValues)
+							}
+							properties := d.defaultFieldValues
+							if d.transFunc != nil {
+								d.transFunc(user, item, context)
+								properties = item.GetProperties()
+							}
+							if d.filterParam != nil {
+								result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
+								if err != nil {
+									log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHologresDao\tevent=EvaluateFilterParam\terror=%v", context.RecommendId, err))
+								} else if result {
 									fieldMap[itemId] = true
 								}
+							} else {
+								fieldMap[itemId] = true
 							}
 						}
 					}

@@ -28,9 +28,11 @@ type Datahub struct {
 	index        uint64
 	recordSchema *alidatahub.RecordSchema
 
-	active  bool
-	name    string
-	syncLog *synclog.SyncLog
+	name           string
+	syncLog        *synclog.SyncLog
+	compressorType string
+
+	active bool
 }
 
 var (
@@ -65,15 +67,16 @@ func RemoveDatahub(name string) {
 	}
 }
 
-func NewDatahub(accessId, accessKey, endpoint, project, topic string, schemas []recconf.DatahubTopicSchema) *Datahub {
+func NewDatahub(accessId, accessKey, endpoint, project, topic, compressorType string, schemas []recconf.DatahubTopicSchema) *Datahub {
 	p := &Datahub{
-		accessId:    accessId,
-		accessKey:   accessKey,
-		endpoint:    endpoint,
-		projectName: project,
-		topicName:   topic,
-		index:       0,
-		schemas:     schemas,
+		accessId:       accessId,
+		accessKey:      accessKey,
+		endpoint:       endpoint,
+		projectName:    project,
+		topicName:      topic,
+		index:          0,
+		schemas:        schemas,
+		compressorType: compressorType,
 	}
 	return p
 }
@@ -90,8 +93,18 @@ func (d *Datahub) Init() error {
 		account = alidatahub.NewAliyunAccount(d.accessId, d.accessKey)
 	}
 	config := alidatahub.NewDefaultConfig()
-	config.CompressorType = alidatahub.NOCOMPRESS
-	//config.EnableBinary = false
+	switch d.compressorType {
+	case "lz4":
+		config.CompressorType = alidatahub.LZ4
+	case "zstd":
+		config.CompressorType = alidatahub.ZSTD
+	case "deflate":
+		config.CompressorType = alidatahub.DEFLATE
+	case "none":
+		config.CompressorType = alidatahub.NOCOMPRESS
+	default:
+		config.CompressorType = alidatahub.LZ4
+	}
 	config.HttpClient = alidatahub.DefaultHttpClient()
 	dh := alidatahub.NewClientWithConfig(d.endpoint, config, account)
 	d.datahubApi = dh
@@ -327,7 +340,7 @@ func Load(config *recconf.RecommendConfig) {
 		if _, ok := datahubInstances[name]; ok {
 			continue
 		}
-		m := NewDatahub(conf.AccessId, conf.AccessKey, conf.Endpoint, conf.ProjectName, conf.TopicName, conf.Schemas)
+		m := NewDatahub(conf.AccessId, conf.AccessKey, conf.Endpoint, conf.ProjectName, conf.TopicName, conf.CompressorType, conf.Schemas)
 
 		err := m.Init()
 		if err != nil {
