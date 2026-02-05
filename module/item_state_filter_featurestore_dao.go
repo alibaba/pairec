@@ -37,11 +37,10 @@ func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig, transFunc Fe
 	}
 
 	dao := &ItemStateFilterFeatureStoreDao{
-		fsClient:      fsclient,
-		table:         config.ItemStateDaoConf.FeatureStoreViewName,
-		itemFieldName: config.ItemStateDaoConf.ItemFieldName,
-		selectFields:  []string{"*"},
-		//selectFields:  config.ItemStateDaoConf.SelectFields,
+		fsClient:           fsclient,
+		table:              config.ItemStateDaoConf.FeatureStoreViewName,
+		itemFieldName:      config.ItemStateDaoConf.ItemFieldName,
+		selectFields:       []string{"*"},
 		defaultFieldValues: config.ItemStateDaoConf.DefaultFieldValues,
 		transFunc:          transFunc,
 	}
@@ -93,7 +92,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 		itemId := getItemKeyData(itemIdGenMap, item)
 		if d.itmCache != nil {
 			if attrs, ok := d.itmCache.GetIfPresent(itemId); ok {
-				properties := attrs.(map[string]interface{})
+				properties := attrs.(map[string]any)
 				item.AddProperties(properties)
 				if d.transFunc != nil {
 					d.transFunc(user, item, ctx)
@@ -103,7 +102,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 					result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 					if err != nil {
 						log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterFeatureStoreDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
-					} else if err == nil && result {
+					} else if result {
 						fields[itemId] = true
 					}
 				} else {
@@ -183,7 +182,7 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 								result, err := d.filterParam.EvaluateByDomain(userFeatures, itemFeatures)
 								if err != nil {
 									log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterFeatureStoreDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
-								} else if err == nil && result {
+								} else if result {
 									fieldMap[itemId] = true
 								}
 							} else {
@@ -192,31 +191,32 @@ func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *
 						}
 					}
 				}
-				if len(d.defaultFieldValues) > 0 {
-					for _, id := range idlist {
-						itemId := id.(string)
-						if _, ok := addPropertyMap[itemId]; !ok {
-							if item, ok := itemMap[itemId]; ok {
+				// negative cache support: cache items not found in featurestore
+				for _, id := range idlist {
+					itemId := id.(string)
+					if _, ok := addPropertyMap[itemId]; !ok {
+						if item, ok := itemMap[itemId]; ok {
+							if len(d.defaultFieldValues) > 0 {
 								item.AddProperties(d.defaultFieldValues)
-								if d.itmCache != nil {
-									d.itmCache.Put(itemId, d.defaultFieldValues)
-								}
-								properties := d.defaultFieldValues
-								if d.transFunc != nil {
-									d.transFunc(user, item, ctx)
-									properties = item.GetProperties()
-								}
+							}
+							if d.itmCache != nil {
+								d.itmCache.Put(itemId, d.defaultFieldValues)
+							}
+							properties := d.defaultFieldValues
+							if d.transFunc != nil {
+								d.transFunc(user, item, ctx)
+								properties = item.GetProperties()
+							}
 
-								if d.filterParam != nil {
-									result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
-									if err != nil {
-										log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterFeatureStoreDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
-									} else if err == nil && result {
-										fieldMap[itemId] = true
-									}
-								} else {
+							if d.filterParam != nil {
+								result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
+								if err != nil {
+									log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterFeatureStoreDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
+								} else if result {
 									fieldMap[itemId] = true
 								}
+							} else {
+								fieldMap[itemId] = true
 							}
 						}
 					}
