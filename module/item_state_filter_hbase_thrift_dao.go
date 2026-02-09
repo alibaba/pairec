@@ -137,7 +137,7 @@ func (d *ItemStateFilterHBaseThriftDao) Filter(user *User, items []*Item, ctx *c
 							result, err := d.filterParam.EvaluateByDomain(userProperties, properties)
 							if err != nil {
 								log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHBaseThriftDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
-							} else if err == nil && !result {
+							} else if !result {
 								fieldMap[string(item.Id)] = false
 							}
 						} else {

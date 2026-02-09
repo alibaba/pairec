@@ -306,7 +306,7 @@ func (r *FeatureConsistencyJobService) logRecallResultToDatahub(user *module.Use
 		dh, err = datahub.GetDatahub(name)
 		if err != nil {
 			dh = datahub.NewDatahub(job.FeatureBackflowQueueDatahubAccessId, job.FeatureBackflowQueueDatahubAccessKey, job.FeatureBackflowQueueDatahubEndpoint,
-				job.FeatureBackflowQueueDatahubProject, job.FeatureBackflowQueueDatahubTopic, nil)
+				job.FeatureBackflowQueueDatahubProject, job.FeatureBackflowQueueDatahubTopic, "lz4", nil)
 			err = dh.Init()
 			datahub.RegisterDatahub(name, dh)
 		}
