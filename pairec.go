@@ -18,6 +18,7 @@ import (
 	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
 	"github.com/alibaba/pairec/v2/datasource/kafka"
 	"github.com/alibaba/pairec/v2/datasource/opensearch"
+	"github.com/alibaba/pairec/v2/datasource/recallengine"
 	"github.com/alibaba/pairec/v2/datasource/sls"
 	"github.com/alibaba/pairec/v2/filter"
 	"github.com/alibaba/pairec/v2/persist/clickhouse"
@@ -92,6 +93,7 @@ func runBeforeStart() {
 	kafka.Load(recconf.Config)
 	datahub.Load(recconf.Config)
 	beengine.Load(recconf.Config)
+	recallengine.Load(recconf.Config)
 	graph.Load(recconf.Config)
 	ha3engine.Load(recconf.Config)
 	opensearch.Load(recconf.Config)

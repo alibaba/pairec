@@ -28,11 +28,17 @@ const (
 	DataSource_Type_Lindorm      = "lindorm"
 	DataSource_Type_HBase_Thrift = "hbase_thrift"
 	DataSource_Type_FeatureStore = "featurestore"
+	DataSource_Type_RecallEngine = "recallengine"
 	Datasource_Type_Graph        = "graph"
 
 	BE_RecallType_X2I        = "x2i_recall"
 	BE_RecallType_Vector     = "vector_recall"
 	BE_RecallType_MultiMerge = "multi_merge_recall"
+
+	RecallEngine_RecallType_X2I    = "x2i"
+	RecallEngine_RecallType_Vector = "vector"
+	RecallEngine_RecallType_Random = "random"
+	//BE_RecallType_MultiMerge = "multi_merge_recall"
 )
 
 func init() {
@@ -63,6 +69,7 @@ type RecommendConfig struct {
 	SlsConfs                  map[string]SlsConfig
 	DatahubConfs              map[string]DatahubConfig
 	BEConfs                   map[string]BEConfig
+	RecallEngineConfs         map[string]REConfig
 	Ha3EngineConfs            map[string]Ha3EngineConfig
 	OpenSearchConfs           map[string]OpenSearchConfig
 	HBaseConfs                map[string]HBaseConfig
@@ -154,6 +161,10 @@ type DaoConfig struct {
 	// lindorm
 	LindormTableName string
 	LindormName      string
+
+	// recall engine
+	RecallEngineName      string
+	RecallEngineTableName string
 }
 type SceneFeatureConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig
@@ -344,6 +355,9 @@ type RecallConfig struct {
 	GraphConf      GraphConf
 	OpenSearchConf OpenSearchConf
 
+	// recall engine config
+	RecallEngineConf RecallEngineConfig
+
 	FilterParams []FilterParamConfig
 }
 
@@ -371,6 +385,41 @@ type BeConfig struct {
 	BeRecallParams    []BeRecallParam
 	BeFilterNames     []string
 	BeABParams        map[string]interface{}
+}
+type RecallEngineConfig struct {
+	Count              int
+	RecallEngineName   string // recall engine name (datasource name)
+	ServiceName        string
+	VersionName        string
+	RecallNameMapping  map[string]RecallNameMappingConfig
+	RecallEngineParams []RecallEngineParam
+	UserFeatures       []string
+	FilterNames        []string
+	BeABParams         map[string]interface{}
+}
+type RecallEngineParam struct {
+	Count        int
+	Priority     int
+	RecallType   string
+	RecallName   string
+	ScorerClause string
+	TriggerType  string // user or be or fixvalue or user_vector
+	UserTriggers []TriggerConfig
+	TriggerValue string //
+	TriggerParam BeTriggerParam
+	//RecallParamName   string
+	UserVectorTrigger            UserVectorTriggerConfig
+	UserTriggerDaoConf           UserTriggerDaoConfig               // online table for u2i
+	UserTriggerRulesConf         UserTriggerRulesConfig             // be recall diversity trigger, trigger have diff recall count
+	UserCollaborativeDaoConf     UserCollaborativeDaoConfig         // offline table for u2i
+	UserRealtimeEmbeddingTrigger UserRealtimeEmbeddingTriggerConfig // get user feature and invoke eas model, get item embedding sink to be
+	UserEmbeddingO2OTrigger      UserEmbeddingO2OTriggerConfig
+
+	ItemIdName      string
+	TriggerIdName   string
+	RecallTableName string
+	DiversityParam  string
+	CustomParams    map[string]interface{}
 }
 type RecallNameMappingConfig struct {
 	Format string
@@ -611,6 +660,13 @@ type BEConfig struct {
 	Password    string
 	Endpoint    string
 	ReleaseType string // values: product or dev or prepub
+}
+type REConfig struct {
+	Username      string
+	Password      string
+	Endpoint      string
+	Authorization string
+	InstanceId    string
 }
 type Ha3EngineConfig struct {
 	Username   string

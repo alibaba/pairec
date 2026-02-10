@@ -19,6 +19,7 @@ import (
 	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
 	"github.com/alibaba/pairec/v2/datasource/kafka"
 	"github.com/alibaba/pairec/v2/datasource/opensearch"
+	"github.com/alibaba/pairec/v2/datasource/recallengine"
 	"github.com/alibaba/pairec/v2/datasource/sls"
 	"github.com/alibaba/pairec/v2/filter"
 	"github.com/alibaba/pairec/v2/log"
@@ -94,6 +95,7 @@ func (l *ConfigLoader) reloadConfig(config *recconf.RecommendConfig) {
 	kafka.Load(config)
 	datahub.Load(config)
 	beengine.Load(config)
+	recallengine.Load(recconf.Config)
 	graph.Load(config)
 	ha3engine.Load(recconf.Config)
 	opensearch.Load(recconf.Config)

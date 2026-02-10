@@ -44,6 +44,8 @@ func ToFloat(i interface{}, defaultVal float64) float64 {
 	switch value := i.(type) {
 	case float64:
 		return value
+	case float32:
+		return float64(value)
 	case int:
 		return float64(value)
 	case int32:

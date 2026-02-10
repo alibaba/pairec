@@ -48,3 +48,12 @@ func (l FeatureStoreLogger) Infof(msg string, args ...interface{}) {
 func (l FeatureStoreLogger) Errorf(msg string, args ...interface{}) {
 	Error(fmt.Sprintf(msg, args...))
 }
+
+type RecallEngineLogger struct{}
+
+func (l RecallEngineLogger) Infof(msg string, args ...interface{}) {
+	Info(fmt.Sprintf(msg, args...))
+}
+func (l RecallEngineLogger) Printf(msg string, args ...interface{}) {
+	Error(fmt.Sprintf(msg, args...))
+}

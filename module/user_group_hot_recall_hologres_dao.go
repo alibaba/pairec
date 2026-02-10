@@ -51,6 +51,9 @@ func (d *UserGroupHotRecallHologresDao) ListItemsByUser(user *User, context *con
 	builder.From(d.table)
 	triggerId := d.trigger.GetValue(user.MakeUserFeatures2())
 	triggers := ParseTriggerId(triggerId)
+	if context.Debug {
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecallHologresDao\ttriggerId=%s\ttriggers=%v\t", context.RecommendId, triggerId, triggers))
+	}
 	if len(triggers) < 2 {
 		builder.Where(builder.Equal("trigger_id", triggerId))
 	} else {
