@@ -164,6 +164,12 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	if rankConfig.BatchCount > 0 {
 		batchCount = rankConfig.BatchCount
 	}
+
+	if len(rankConfig.RankAlgoList) == 0 && rankConfig.RankScore == "" {
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=rank\tmsg=no rank\tcost=%d", context.RecommendId, utils.CostTime(start)))
+		return
+	}
+
 	algoGenerator := CreateAlgoDataGenerator(rankConfig.Processor, rankConfig.ContextFeatures)
 
 	var userFeatures map[string]interface{}
