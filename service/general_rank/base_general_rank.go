@@ -135,13 +135,23 @@ func (r *BaseGeneralRank) doRankWithAlgo(user *module.User, items []*module.Item
 
 		i++
 		if i%r.rankConfig.BatchCount == 0 {
-			algoData := algoGenerator.GeneratorAlgoData()
+			var algoData rank.IAlgoData
+			if context.Debug {
+				algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100)
+			} else {
+				algoData = algoGenerator.GeneratorAlgoData()
+			}
 			algoDataList = append(algoDataList, algoData)
 		}
 	}
 
 	if algoGenerator.HasFeatures() {
-		algoData := algoGenerator.GeneratorAlgoData()
+		var algoData rank.IAlgoData
+		if context.Debug {
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100)
+		} else {
+			algoData = algoGenerator.GeneratorAlgoData()
+		}
 		algoDataList = append(algoDataList, algoData)
 	}
 
