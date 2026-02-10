@@ -392,7 +392,7 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 			m[item.RetrieveId] = append(m[item.RetrieveId], item)
 		}
 		for recallName, items := range m {
-			log.Info(fmt.Sprintf("requestId=%s\ttmodule=RecallEngineRecall\tname=%s\tserviceName=%s\trecallName=%s\tcount=%d",
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=RecallEngineRecall\tname=%s\tserviceName=%s\trecallName=%s\tcount=%d",
 				context.RecommendId, r.modelName, r.serviceName, recallName, len(items)))
 		}
 	}
