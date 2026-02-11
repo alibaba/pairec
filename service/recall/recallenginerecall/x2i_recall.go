@@ -35,7 +35,6 @@ func NewRecallEngineX2IRecall(client *recallengine.RecallEngineClient, conf recc
 		return nil
 	}
 
-	//beClient := client.BeClient
 	r := RecallEngineX2IRecall{
 		serviceName:     conf.ServiceName,
 		returnCount:     conf.RecallEngineParams[0].Count,

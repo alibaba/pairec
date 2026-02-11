@@ -137,23 +137,18 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 				cloneInstances:  make(map[string]*RecallEngineRandomRecall),
 			}
 			r.recallMap[param.RecallName] = recall
-			/*
-				case recconf.BE_RecallType_Vector:
-					recall := &BeVectorRecall{
-						recallName:      param.RecallName,
-						returnCount:     param.Count,
-						scorerClause:    param.ScorerClause,
-						itemIdName:      param.ItemIdName,
-						recallTableName: param.RecallTableName,
-						diversityParam:  param.DiversityParam,
-						triggerKey:      berecall.NewTriggerKey(&param, client),
-						beClient:        beClient,
-						client:          client,
-						cloneInstances:  make(map[string]*BeVectorRecall),
-					}
+		case recconf.RecallEngine_RecallType_Vector:
+			recall := &RecallEngineVectorRecall{
+				recallName:     param.RecallName,
+				returnCount:    param.Count,
+				scorerClause:   param.ScorerClause,
+				diversityParam: param.DiversityParam,
+				triggerKey:     NewTriggerKey(&param, client),
+				client:         client,
+				cloneInstances: make(map[string]*RecallEngineVectorRecall),
+			}
 
-					r.recallMap[param.RecallName] = recall
-			*/
+			r.recallMap[param.RecallName] = recall
 		}
 	}
 

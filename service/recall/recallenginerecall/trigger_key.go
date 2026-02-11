@@ -1,8 +1,6 @@
 package recallenginerecall
 
 import (
-	"fmt"
-
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/recallengine"
 	"github.com/alibaba/pairec/v2/module"
@@ -72,7 +70,7 @@ func NewUserTrigger(userTriggers []recconf.TriggerConfig) *UserTrigger {
 }
 func (t *UserTrigger) GetTriggerKey(user *module.User, context *context.RecommendContext) *TriggerResult {
 	return &TriggerResult{
-		TriggerItem: fmt.Sprintf("%s:%d", t.trigger.GetValue(user.MakeUserFeatures2()), 1),
+		TriggerItem: t.trigger.GetValue(user.MakeUserFeatures2()),
 	}
 }
 
@@ -82,7 +80,7 @@ type FixValueTrigger struct {
 
 func (t *FixValueTrigger) GetTriggerKey(user *module.User, context *context.RecommendContext) *TriggerResult {
 	return &TriggerResult{
-		TriggerItem: fmt.Sprintf("%s:%d", t.value, 1),
+		TriggerItem: t.value,
 	}
 }
 
