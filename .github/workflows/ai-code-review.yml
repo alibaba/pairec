@@ -1,0 +1,37 @@
+name: "AI Code Review"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: AI Code Review
+        uses: anc95/ChatGPT-CodeReview@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 阿里云百炼 API Key
+          OPENAI_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          # 百炼的 OpenAI 兼容模式端点
+          OPENAI_API_ENDPOINT: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+          # 指定百炼模型
+          MODEL: "qwen3-coder-plus"
+          # 设置语言为中文
+          LANGUAGE: "Chinese"
+          # 提示词优化：强制要求中文输出
+          PROMPT: "请作为一名资深代码审查专家，用中文对以下代码变更进行评审。请指出潜在的 Bug、安全隐患、性能问题及优化建议。"
+          # 只审查指定类型的文件（可选）
+          top_p: "1"
+          temperature: "0.3"
+          max_tokens: "10000"
