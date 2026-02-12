@@ -33,7 +33,6 @@ func NewRecallEngineRandomRecall(client *recallengine.RecallEngineClient, conf r
 		return nil
 	}
 
-	//beClient := client.BeClient
 	r := RecallEngineRandomRecall{
 		serviceName:     conf.ServiceName,
 		returnCount:     conf.RecallEngineParams[0].Count,
