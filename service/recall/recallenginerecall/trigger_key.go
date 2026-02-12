@@ -29,12 +29,12 @@ func NewTriggerKey(recallParam *recconf.RecallEngineParam, client *recallengine.
 	case "item":
 		trigger := NewItemTrigger()
 		return trigger
+	case "u2i_realtime":
+		trigger := NewU2IRealtimeTrigger(&recallParam.UserTriggerDaoConf, &recallParam.UserTriggerRulesConf)
+		return trigger
 	/*
 		case "user_vector":
 			trigger := NewUserVectorTrigger(&recallParam.UserVectorTrigger)
-			return trigger
-		case "u2i_realtime":
-			trigger := NewU2IRealtimeTrigger(&recallParam.UserTriggerDaoConf, &recallParam.UserTriggerRulesConf)
 			return trigger
 		case "u2i":
 			trigger := NewU2ITrigger(&recallParam.UserCollaborativeDaoConf, &recallParam.UserTriggerRulesConf)
@@ -53,7 +53,7 @@ func NewTriggerKey(recallParam *recconf.RecallEngineParam, client *recallengine.
 			return trigger
 	*/
 	default:
-		panic(recallParam.TriggerType + "not support")
+		panic(recallParam.TriggerType + " not support")
 	}
 }
 
