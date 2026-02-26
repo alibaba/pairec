@@ -46,6 +46,10 @@ func (b *EasyrecRequestBuilder) EasyrecRequest() *PBRequest {
 	return b.request
 }
 
+func (b *EasyrecRequestBuilder) SetMetaData(meta map[string]string) {
+	b.request.MetaData = meta
+}
+
 func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 	switch val := v.(type) {
 	case float32:

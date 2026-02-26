@@ -3,7 +3,7 @@ syntax = "proto3";
 option go_package = ".;easyrec";
 option java_package = "com.alibaba.pairec.processor.proto";
 option java_outer_classname = "PredictProtos";
-package easyrec; 
+package easyrec;
 
 enum ArrayDataType {
   // Not a legal value for DataType. Used to indicate a DataType field
@@ -155,25 +155,25 @@ message PBFeature {
     float float_feature = 4;
     double double_feature=5;
 
-    LongStringMap long_string_map = 6; 
-    LongIntMap long_int_map = 7; 
-    LongLongMap long_long_map = 8; 
-    LongFloatMap long_float_map = 9; 
-    LongDoubleMap long_double_map = 10; 
-    
-    StringStringMap string_string_map = 11; 
-    StringIntMap string_int_map = 12; 
-    StringLongMap string_long_map = 13; 
-    StringFloatMap string_float_map = 14; 
-    StringDoubleMap string_double_map = 15; 
+    LongStringMap long_string_map = 6;
+    LongIntMap long_int_map = 7;
+    LongLongMap long_long_map = 8;
+    LongFloatMap long_float_map = 9;
+    LongDoubleMap long_double_map = 10;
 
-    IntStringMap int_string_map = 16; 
-    IntIntMap int_int_map = 17; 
-    IntLongMap int_long_map = 18; 
-    IntFloatMap int_float_map = 19; 
-    IntDoubleMap int_double_map = 20; 
+    StringStringMap string_string_map = 11;
+    StringIntMap string_int_map = 12;
+    StringLongMap string_long_map = 13;
+    StringFloatMap string_float_map = 14;
+    StringDoubleMap string_double_map = 15;
 
-    IntList int_list = 21; 
+    IntStringMap int_string_map = 16;
+    IntIntMap int_int_map = 17;
+    IntLongMap int_long_map = 18;
+    IntFloatMap int_float_map = 19;
+    IntDoubleMap int_double_map = 20;
+
+    IntList int_list = 21;
     LongList long_list =22;
     StringList string_list = 23;
     FloatList float_list = 24;
@@ -206,6 +206,9 @@ message PBRequest {
 
   // item features for each item, key is item input name
   map<string, ContextFeatures> item_features = 6;
+
+  // optional meta data for feature debug purpose
+  map<string, string> meta_data = 7;
 }
 
 // return results
@@ -234,7 +237,7 @@ message PBResponse {
   map<string, ContextFeatures> context_features = 4;
 
   string error_msg = 5;
-  
+
   StatusCode status_code = 6;
 
   // item ids

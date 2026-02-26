@@ -177,6 +177,12 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	if rankConfig.Processor == eas.Eas_Processor_EASYREC {
 		userFeatures = user.MakeUserFeatures2()
 		algoGenerator.SetItemFeatures(rankConfig.ItemFeatures)
+
+		if metaData := r.featureConsistencyJobService.GetConsistencyJobMetaData(user, context, rankConfig); metaData != nil {
+			if easyrecGen, ok := algoGenerator.(*EasyrecAlgoDataGenerator); ok {
+				easyrecGen.SetMetaData(metaData)
+			}
+		}
 	} else {
 		userFeatures = user.MakeUserFeatures()
 	}

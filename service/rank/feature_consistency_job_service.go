@@ -34,6 +34,8 @@ import (
 const (
 	DssmO2o = "dssm_o2o"
 	MindO2o = "mind_o2o"
+
+	MinProcessorVersionForSkipFeatureReply = "1.5.0"
 )
 
 var serviceName string
@@ -409,4 +411,82 @@ func (r *FeatureConsistencyJobService) logRecallResultToDatahub(user *module.Use
 		}
 		dh.SendMessage([]map[string]interface{}{message})
 	}
+}
+
+// GetConsistencyJobMetaData checks running consistency jobs for the current scene.
+// If a job's processor_version supports optimization (>= threshold),
+// returns meta data map for injection into the rank request; otherwise returns nil.
+func (r *FeatureConsistencyJobService) GetConsistencyJobMetaData(user *module.User, ctx *context.RecommendContext, rankConfig recconf.RankConfig) map[string]string {
+	if abtest.GetExperimentClient() == nil {
+		return nil
+	}
+	scene := ctx.Param.GetParameter("scene").(string)
+	jobs := abtest.GetExperimentClient().GetSceneParams(scene).GetFeatureConsistencyJobs()
+	rankAlgoNames := r.findRankAlgoNames(scene, ctx)
+
+	for _, job := range jobs {
+		if job.ModelType == "rank_sample" {
+			continue
+		}
+		if job.ProcessorVersion == "" {
+			continue
+		}
+		if !utils.IsVersionGreaterOrEqual(job.ProcessorVersion, MinProcessorVersionForSkipFeatureReply) {
+			continue
+		}
+		if !r.matchConsistencyJob(job, ctx, rankAlgoNames) {
+			continue
+		}
+
+		if job.SampleRate < 100 {
+			if rand.Intn(100) >= job.SampleRate {
+				continue
+			}
+		}
+
+		meta := map[string]string{
+			"fc_job_id":           strconv.Itoa(job.JobId),
+			"fc_request_id":       ctx.RecommendId,
+			"fc_scene_name":       scene,
+			"fc_user_id":          string(user.Id),
+			"fc_log_request_time": strconv.FormatInt(time.Now().UnixMilli(), 10),
+			"fc_service_name":     serviceName,
+		}
+		return meta
+	}
+	return nil
+}
+
+// matchConsistencyJob checks if the given consistency job matches the current rank context
+// (status=RUNNING, within time range, EAS model matches rank algo list).
+func (r *FeatureConsistencyJobService) matchConsistencyJob(job *model.FeatureConsistencyJob, ctx *context.RecommendContext, rankAlgoNames []string) bool {
+	if job.Status != common.Feature_Consistency_Job_State_RUNNING {
+		return false
+	}
+	currTime := time.Now().Unix()
+	if currTime < job.StartTime || currTime > job.EndTime {
+		return false
+	}
+
+	var easModelAlgoNames []string
+	for _, algoConfig := range ctx.Config.AlgoConfs {
+		urls := strings.Split(algoConfig.EasConf.Url, "/api/predict/")
+		if len(urls) < 2 {
+			continue
+		}
+		name := urls[1]
+		if name == job.EasModelServiceName {
+			easModelAlgoNames = append(easModelAlgoNames, algoConfig.Name)
+			break
+		}
+	}
+
+	for _, name := range easModelAlgoNames {
+		for _, rankAlgoName := range rankAlgoNames {
+			if name == rankAlgoName {
+				return true
+			}
+		}
+	}
+	return false
 }

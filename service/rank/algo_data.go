@@ -179,6 +179,7 @@ type EasyrecAlgoDataGenerator struct {
 	inputItemFeatures     []*feature
 	inputItemFeatureMap   map[string][]interface{}
 	parseInputItemFeature bool
+	metaData              map[string]string
 }
 
 func NewEasyrecAlgoDataGenerator(contextFeatures []string) *EasyrecAlgoDataGenerator {
@@ -278,6 +279,10 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
 	copy(copyItems, g.requestItem)
 
 	builder := easyrec.NewEasyrecRequestBuilder()
+	if len(g.metaData) > 0 {
+		builder.SetMetaData(g.metaData)
+		builder.EasyrecRequest().DebugLevel = int32(103)
+	}
 	for k, v := range g.userFeatures {
 		builder.AddUserFeature(k, v)
 	}
@@ -314,6 +319,9 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int) IA
 	copy(copyItems, g.requestItem)
 
 	builder := easyrec.NewEasyrecRequestBuilderDebugWithLevel(level)
+	if len(g.metaData) > 0 {
+		builder.SetMetaData(g.metaData)
+	}
 	for k, v := range g.userFeatures {
 		builder.AddUserFeature(k, v)
 	}
@@ -343,4 +351,8 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int) IA
 
 func (g *EasyrecAlgoDataGenerator) HasFeatures() bool {
 	return len(g.requestItem) > 0
+}
+
+func (g *EasyrecAlgoDataGenerator) SetMetaData(meta map[string]string) {
+	g.metaData = meta
 }
