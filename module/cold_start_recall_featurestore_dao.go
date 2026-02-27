@@ -144,7 +144,11 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 	}
 	if cacheValue, ok := d.cache.GetIfPresent(cacheKey); ok {
 		if items, ok := cacheValue.([]*Item); ok {
-			return items
+			clonedItems := make([]*Item, len(items))
+			for i, item := range items {
+				clonedItems[i] = item.DeepClone()
+			}
+			return clonedItems
 		}
 	}
 

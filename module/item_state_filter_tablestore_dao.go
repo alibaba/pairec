@@ -120,7 +120,7 @@ func (d *ItemStateFilterTablestoreDao) Filter(user *User, items []*Item, ctx *co
 										result, err := d.filterParam.EvaluateByDomain(userFeatures, properties)
 										if err != nil {
 											log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterTablestoreDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
-										} else if err == nil && result {
+										} else if result {
 											fieldMap[id] = true
 										}
 									} else {

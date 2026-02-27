@@ -10,9 +10,9 @@ import (
 
 	"github.com/alibaba/pairec/v2/log"
 
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type VectorHologresDao struct {
@@ -138,7 +138,7 @@ func FetchPartition(hologresName, table, field string) string {
 	}
 	var partition string
 
-	for rows.Next() {
+	if rows.Next() {
 		if err := rows.Scan(&partition); err != nil {
 			log.Error(fmt.Sprintf("module=VectorHologresDao\tevent=FetchPartition\terror=%v", err))
 			return ""
