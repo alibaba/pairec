@@ -26,7 +26,7 @@ jobs:
           # 百炼的 OpenAI 兼容模式端点
           OPENAI_API_ENDPOINT: "https://dashscope.aliyuncs.com/compatible-mode/v1"
           # 指定百炼模型
-          MODEL: "qwen3-coder-plus"
+          MODEL: "qwen3-max"
           # 设置语言为中文
           LANGUAGE: "Chinese"
           # 提示词优化：聚焦于实际问题，避免过度发散
