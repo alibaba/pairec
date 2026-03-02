@@ -82,8 +82,8 @@ github.com/aliyun/alibabacloud-lindorm-go-sql-driver/v5 v5.0.1 h1:9IbLal5XJrZ5f4
 github.com/aliyun/alibabacloud-lindorm-go-sql-driver/v5 v5.0.1/go.mod h1:eCk9u8X533+Sd9CTfI2Mn59ok6Ck/9t7jXHz+FO601g=
 github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c h1:5YWOrdiCtaOjh/IJvn+Aht6vtUeJtBxWLqe5sewcbjg=
 github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c/go.mod h1:wj5PXdQyCNS9n4Og3CH03MAxhuNJM9OrD8o5hoCMXEM=
-github.com/aliyun/aliyun-datahub-sdk-go v1.1.1 h1:p99DG4idLJnWm34afG6DdvPdnGCf6bYt2O9VglLndsU=
-github.com/aliyun/aliyun-datahub-sdk-go v1.1.1/go.mod h1:epVwhZGUPYmEPbuggJuU8m04YyUmVM7pERWjhcogPDc=
+github.com/aliyun/aliyun-datahub-sdk-go v1.1.4 h1:0jjT+nddwHxWT979vZwfCh7xqktOiRJjkKc76Csp/Nk=
+github.com/aliyun/aliyun-datahub-sdk-go v1.1.4/go.mod h1:IGmdWriyt86EHENmRuqwAQIEje0wU7EeVXiDREktcj8=
 github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227 h1:NBHpE+HPsmtvHTFCzt5hUsaj+xBt+t5cgUrbqZ4KH+k=
 github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227/go.mod h1:k+nixj5x99h1pIn/7RyAxeMtig9PvnCFdDNzHduLqWU=
 github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8Ahwq4o+y5g=
@@ -100,8 +100,8 @@ github.com/aliyun/credentials-go v1.1.2/go.mod h1:ozcZaMR5kLM7pwtCMEpVmQ242suV6q
 github.com/aliyun/credentials-go v1.3.1/go.mod h1:8jKYhQuDawt8x2+fusqa1Y6mPxemTsBEN04dgcAcYz0=
 github.com/aliyun/credentials-go v1.3.6/go.mod h1:1LxUuX7L5YrZUWzBrRyk0SwSdH4OmPrib8NVePL3fxM=
 github.com/aliyun/credentials-go v1.4.5/go.mod h1:Jm6d+xIgwJVLVWT561vy67ZRP4lPTQxMbEYRuT2Ti1U=
-github.com/aliyun/credentials-go v1.4.6 h1:CG8rc/nxCNKfXbZWpWDzI9GjF4Tuu3Es14qT8Y0ClOk=
-github.com/aliyun/credentials-go v1.4.6/go.mod h1:Jm6d+xIgwJVLVWT561vy67ZRP4lPTQxMbEYRuT2Ti1U=
+github.com/aliyun/credentials-go v1.4.8 h1:MEfZGWGC3L1icM1nGcYF8rWdQBG2k1Sya2pq9uRwd30=
+github.com/aliyun/credentials-go v1.4.8/go.mod h1:Jm6d+xIgwJVLVWT561vy67ZRP4lPTQxMbEYRuT2Ti1U=
 github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY3JY=
 github.com/andybalholm/brotli v1.0.4/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/antihax/optional v1.0.0 h1:xK2lYat7ZLaVVcIuj82J8kIro4V6kDe0AUDFboUCwcg=
@@ -526,8 +526,8 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.2.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
-github.com/stretchr/objx v0.5.0 h1:1zr/of2m5FGMsad5YfcqgdqdWrIhu+EBEJRhR1U7z/c=
-github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=
+github.com/stretchr/objx v0.5.2 h1:xuMeJ0Sdp5ZMRXx/aWO6RZxdr3beISkG5/G/aIRr3pY=
+github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/8L+MA=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=

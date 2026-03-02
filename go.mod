@@ -11,7 +11,7 @@ require (
 	github.com/alibabacloud-go/tea v1.3.13
 	github.com/alibabacloud-go/tea-utils v1.4.5
 	github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c
-	github.com/aliyun/aliyun-datahub-sdk-go v1.1.1
+	github.com/aliyun/aliyun-datahub-sdk-go v1.1.4
 	github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227
 	github.com/aliyun/aliyun-log-go-sdk v0.1.27
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7
@@ -45,7 +45,7 @@ require (
 	github.com/alibabacloud-go/opensearch-util v1.0.1
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.3.7-0.20251121071039-7e2c4c6cb31c
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260210060559-2224c319831c
-	github.com/aliyun/credentials-go v1.4.6
+	github.com/aliyun/credentials-go v1.4.8
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.3
 	github.com/golang/geo v0.0.0-20251029182131-33017506d313
