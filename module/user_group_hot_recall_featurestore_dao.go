@@ -2,7 +2,7 @@ package module
 
 import (
 	"fmt"
-	"math/rand"
+	"sort"
 	"strings"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -78,14 +78,6 @@ func (d *UserGroupHotRecallFeatureStoreDao) ListItemsByUser(user *User, context 
 		return
 	}
 
-	if len(itemIds) > d.recallCount {
-		rand.Shuffle(len(itemIds)/2, func(i, j int) {
-			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
-		})
-
-		itemIds = itemIds[:d.recallCount]
-	}
-
 	for _, id := range itemIds {
 		strs := strings.Split(id, ":")
 		if len(strs) == 1 {
@@ -115,6 +107,12 @@ func (d *UserGroupHotRecallFeatureStoreDao) ListItemsByUser(user *User, context 
 			item.Score = utils.ToFloat(strs[2], float64(0))
 			ret = append(ret, item)
 		}
+	}
+
+	sort.Sort(sort.Reverse(ItemScoreSlice(ret)))
+
+	if d.recallCount > 0 && len(ret) > d.recallCount {
+		return ret[:d.recallCount]
 	}
 
 	return
