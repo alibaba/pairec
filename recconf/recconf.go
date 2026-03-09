@@ -813,6 +813,7 @@ type SortConfig struct {
 	Name                    string
 	SortType                string
 	SortByField             string
+	SortOrder               string // "asc" 表示升序，"desc" 表示降序（默认）
 	SwitchThreshold         float64
 	DiversitySize           int
 	ExploreItemSize         int
