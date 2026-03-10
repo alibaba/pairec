@@ -470,6 +470,16 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 			}
 		}
 	}
+	// negative cache support: cache items not found in featurestore
+	if d.cache != nil {
+		go func() {
+			for key := range key2Item {
+				if _, ok := d.cache.GetIfPresent(key); !ok {
+					d.cache.Put(key, map[string]any{})
+				}
+			}
+		}()
+	}
 
 }
 
