@@ -186,9 +186,9 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 
 	if algoGenerator.HasFeatures() {
 		if context.Debug {
-			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(2)
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(2, nil)
 		} else {
-			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel)
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel, nil)
 		}
 	}
 

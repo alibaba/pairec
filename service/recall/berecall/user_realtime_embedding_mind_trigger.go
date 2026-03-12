@@ -95,7 +95,7 @@ func (t *UserRealtimeEmbeddingMindTrigger) GetTriggerKey(u *module.User, context
 	algoGenerator := rank.CreateAlgoDataGenerator(t.recallAlgoType, nil)
 	algoGenerator.SetItemFeatures(nil)
 	algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
-	algoData := algoGenerator.GeneratorAlgoDataDebugWithLevel(102)
+	algoData := algoGenerator.GeneratorAlgoDataDebugWithLevel(102, map[string]string{"request_id": context.RecommendId})
 	easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
 	easyrecRequest.FaissNeighNum = int32(t.embeddingNum)
 	algoRet, err := algorithm.Run(t.recallAlgo, easyrecRequest)

@@ -379,7 +379,7 @@ func (r *FeatureConsistencyJobService) logRecallResultToDatahub(user *module.Use
 		algoGenerator.SetItemFeatures(nil)
 		item := module.NewItem("1")
 		algoGenerator.AddFeatures(item, nil, features)
-		algoData := algoGenerator.GeneratorAlgoDataDebugWithLevel(1)
+		algoData := algoGenerator.GeneratorAlgoDataDebugWithLevel(1, map[string]string{"request_id": context.RecommendId})
 		easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
 		algoRet, err := algorithm.Run(recallAlgo, easyrecRequest)
 
