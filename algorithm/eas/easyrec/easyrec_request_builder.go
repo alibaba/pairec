@@ -23,7 +23,7 @@ func NewEasyrecRequestBuilder() *EasyrecRequestBuilder {
 			UserFeatures:    make(map[string]*PBFeature, 0),
 			ContextFeatures: make(map[string]*ContextFeatures, 0),
 			ItemFeatures:    make(map[string]*ContextFeatures, 0),
-			// DebugLevel:      int32(1),
+			MetaData:        make(map[string]string),
 		},
 		separator: "\u0002",
 	}
@@ -40,6 +40,14 @@ func NewEasyrecRequestBuilderDebugWithLevel(level int) *EasyrecRequestBuilder {
 	builder := NewEasyrecRequestBuilder()
 	builder.request.DebugLevel = int32(level)
 	return builder
+}
+func (b *EasyrecRequestBuilder) SetRequestId(requestId string) {
+	b.request.MetaData["request_id"] = requestId
+}
+func (b *EasyrecRequestBuilder) SetMetaData(metaData map[string]string) {
+	for k, v := range metaData {
+		b.request.MetaData[k] = v
+	}
 }
 
 func (b *EasyrecRequestBuilder) EasyrecRequest() *PBRequest {

@@ -23,13 +23,9 @@ func NewCallBackControllerHandler() *CallBackControllerHandler {
 func (h *CallBackControllerHandler) start() {
 	for i := 0; i < h.poolSize; i++ {
 		go func() {
-			for {
-				select {
-				case controller := <-h.controllerCh:
-					controller.doCallbackLog()
-				}
+			for controller := range h.controllerCh {
+				controller.doCallbackLog()
 			}
-
 		}()
 	}
 }

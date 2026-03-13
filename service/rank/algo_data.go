@@ -25,7 +25,7 @@ type IAlgoDataGenerator interface {
 	GeneratorAlgoData() IAlgoData
 	// GeneratorAlgoDataDebug generator algo data with debug mode
 	GeneratorAlgoDataDebug() IAlgoData
-	GeneratorAlgoDataDebugWithLevel(level int) IAlgoData
+	GeneratorAlgoDataDebugWithLevel(level int, meta map[string]string) IAlgoData
 	HasFeatures() bool
 	SetItemFeatures([]string)
 }
@@ -138,7 +138,7 @@ func (g *AlgoDataGenerator) GeneratorAlgoDataDebug() IAlgoData {
 	return g.GeneratorAlgoData()
 }
 
-func (g *AlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int) IAlgoData {
+func (g *AlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int, meta map[string]string) IAlgoData {
 	return g.GeneratorAlgoData()
 }
 
@@ -306,14 +306,18 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
 }
 
 func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebug() IAlgoData {
-	return g.GeneratorAlgoDataDebugWithLevel(1)
+	return g.GeneratorAlgoDataDebugWithLevel(1, nil)
 }
 
-func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int) IAlgoData {
+func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int, meta map[string]string) IAlgoData {
 	copyItems := make([]*module.Item, len(g.requestItem))
 	copy(copyItems, g.requestItem)
 
 	builder := easyrec.NewEasyrecRequestBuilderDebugWithLevel(level)
+	if meta != nil && len(meta) > 0 {
+		builder.SetMetaData(meta)
+	}
+
 	for k, v := range g.userFeatures {
 		builder.AddUserFeature(k, v)
 	}

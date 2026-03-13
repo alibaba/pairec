@@ -116,7 +116,7 @@ func (r *FeatureReplyService) generalRank(user *module.User, items []*module.Ite
 
 	var algoData rank.IAlgoData
 	if algoGenerator.HasFeatures() {
-		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(1)
+		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(1, nil)
 	}
 
 	var wg sync.WaitGroup
@@ -226,7 +226,7 @@ func (r *FeatureReplyService) rank(user *module.User, items []*module.Item, cont
 
 	var algoData rank.IAlgoData
 	if algoGenerator.HasFeatures() {
-		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(1)
+		algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(1, nil)
 	}
 
 	var wg sync.WaitGroup
