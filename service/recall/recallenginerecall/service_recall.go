@@ -75,6 +75,7 @@ type RecallEngineServiceRecall struct {
 	filterNames       []string
 	beABParams        map[string]interface{}
 	recallNameMapping map[string]recconf.RecallNameMappingConfig
+	retainFields      []string // Fields to retain in recall response
 }
 
 func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf recconf.RecallEngineConfig, modelName string) *RecallEngineServiceRecall {
