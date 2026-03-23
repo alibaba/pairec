@@ -396,6 +396,7 @@ type RecallEngineConfig struct {
 	UserFeatures       []string
 	FilterNames        []string
 	BeABParams         map[string]interface{}
+	RetainFields       []string // Fields to retain in recall response
 }
 type RecallEngineParam struct {
 	Count        int

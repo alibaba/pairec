@@ -75,6 +75,7 @@ type RecallEngineServiceRecall struct {
 	filterNames       []string
 	beABParams        map[string]interface{}
 	recallNameMapping map[string]recconf.RecallNameMappingConfig
+	retainFields      []string // Fields to retain in recall response
 }
 
 func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf recconf.RecallEngineConfig, modelName string) *RecallEngineServiceRecall {
@@ -93,6 +94,7 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 		beABParams:        conf.BeABParams,
 		recallMap:         make(map[string]RecallEngineBaseRecall, 8),
 		recallNameMapping: make(map[string]recconf.RecallNameMappingConfig),
+		retainFields:      conf.RetainFields,
 	}
 	for name, config := range conf.RecallNameMapping {
 		recallNameMappingConfig := recconf.RecallNameMappingConfig{
@@ -288,6 +290,11 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 	wg.Wait()
 	if len(exposeList) > 0 {
 		recallRequest.ExposureList = strings.Join(exposeList, ",")
+	}
+
+	// Set retain fields if configured
+	if len(r.retainFields) > 0 {
+		recallRequest.RetainFields = r.retainFields
 	}
 
 	/*
