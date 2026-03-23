@@ -292,6 +292,11 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 		recallRequest.ExposureList = strings.Join(exposeList, ",")
 	}
 
+	// Set retain fields if configured
+	if len(r.retainFields) > 0 {
+		recallRequest.RetainFields = r.retainFields
+	}
+
 	/*
 		for k, v := range beABParams {
 			params[k] = utils.ToString(v, "")
