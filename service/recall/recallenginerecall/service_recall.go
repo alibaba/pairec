@@ -94,6 +94,7 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 		beABParams:        conf.BeABParams,
 		recallMap:         make(map[string]RecallEngineBaseRecall, 8),
 		recallNameMapping: make(map[string]recconf.RecallNameMappingConfig),
+		retainFields:      conf.RetainFields,
 	}
 	for name, config := range conf.RecallNameMapping {
 		recallNameMappingConfig := recconf.RecallNameMappingConfig{
