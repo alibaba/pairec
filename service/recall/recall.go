@@ -36,10 +36,13 @@ func GetRecall(name string) (Recall, error) {
 }
 func Load(config *recconf.RecommendConfig) {
 	for _, conf := range config.RecallConfs {
-		if _, ok := recalls[conf.Name]; ok {
+		if existingRecall, ok := recalls[conf.Name]; ok {
 			sign, _ := json.Marshal(&conf)
 			if utils.Md5(string(sign)) == recallSigns[conf.Name] {
 				continue
+			}
+			if initable, ok := existingRecall.(Initializable); ok {
+				initable.Init(conf)
 			}
 		}
 
@@ -129,4 +132,8 @@ func NewBaseRecall(config recconf.RecallConfig) *BaseRecall {
 	}
 
 	return recall
+}
+
+type Initializable interface {
+	Init(config recconf.RecallConfig)
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/service/pipeline"
 	"github.com/alibaba/pairec/v2/service/rank"
+	"github.com/alibaba/pairec/v2/service/recall"
 	"github.com/alibaba/pairec/v2/service/recall/berecall"
 	"github.com/alibaba/pairec/v2/sort"
 	"github.com/alibaba/pairec/v2/web"
@@ -110,6 +111,7 @@ func runStartHook() {
 
 	// first register hook
 	AddStartHook(func() error {
+		recall.Load(recconf.Config)
 		filter.Load(recconf.Config)
 		berecall.RegisterFilterWithConfig(recconf.Config)
 		sort.Load(recconf.Config)
