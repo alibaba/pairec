@@ -29,7 +29,6 @@ func registerSort(conf *recconf.RecommendConfig) {
 
 func registerRecall(conf *recconf.RecommendConfig) {
 	recall.RegisterRecall("ContextItemRecall", recall.NewContextItemRecall(recconf.RecallConfig{Name: "ContextItemRecall"}))
-	//recall.Load(conf)
 }
 
 func registerMetrics(conf *recconf.RecommendConfig) {

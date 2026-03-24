@@ -38,12 +38,15 @@ func Load(config *recconf.RecommendConfig) {
 	for _, conf := range config.RecallConfs {
 		if existingRecall, ok := recalls[conf.Name]; ok {
 			sign, _ := json.Marshal(&conf)
-			if utils.Md5(string(sign)) == recallSigns[conf.Name] {
+			signStr := utils.Md5(string(sign))
+			if signStr == recallSigns[conf.Name] {
 				continue
 			}
 			if initable, ok := existingRecall.(Initializable); ok {
 				initable.Init(conf)
 			}
+			recallSigns[conf.Name] = signStr
+			continue
 		}
 
 		var recall Recall
