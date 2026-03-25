@@ -182,6 +182,35 @@ func TestConditionSort_CloneWithConfig(t *testing.T) {
 	}
 }
 
+func TestConditionSort_CloneWithConfig_Concurrent(t *testing.T) {
+	config := recconf.SortConfig{
+		Name:     "concurrent_clone_test",
+		SortType: "ConditionSort",
+	}
+	condSort := NewConditionSort(config)
+
+	// Run concurrent CloneWithConfig calls to verify thread safety
+	const goroutines = 100
+	done := make(chan bool, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func(idx int) {
+			defer func() { done <- true }()
+			for j := 0; j < 100; j++ {
+				result := condSort.CloneWithConfig(map[string]interface{}{"Name": "test_name"})
+				if result == nil {
+					t.Error("CloneWithConfig() returned nil")
+				}
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < goroutines; i++ {
+		<-done
+	}
+}
+
 func TestConditionSort_NoConditions_NoDefault(t *testing.T) {
 	config := recconf.SortConfig{
 		Name:     "test_condition_sort_empty",

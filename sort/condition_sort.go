@@ -3,6 +3,7 @@ package sort
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
@@ -21,6 +22,7 @@ type ConditionSort struct {
 	defaultSortName string
 	name            string
 	cloneInstances  map[string]*ConditionSort
+	cloneMu         sync.RWMutex
 }
 
 // NewConditionSort creates a new ConditionSort from config
@@ -92,9 +94,12 @@ func (s *ConditionSort) Sort(sortData *SortData) error {
 // CloneWithConfig implements ICloneSort interface for A/B testing
 func (s *ConditionSort) CloneWithConfig(params map[string]interface{}) ISort {
 	if name, ok := params["Name"].(string); ok {
+		s.cloneMu.RLock()
 		if instance, exists := s.cloneInstances[name]; exists {
+			s.cloneMu.RUnlock()
 			return instance
 		}
+		s.cloneMu.RUnlock()
 	}
 	return s
 }
