@@ -678,6 +678,16 @@ func (d *FeatureHologresDao) itemsFeatureFetch(items []*Item, context *context.R
 						log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureHologresDao\terror=hologres error(%v)", context.RecommendId, err))
 					}
 				}
+				// negative cache support: cache items not found in hologres
+				if d.cache != nil {
+					go func(key2Item map[string]*Item) {
+						for key := range key2Item {
+							if _, ok := d.cache.GetIfPresent(key); !ok {
+								d.cache.Put(key, map[string]any{})
+							}
+						}
+					}(key2Item)
+				}
 			default:
 			}
 		}()

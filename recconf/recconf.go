@@ -28,11 +28,17 @@ const (
 	DataSource_Type_Lindorm      = "lindorm"
 	DataSource_Type_HBase_Thrift = "hbase_thrift"
 	DataSource_Type_FeatureStore = "featurestore"
+	DataSource_Type_RecallEngine = "recallengine"
 	Datasource_Type_Graph        = "graph"
 
 	BE_RecallType_X2I        = "x2i_recall"
 	BE_RecallType_Vector     = "vector_recall"
 	BE_RecallType_MultiMerge = "multi_merge_recall"
+
+	RecallEngine_RecallType_X2I    = "x2i"
+	RecallEngine_RecallType_Vector = "vector"
+	RecallEngine_RecallType_Random = "random"
+	//BE_RecallType_MultiMerge = "multi_merge_recall"
 )
 
 func init() {
@@ -63,6 +69,7 @@ type RecommendConfig struct {
 	SlsConfs                  map[string]SlsConfig
 	DatahubConfs              map[string]DatahubConfig
 	BEConfs                   map[string]BEConfig
+	RecallEngineConfs         map[string]REConfig
 	Ha3EngineConfs            map[string]Ha3EngineConfig
 	OpenSearchConfs           map[string]OpenSearchConfig
 	HBaseConfs                map[string]HBaseConfig
@@ -154,6 +161,10 @@ type DaoConfig struct {
 	// lindorm
 	LindormTableName string
 	LindormName      string
+
+	// recall engine
+	RecallEngineName      string
+	RecallEngineTableName string
 }
 type SceneFeatureConfig struct {
 	FeatureLoadConfs []FeatureLoadConfig
@@ -175,6 +186,7 @@ type FeatureDaoConfig struct {
 	DaoConfig
 	NoUsePlayTimeField      bool
 	FeatureKey              string
+	FeatureAppendKey        string
 	FeatureStore            string // user or item
 	UserFeatureKeyName      string
 	ItemFeatureKeyName      string
@@ -263,7 +275,6 @@ type PIDControllerConfig struct {
 	DefaultKp              float64
 	DefaultKi              float64
 	DefaultKd              float64
-	Timestamp              int64
 	AheadMinutes           int
 	MembershipCacheSeconds int
 	IntegralMin            float64
@@ -271,7 +282,8 @@ type PIDControllerConfig struct {
 	IntegralThreshold      float64
 	ErrThreshold           float64
 	ErrDiscount            float64
-	BoostScoreConditions   []BoostScoreCondition
+	MinExpTraffic          float64
+	FreezeMinutes          int
 }
 
 type LookupConfig struct {
@@ -343,6 +355,9 @@ type RecallConfig struct {
 	GraphConf      GraphConf
 	OpenSearchConf OpenSearchConf
 
+	// recall engine config
+	RecallEngineConf RecallEngineConfig
+
 	FilterParams []FilterParamConfig
 }
 
@@ -370,6 +385,42 @@ type BeConfig struct {
 	BeRecallParams    []BeRecallParam
 	BeFilterNames     []string
 	BeABParams        map[string]interface{}
+}
+type RecallEngineConfig struct {
+	Count              int
+	RecallEngineName   string // recall engine name (datasource name)
+	ServiceName        string
+	VersionName        string
+	RecallNameMapping  map[string]RecallNameMappingConfig
+	RecallEngineParams []RecallEngineParam
+	UserFeatures       []string
+	FilterNames        []string
+	BeABParams         map[string]interface{}
+	RetainFields       []string // Fields to retain in recall response
+}
+type RecallEngineParam struct {
+	Count        int
+	Priority     int
+	RecallType   string
+	RecallName   string
+	ScorerClause string
+	TriggerType  string // user or be or fixvalue or user_vector
+	UserTriggers []TriggerConfig
+	TriggerValue string //
+	TriggerParam BeTriggerParam
+	//RecallParamName   string
+	UserVectorTrigger            UserVectorTriggerConfig
+	UserTriggerDaoConf           UserTriggerDaoConfig               // online table for u2i
+	UserTriggerRulesConf         UserTriggerRulesConfig             // be recall diversity trigger, trigger have diff recall count
+	UserCollaborativeDaoConf     UserCollaborativeDaoConfig         // offline table for u2i
+	UserRealtimeEmbeddingTrigger UserRealtimeEmbeddingTriggerConfig // get user feature and invoke eas model, get item embedding sink to be
+	UserEmbeddingO2OTrigger      UserEmbeddingO2OTriggerConfig
+
+	ItemIdName      string
+	TriggerIdName   string
+	RecallTableName string
+	DiversityParam  string
+	CustomParams    map[string]interface{}
 }
 type RecallNameMappingConfig struct {
 	Format string
@@ -597,18 +648,26 @@ type KafkaConfig struct {
 	Topic            string
 }
 type DatahubConfig struct {
-	AccessId    string
-	AccessKey   string
-	Endpoint    string
-	ProjectName string
-	TopicName   string
-	Schemas     []DatahubTopicSchema
+	AccessId       string
+	AccessKey      string
+	Endpoint       string
+	ProjectName    string
+	TopicName      string
+	CompressorType string
+	Schemas        []DatahubTopicSchema
 }
 type BEConfig struct {
 	Username    string
 	Password    string
 	Endpoint    string
 	ReleaseType string // values: product or dev or prepub
+}
+type REConfig struct {
+	Username      string
+	Password      string
+	Endpoint      string
+	Authorization string
+	InstanceId    string
 }
 type Ha3EngineConfig struct {
 	Username   string
@@ -658,6 +717,7 @@ type CategoryConfig struct {
 	AutoInvokeCallBack     bool
 	AutoInvokeCallBackRate int
 	OutputFields           []string
+	SubRank                map[string]any
 }
 
 type FallbackConfig struct {
@@ -706,10 +766,7 @@ type FilterConfig struct {
 	MaxItems                  int
 	TimeInterval              int // second
 	RetainNum                 int
-	ShuffleItem               bool
-	WriteLog                  bool
 	ClearLogIfNotEnoughScene  string
-	OnlyLogUserExposeFlag     bool
 	Dimension                 string
 	ScoreWeight               float64
 	GroupMinNum               int
@@ -725,7 +782,6 @@ type FilterConfig struct {
 	FilterParams              []FilterParamConfig
 	DiversityDaoConf          DiversityDaoConfig
 	DiversityMinCount         int
-	EnsureDiversity           bool
 	FilterVal                 FilterValue
 	ItemStateCacheSize        int
 	ItemStateCacheTime        int
@@ -739,6 +795,13 @@ type FilterConfig struct {
 		}
 		DefaultFilterName string
 	}
+
+	Features []FeatureConfig // use in ItemStateFilter to transform item feature
+	// for memory alignment
+	ShuffleItem           bool
+	WriteLog              bool
+	OnlyLogUserExposeFlag bool
+	EnsureDiversity       bool
 }
 type BeFilterConfig struct {
 	FilterConfig
@@ -748,29 +811,31 @@ type FilterValue struct {
 	WhereClause string
 }
 type SortConfig struct {
+	Name                    string
+	SortType                string
+	SortByField             string
+	SortOrder               string // "asc" 表示升序，"desc" 表示降序（默认）
+	SwitchThreshold         float64
+	DiversitySize           int
+	ExploreItemSize         int
+	Size                    int
+	DPPConf                 DPPSortConfig
+	SSDConf                 SSDSortConfig
+	PIDConf                 PIDControllerConfig
+	MixSortRules            []MixSortConfig
+	BoostScoreConditions    []BoostScoreCondition
+	DistinctIdConditions    []DistinctIdCondition
+	Conditions              []FilterParamConfig
+	ExcludeRecalls          []string
+	DiversityRules          []DiversityRuleConfig
+	ExclusionRules          []ExclusionRuleConfig
+	TimeInterval            int
+	BoostScoreByWeightDao   BoostScoreByWeightDaoConfig
+	MultiValueDimensionConf []MultiValueDimensionConfig
+
 	Debug                         bool
 	RemainItem                    bool
-	Name                          string
-	SortType                      string
-	SortByField                   string
-	SwitchThreshold               float64
-	DiversitySize                 int
-	ExploreItemSize               int
-	Size                          int
-	DPPConf                       DPPSortConfig
-	SSDConf                       SSDSortConfig
-	PIDConf                       PIDControllerConfig
-	MixSortRules                  []MixSortConfig
 	BoostScoreConditionsFilterAll bool
-	BoostScoreConditions          []BoostScoreCondition
-	DistinctIdConditions          []DistinctIdCondition
-	Conditions                    []FilterParamConfig
-	ExcludeRecalls                []string
-	DiversityRules                []DiversityRuleConfig
-	ExclusionRules                []ExclusionRuleConfig
-	TimeInterval                  int
-	BoostScoreByWeightDao         BoostScoreByWeightDaoConfig
-	MultiValueDimensionConf       []MultiValueDimensionConfig
 }
 
 type MultiValueDimensionConfig struct {
@@ -938,6 +1003,8 @@ type FeatureLogConfig struct {
 	KafKaName    string
 	UserFeatures string
 	ItemFeatures string
+
+	SplitUserItemLogs bool
 }
 
 type PipelineConfig struct {

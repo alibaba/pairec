@@ -1,6 +1,7 @@
 package module
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -45,7 +46,7 @@ func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRe
 		itemIds:     make([]string, 0, 1024),
 
 		cache:     cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Minute)),
-		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(10*time.Minute)),
+		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Hour)),
 	}
 	featureView := dao.fsClient.GetProject().GetFeatureView(dao.table)
 	if featureView == nil {
@@ -131,10 +132,23 @@ func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 }
 
 func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
-	cacheKey := string(user.Id)
+	var cacheKey string
+	if d.filterParam != nil {
+		contextFeatures := context.GetParameter("features").(map[string]interface{})
+		if data, err := json.Marshal(contextFeatures); err == nil {
+			cacheKey = fmt.Sprintf("%s_%s", string(user.Id), string(data))
+
+		}
+	} else {
+		cacheKey = string(user.Id)
+	}
 	if cacheValue, ok := d.cache.GetIfPresent(cacheKey); ok {
 		if items, ok := cacheValue.([]*Item); ok {
-			return items
+			clonedItems := make([]*Item, len(items))
+			for i, item := range items {
+				clonedItems[i] = item.DeepClone()
+			}
+			return clonedItems
 		}
 	}
 

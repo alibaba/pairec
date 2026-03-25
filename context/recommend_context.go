@@ -96,3 +96,8 @@ func (r *RecommendContext) GetContextParam(name string) interface{} {
 	defer r.mu.RUnlock()
 	return r.contexParams[name]
 }
+func (r *RecommendContext) DeleteContextParam(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.contexParams, name)
+}

@@ -3,7 +3,7 @@ package module
 import (
 	"database/sql"
 	"fmt"
-	"math/rand"
+	"sort"
 	"strings"
 	"sync"
 
@@ -51,6 +51,9 @@ func (d *UserGroupHotRecallHologresDao) ListItemsByUser(user *User, context *con
 	builder.From(d.table)
 	triggerId := d.trigger.GetValue(user.MakeUserFeatures2())
 	triggers := ParseTriggerId(triggerId)
+	if context.Debug {
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecallHologresDao\ttriggerId=%s\ttriggers=%v\t", context.RecommendId, triggerId, triggers))
+	}
 	if len(triggers) < 2 {
 		builder.Where(builder.Equal("trigger_id", triggerId))
 	} else {
@@ -96,14 +99,6 @@ func (d *UserGroupHotRecallHologresDao) ListItemsByUser(user *User, context *con
 		return
 	}
 
-	if len(itemIds) > d.recallCount {
-		rand.Shuffle(len(itemIds)/2, func(i, j int) {
-			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
-		})
-
-		itemIds = itemIds[:d.recallCount]
-	}
-
 	for _, id := range itemIds {
 		strs := strings.Split(id, ":")
 		if len(strs) == 1 {
@@ -133,6 +128,12 @@ func (d *UserGroupHotRecallHologresDao) ListItemsByUser(user *User, context *con
 			item.Score = utils.ToFloat(strs[2], float64(0))
 			ret = append(ret, item)
 		}
+	}
+
+	sort.Sort(sort.Reverse(ItemScoreSlice(ret)))
+
+	if d.recallCount > 0 && len(ret) > d.recallCount {
+		return ret[:d.recallCount]
 	}
 
 	return

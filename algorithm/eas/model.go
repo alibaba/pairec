@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -109,7 +110,13 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 				}
 			}
 			name := url[index+len("/api/predict/"):]
-			client = eas.NewPredictClient(fmt.Sprintf("pai-eas-vpc.%s.aliyuncs.com", region), name)
+			var directEndpoint string
+			if os.Getenv("DISCOVERY_ENDPOINT") != "" {
+				directEndpoint = os.Getenv("DISCOVERY_ENDPOINT")
+			} else {
+				directEndpoint = fmt.Sprintf("pai-eas-vpc.%s.aliyuncs.com", region)
+			}
+			client = eas.NewPredictClient(directEndpoint, name)
 			client.SetEndpointType(eas.EndpointTypeDirect)
 		} else {
 			url := strings.ReplaceAll(conf.EasConf.Url, "http://", "")

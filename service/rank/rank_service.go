@@ -164,6 +164,12 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	if rankConfig.BatchCount > 0 {
 		batchCount = rankConfig.BatchCount
 	}
+
+	if len(rankConfig.RankAlgoList) == 0 && rankConfig.RankScore == "" {
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=rank\tmsg=no rank\tcost=%d", context.RecommendId, utils.CostTime(start)))
+		return
+	}
+
 	algoGenerator := CreateAlgoDataGenerator(rankConfig.Processor, rankConfig.ContextFeatures)
 
 	var userFeatures map[string]interface{}
@@ -209,7 +215,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 		if i%batchCount == 0 {
 			var algoData IAlgoData
 			if context.Debug {
-				algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100)
+				algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100, map[string]string{"request_id": context.RecommendId})
 			} else {
 				algoData = algoGenerator.GeneratorAlgoData()
 			}
@@ -220,7 +226,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 	if algoGenerator.HasFeatures() {
 		var algoData IAlgoData
 		if context.Debug {
-			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100)
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100, map[string]string{"request_id": context.RecommendId})
 		} else {
 			algoData = algoGenerator.GeneratorAlgoData()
 		}

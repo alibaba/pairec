@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/hbase_thrift"
 	"github.com/alibaba/pairec/v2/datasource/hbase_thrift/gen-go/hbase"
 	"github.com/alibaba/pairec/v2/log"
@@ -50,7 +51,7 @@ func NewItemStateFilterHBaseThriftDao(config recconf.FilterConfig) *ItemStateFil
 	return dao
 }
 
-func (d *ItemStateFilterHBaseThriftDao) Filter(user *User, items []*Item) (ret []*Item) {
+func (d *ItemStateFilterHBaseThriftDao) Filter(user *User, items []*Item, ctx *context.RecommendContext) (ret []*Item) {
 	requestCount := 500
 	fields := make(map[string]bool, len(items))
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)
@@ -134,7 +135,9 @@ func (d *ItemStateFilterHBaseThriftDao) Filter(user *User, items []*Item) (ret [
 					if item != nil {
 						if d.filterParam != nil {
 							result, err := d.filterParam.EvaluateByDomain(userProperties, properties)
-							if err == nil && !result {
+							if err != nil {
+								log.Error(fmt.Sprintf("requestId=%smodule=ItemStateFilterHBaseThriftDao\tevent=EvaluateFilterParam\terror=%v", ctx.RecommendId, err))
+							} else if !result {
 								fieldMap[string(item.Id)] = false
 							}
 						} else {

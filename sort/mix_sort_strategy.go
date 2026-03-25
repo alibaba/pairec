@@ -179,16 +179,35 @@ func (s *randomPositionStrategy) BuildItems(items []*module.Item) []*module.Item
 	start := 0
 	end := 0
 	for _, item := range s.items {
+		// 检查是否还有空位
+		hasEmpty := false
+		for i := 0; i < s.totalSize; i++ {
+			if items[i] == nil {
+				hasEmpty = true
+				break
+			}
+		}
+		if !hasEmpty {
+			break // 没有空位了，退出
+		}
+
 		end = start + rand.Intn(s.totalSize/s.number)
 		if end >= s.totalSize {
 			end = s.totalSize - 1
 		}
 
-		for items[end] != nil {
+		// 防止死循环：限制尝试次数
+		maxAttempts := s.totalSize
+		attempts := 0
+		for items[end] != nil && attempts < maxAttempts {
 			end++
 			end = end % s.totalSize
+			attempts++
 		}
-		items[end] = item
+		// 只有找到空位时才放置
+		if items[end] == nil {
+			items[end] = item
+		}
 
 		start += s.totalSize / s.number
 	}

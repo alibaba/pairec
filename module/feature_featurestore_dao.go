@@ -70,6 +70,20 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=property not found(%s)", context.RecommendId, comms[1]))
 		return
 	}
+	appendKeys := make([]string, 0)
+	if d.featureAppendKey != "" {
+		appendComms := strings.Split(d.featureAppendKey, ":")
+		if len(appendComms) < 2 {
+			log.Error(fmt.Sprintf("requestId=%s\tuid=%s\terror=featureAppendKey error(%s)", context.RecommendId, user.Id, d.featureAppendKey))
+			return
+		}
+		err := error(nil)
+		appendKeys, err = user.ListStringProperty(appendComms[1])
+		if err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=property error(%s):%s", context.RecommendId, appendComms[1], err))
+			return
+		}
+	}
 	// hit user cache
 	if d.cache != nil {
 		if cacheValue, ok := d.cache.GetIfPresent(key); ok {
@@ -87,12 +101,129 @@ func (d *FeatureFeatureStoreDao) userFeatureFetch(user *User, context *context.R
 
 	if d.fsViewName != "" {
 		d.doUserFeatureFetchWithFeatureView(user, context, key)
+	} else if len(appendKeys) > 0 {
+		d.doUserFeatureFetchWithEntityAppendKeys(user, context, key, appendKeys)
 	} else {
 		d.doUserFeatureFetchWithEntity(user, context, key)
 	}
-
 }
+
 func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, context *context.RecommendContext, key string) {
+	model := d.client.GetProject().GetModel(d.fsModel)
+	if model == nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=model not found(%s)", context.RecommendId, d.fsModel))
+		return
+	}
+
+	var (
+		labelFieldMap map[string]bool
+		modelFieldMap map[string]bool
+	)
+	labelTable := model.GetLabelTable()
+	if labelTable == nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=label table not found(%s)", context.RecommendId, model.LabelDatasourceTable))
+		return
+	}
+
+	if labelFields, ok := d.fieldsMap.Load(labelTable.Name); ok {
+		labelFieldMap = labelFields.(map[string]bool)
+	} else {
+		fNames := labelTable.GetFeatureNames()
+		labelFieldMap = make(map[string]bool, len(fNames))
+		for _, f := range fNames {
+			labelFieldMap[f] = true
+		}
+		d.fieldsMap.Store(labelTable.Name, labelFieldMap)
+	}
+	if modelFields, ok := d.fieldsMap.Load(model.Name); ok {
+		modelFieldMap = modelFields.(map[string]bool)
+	} else {
+		modelFeatures := model.Features
+
+		modelFieldMap = make(map[string]bool, len(modelFeatures))
+		for _, f := range modelFeatures {
+			if f.AliasName != "" {
+				modelFieldMap[f.AliasName] = true
+			} else {
+				modelFieldMap[f.Name] = true
+			}
+		}
+		d.fieldsMap.Store(model.Name, modelFieldMap)
+	}
+
+	var deleteProperties []string
+
+	if len(labelFieldMap) > 0 {
+		contextFeatures := context.GetParameter("features")
+		if contextFeatures != nil {
+			if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
+				for k := range ctxFeatures {
+					_, labelOK := labelFieldMap[k]
+					_, modelOK := modelFieldMap[k]
+					if modelOK && !labelOK {
+						deleteProperties = append(deleteProperties, k)
+					}
+				}
+			}
+			user.DeleteProperties(deleteProperties)
+		}
+	}
+
+	entity := d.client.GetProject().GetFeatureEntity(d.fsEntity)
+	if entity == nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=feature entity not found(%s)", context.RecommendId, d.fsEntity))
+		return
+	}
+
+	features, err := model.GetOnlineFeaturesWithEntity(map[string][]interface{}{entity.FeatureEntityJoinid: {key}}, d.fsEntity)
+	if err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features error(%s)", context.RecommendId, err))
+		return
+	}
+	if len(features) == 0 {
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features empty", context.RecommendId))
+		return
+	}
+
+	if model.GetLabelPriorityLevel() == 1 {
+		contextFeatures := context.GetParameter("features")
+		if contextFeatures != nil {
+			if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
+				for k, v := range ctxFeatures {
+					_, labelOK := labelFieldMap[k]
+					_, modelOK := modelFieldMap[k]
+					if modelOK && labelOK {
+						features[0][k] = v
+					}
+				}
+			}
+		}
+	}
+
+	if len(deleteProperties) > 0 {
+		contextFeatures := context.GetParameter("features")
+		if contextFeatures != nil {
+			if ctxFeatures, ok := contextFeatures.(map[string]any); ok {
+				for _, k := range deleteProperties {
+					if _, exist := features[0][k]; !exist {
+						features[0][k] = ctxFeatures[k]
+					}
+				}
+			}
+		}
+	}
+
+	if d.cacheFeaturesName != "" {
+		user.AddCacheFeatures(d.cacheFeaturesName, features[0])
+	} else {
+		user.AddProperties(features[0])
+	}
+	if d.cache != nil {
+		d.cache.Put(key, features[0])
+	}
+}
+
+func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntityAppendKeys(user *User, context *context.RecommendContext, key string, appendKeys []string) {
 	model := d.client.GetProject().GetModel(d.fsModel)
 	if model == nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=model not found(%s)", context.RecommendId, d.fsModel))
@@ -157,7 +288,12 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 		return
 	}
 
-	features, err := model.GetOnlineFeaturesWithEntity(map[string][]interface{}{entity.FeatureEntityJoinid: {key}}, d.fsEntity)
+	appendSequenceKeys := make([]interface{}, 0, len(appendKeys)+1)
+	appendSequenceKeys = append(appendSequenceKeys, key)
+	for _, appendKey := range appendKeys {
+		appendSequenceKeys = append(appendSequenceKeys, appendKey)
+	}
+	features, err := model.GetOnlineFeaturesWithAggregatedSequence(key, appendSequenceKeys, d.fsEntity)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features error(%s)", context.RecommendId, err))
 		return
@@ -175,7 +311,7 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 					_, labelOK := labelFieldMap[k]
 					_, modelOK := modelFieldMap[k]
 					if modelOK && labelOK {
-						features[0][k] = v
+						features[k] = v
 					}
 				}
 			}
@@ -183,14 +319,15 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 	}
 
 	if d.cacheFeaturesName != "" {
-		user.AddCacheFeatures(d.cacheFeaturesName, features[0])
+		user.AddCacheFeatures(d.cacheFeaturesName, features)
 	} else {
-		user.AddProperties(features[0])
+		user.AddProperties(features)
 	}
 	if d.cache != nil {
-		d.cache.Put(key, features[0])
+		d.cache.Put(key, features)
 	}
 }
+
 func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithFeatureView(user *User, context *context.RecommendContext, key string) {
 	featureView := d.client.GetProject().GetFeatureView(d.fsViewName)
 	if featureView == nil {
@@ -210,7 +347,7 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithFeatureView(user *User, c
 		return
 	}
 	if len(features) == 0 {
-		log.Warning(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features empty", context.RecommendId))
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\tfeatureView=%s\terror=get features empty", context.RecommendId, d.fsViewName))
 		return
 	}
 
@@ -332,6 +469,16 @@ func (d *FeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, context *conte
 				features = features[:len(features)-1]
 			}
 		}
+	}
+	// negative cache support: cache items not found in featurestore
+	if d.cache != nil {
+		go func() {
+			for key := range key2Item {
+				if _, ok := d.cache.GetIfPresent(key); !ok {
+					d.cache.Put(key, map[string]any{})
+				}
+			}
+		}()
 	}
 
 }

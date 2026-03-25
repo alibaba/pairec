@@ -389,4 +389,15 @@ func TestExprFunctionNormalizer(t *testing.T) {
 
 		assert.Equal(t, utils.ToInt(result, 0), 1067)
 	})
+	t.Run("maxIndex && maxValue", func(t *testing.T) {
+		normalizer := NewExprNormalizer("maxIndex(arr)")
+		result := normalizer.Apply(map[string]interface{}{"arr": []float64{0.1, 0.2, 0.3, 0.4}})
+
+		assert.Equal(t, utils.ToInt(result, 0), 3)
+
+		normalizer = NewExprNormalizer("maxValue(arr)")
+		result = normalizer.Apply(map[string]interface{}{"arr": []float64{0.1, 0.2, 0.3, 0.4}})
+
+		assert.Equal(t, result.(float64), float64(0.4))
+	})
 }
