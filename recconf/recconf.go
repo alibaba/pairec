@@ -836,6 +836,13 @@ type SortConfig struct {
 	Debug                         bool
 	RemainItem                    bool
 	BoostScoreConditionsFilterAll bool
+	ConditionSortConfs            struct {
+		SortConfs []struct {
+			Conditions []FilterParamConfig
+			SortName   string
+		}
+		DefaultSortName string
+	}
 }
 
 type MultiValueDimensionConfig struct {
