@@ -1,11 +1,9 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"strconv"
-
-	"github.com/alibaba/pairec/v2/utils"
 )
 
 // FeaturesMap is a custom type for Features field that converts numeric arrays to string arrays
@@ -13,182 +11,186 @@ import (
 type FeaturesMap map[string]interface{}
 
 // UnmarshalJSON implements custom JSON unmarshaling for FeaturesMap
-// It converts []int, []int64, []float32, []float64 to []string to preserve precision
+// It uses json.Number to preserve precision for large integers
 func (f *FeaturesMap) UnmarshalJSON(data []byte) error {
-	// First unmarshal into a temporary map with interface{} values
+	// Use json.Decoder with UseNumber() to preserve numeric precision
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+
 	var temp map[string]interface{}
-	if err := json.Unmarshal(data, &temp); err != nil {
+	if err := decoder.Decode(&temp); err != nil {
 		return err
 	}
 
 	*f = make(FeaturesMap, len(temp))
 	for k, v := range temp {
-		(*f)[k] = convertArrayToStringArray(v)
+		(*f)[k] = convertValueToString(v)
 	}
 
 	return nil
 }
 
-// convertArrayToStringArray converts numeric arrays to string arrays
-// Preserves precision for large integers that would be lost in float64 conversion
-// Also handles nested structures in maps
-func convertArrayToStringArray(value interface{}) interface{} {
+// convertValueToString converts values to string representation
+// Handles arrays, nested structures, and json.Number for precision preservation
+func convertValueToString(value interface{}) interface{} {
 	if value == nil {
 		return value
 	}
 
-	// Array element classification
-	const (
-		elemTypeScalar = iota // numeric, string, or other scalar
-		elemTypeNested        // nested array
-		elemTypeMixed         // mixed types
-	)
-
 	switch v := value.(type) {
+	case json.Number:
+		// Try to restore original numeric type
+		return parseNumber(v)
+
 	case []interface{}:
-		if len(v) == 0 {
-			return v
-		}
-
-		// Classify the array by its elements
-		elemType := elemTypeScalar
-		for _, elem := range v {
-			switch elem.(type) {
-			case []interface{}:
-				if elemType == elemTypeScalar {
-					elemType = elemTypeNested
-				}
-			case float64, float32, int, int32, int64, string:
-				if elemType == elemTypeNested {
-					elemType = elemTypeMixed
-				}
-			default:
-				elemType = elemTypeMixed
-			}
-			if elemType == elemTypeMixed {
-				break
-			}
-		}
-
-		switch elemType {
-		case elemTypeNested:
-			// Convert nested arrays: []interface{} -> [][]string
-			result := make([][]string, 0, len(v))
-			for _, elem := range v {
-				if arr, ok := elem.([]interface{}); ok {
-					inner := make([]string, 0, len(arr))
-					for _, innerElem := range arr {
-						inner = append(inner, convertToString(innerElem))
-					}
-					result = append(result, inner)
-				}
-			}
-			return result
-
-		case elemTypeScalar:
-			// All elements are scalar: convert to []string
-			result := make([]string, 0, len(v))
-			for _, elem := range v {
-				result = append(result, convertToString(elem))
-			}
-			return result
-
-		default:
-			// Mixed types or unknown, return as-is
-			return v
-		}
+		return convertArray(v)
 
 	case map[string]interface{}:
-		// Recursively convert map values
-		// Determine the result type based on value types
-		hasArray := false
-		hasMap := false
-		for _, val := range v {
-			switch val.(type) {
-			case []interface{}:
-				hasArray = true
-			case map[string]interface{}:
-				hasMap = true
-			}
-		}
-
-		// If has nested map, keep as map[string]interface{}
-		if hasMap {
-			result := make(map[string]interface{}, len(v))
-			for k, val := range v {
-				result[k] = convertArrayToStringArray(val)
-			}
-			return result
-		}
-
-		// If has array, return map[string][]string
-		if hasArray {
-			result := make(map[string][]string, len(v))
-			for k, val := range v {
-				converted := convertArrayToStringArray(val)
-				if arr, ok := converted.([]string); ok {
-					result[k] = arr
-				} else if arr, ok := converted.([]interface{}); ok {
-					// Convert []interface{} to []string
-					strArr := make([]string, 0, len(arr))
-					for _, elem := range arr {
-						strArr = append(strArr, convertToString(elem))
-					}
-					result[k] = strArr
-				} else {
-					// Single value, wrap in slice
-					result[k] = []string{convertToString(val)}
-				}
-			}
-			return result
-		}
-
-		// All values are scalar types, return map[string]string
-		result := make(map[string]string, len(v))
-		for k, val := range v {
-			result[k] = convertToString(val)
-		}
-		return result
-
-	case float64:
-		if v == float64(int64(v)) {
-			return int(v)
-		} else if v == float64(int32(v)) {
-			return int(v)
-		} else {
-			return v
-		}
+		return convertMap(v)
 
 	default:
 		return value
 	}
 }
 
-// convertToString converts a numeric value to string preserving precision
-func convertToString(value interface{}) string {
+// convertArray handles array conversion with nested array support
+func convertArray(arr []interface{}) interface{} {
+	if len(arr) == 0 {
+		return arr
+	}
+
+	// Classify the array by its elements
+	const (
+		elemTypeScalar = iota
+		elemTypeNested
+		elemTypeMixed
+	)
+
+	elemType := elemTypeScalar
+	for _, elem := range arr {
+		switch elem.(type) {
+		case []interface{}:
+			if elemType == elemTypeScalar {
+				elemType = elemTypeNested
+			}
+		case json.Number, string:
+			if elemType == elemTypeNested {
+				elemType = elemTypeMixed
+			}
+		default:
+			elemType = elemTypeMixed
+		}
+		if elemType == elemTypeMixed {
+			break
+		}
+	}
+
+	switch elemType {
+	case elemTypeNested:
+		// Convert nested arrays: []interface{} -> [][]string
+		result := make([][]string, 0, len(arr))
+		for _, elem := range arr {
+			if innerArr, ok := elem.([]interface{}); ok {
+				inner := make([]string, 0, len(innerArr))
+				for _, innerElem := range innerArr {
+					inner = append(inner, formatValue(innerElem))
+				}
+				result = append(result, inner)
+			}
+		}
+		return result
+
+	case elemTypeScalar:
+		// All elements are scalar: convert to []string
+		result := make([]string, 0, len(arr))
+		for _, elem := range arr {
+			result = append(result, formatValue(elem))
+		}
+		return result
+
+	default:
+		// Mixed types or unknown, return as-is
+		return arr
+	}
+}
+
+// convertMap handles map conversion with type-aware result types
+func convertMap(m map[string]interface{}) interface{} {
+	// Determine the result type based on value types
+	hasArray := false
+	hasMap := false
+	for _, val := range m {
+		switch val.(type) {
+		case []interface{}:
+			hasArray = true
+		case map[string]interface{}:
+			hasMap = true
+		}
+	}
+
+	// If has nested map, keep as map[string]interface{}
+	if hasMap {
+		result := make(map[string]interface{}, len(m))
+		for k, val := range m {
+			result[k] = convertValueToString(val)
+		}
+		return result
+	}
+
+	// If has array, return map[string][]string
+	if hasArray {
+		result := make(map[string][]string, len(m))
+		for k, val := range m {
+			converted := convertValueToString(val)
+			if arr, ok := converted.([]string); ok {
+				result[k] = arr
+			} else if arr, ok := converted.([]interface{}); ok {
+				// Convert []interface{} to []string
+				strArr := make([]string, 0, len(arr))
+				for _, elem := range arr {
+					strArr = append(strArr, formatValue(elem))
+				}
+				result[k] = strArr
+			} else {
+				// Single value, wrap in slice
+				result[k] = []string{formatValue(val)}
+			}
+		}
+		return result
+	}
+
+	// All values are scalar types, return map[string]string
+	result := make(map[string]string, len(m))
+	for k, val := range m {
+		result[k] = formatValue(val)
+	}
+	return result
+}
+
+// parseNumber attempts to restore the original numeric type from json.Number
+func parseNumber(n json.Number) interface{} {
+	// Try int64 first (covers most integer cases)
+	if i64, err := n.Int64(); err == nil {
+		return int(i64)
+	}
+
+	// Try float64 for decimal numbers
+	if f64, err := n.Float64(); err == nil {
+		return f64
+	}
+
+	// Fallback to string if it can't be parsed as a number
+	return n.String()
+}
+
+// formatValue converts a single value to string
+func formatValue(value interface{}) string {
 	switch v := value.(type) {
-	case float64:
-		// Check if the float64 represents an integer
-		if v == float64(int64(v)) {
-			// It's an integer, use integer formatting to preserve precision
-			return strconv.FormatInt(int64(v), 10)
-		}
-		// It's a float, use default formatting
-		return fmt.Sprintf("%v", v)
-	case float32:
-		if v == float32(int64(v)) {
-			return strconv.FormatInt(int64(v), 10)
-		}
-		return fmt.Sprintf("%v", v)
-	case int:
-		return strconv.Itoa(v)
-	case int32:
-		return strconv.FormatInt(int64(v), 10)
-	case int64:
-		return strconv.FormatInt(v, 10)
+	case json.Number:
+		return v.String()
 	case string:
 		return v
 	default:
-		return utils.ToString(value, "")
+		return fmt.Sprintf("%v", v)
 	}
 }

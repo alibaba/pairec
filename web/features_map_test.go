@@ -42,6 +42,18 @@ func TestFeaturesMap_UnmarshalJSON(t *testing.T) {
 			wantKey:  "tags",
 			wantType: "[][]string",
 		},
+		{
+			name:     "int_field",
+			jsonData: `{"name":"test","count":10,"tags":[[1,2],[3,4]]}`,
+			wantKey:  "count",
+			wantType: "int",
+		},
+		{
+			name:     "float_field",
+			jsonData: `{"name":"test","count":10.2,"tags":[[1,2],[3,4]]}`,
+			wantKey:  "count",
+			wantType: "float64",
+		},
 	}
 
 	for _, tt := range tests {
@@ -267,6 +279,10 @@ func getTypeName(v interface{}) string {
 		return "[]int"
 	case []int64:
 		return "[]int64"
+	case int:
+		return "int"
+	case float64:
+		return "float64"
 	default:
 		return "unknown"
 	}
