@@ -619,7 +619,11 @@ func (d *DebugService) doWriteRecommendLog(user *module.User, items []*module.It
 			buf.WriteString(strconv.FormatFloat(item.Score, 'f', -1, 64))
 			if b, err := json.Marshal(item.CloneAlgoScores()); err == nil {
 				buf.WriteByte(':')
-				buf.Write(b)
+				if string(b) == "null" {
+					buf.WriteString("{}")
+				} else {
+					buf.Write(b)
+				}
 			}
 		}
 		log["items"] = buf.String()
