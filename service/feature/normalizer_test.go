@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"fortio.org/assert"
 	"github.com/alibaba/pairec/v2/context"
@@ -252,6 +253,19 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 
 		assert.Equal(t, utils.ToInt(result, 0), 1067)
 	})
+	t.Run("timestamp", func(t *testing.T) {
+		// timestamp() returns unix timestamp in seconds
+		normalizer := NewExpressionNormalizer("timestamp()")
+		result := normalizer.Apply(map[string]interface{}{})
+		now := time.Now().Unix()
+		assert.Equal(t, result, float64(now))
+
+		// timestamp("ms") returns unix timestamp in milliseconds
+		normalizer = NewExpressionNormalizer("timestamp('ms')")
+		result = normalizer.Apply(map[string]interface{}{})
+		nowMs := time.Now().UnixMilli()
+		assert.Equal(t, result, float64(nowMs))
+	})
 }
 
 func TestExprFunctionNormalizer(t *testing.T) {
@@ -399,5 +413,18 @@ func TestExprFunctionNormalizer(t *testing.T) {
 		result = normalizer.Apply(map[string]interface{}{"arr": []float64{0.1, 0.2, 0.3, 0.4}})
 
 		assert.Equal(t, result.(float64), float64(0.4))
+	})
+	t.Run("timestamp", func(t *testing.T) {
+		// timestamp() returns unix timestamp in seconds
+		normalizer := NewExprNormalizer("timestamp()")
+		result := normalizer.Apply(map[string]interface{}{})
+		now := time.Now().Unix()
+		assert.Equal(t, result, float64(now))
+
+		// timestamp("ms") returns unix timestamp in milliseconds
+		normalizer = NewExprNormalizer("timestamp('ms')")
+		result = normalizer.Apply(map[string]interface{}{})
+		nowMs := time.Now().UnixMilli()
+		assert.Equal(t, result, float64(nowMs))
 	})
 }

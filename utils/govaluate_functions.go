@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/Knetic/govaluate"
 	"github.com/cespare/xxhash/v2"
@@ -256,7 +257,17 @@ var (
 			return distance, nil
 		},
 
-		"maxIndex": func(args ...interface{}) (interface{}, error) {
+		"timestamp": func(args ...interface{}) (interface{}, error) {
+				now := time.Now().Unix()
+				if len(args) > 0 {
+					unit := strings.ToLower(ToString(args[0], ""))
+					if unit == "ms" || unit == "millisecond" || unit == "milliseconds" {
+						return float64(time.Now().UnixMilli()), nil
+					}
+				}
+				return float64(now), nil
+			},
+			"maxIndex": func(args ...interface{}) (interface{}, error) {
 			if len(args) != 1 {
 				return nil, errors.New("maxIndex: expects exactly one argument")
 			}
