@@ -256,15 +256,17 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 	t.Run("timestamp", func(t *testing.T) {
 		// timestamp() returns unix timestamp in seconds
 		normalizer := NewExpressionNormalizer("timestamp()")
+		before := time.Now().Unix()
 		result := normalizer.Apply(map[string]interface{}{})
-		now := time.Now().Unix()
-		assert.Equal(t, result, float64(now))
+		after := time.Now().Unix()
+		assert.True(t, result.(float64) >= float64(before) && result.(float64) <= float64(after))
 
 		// timestamp("ms") returns unix timestamp in milliseconds
 		normalizer = NewExpressionNormalizer("timestamp('ms')")
+		beforeMs := time.Now().UnixMilli()
 		result = normalizer.Apply(map[string]interface{}{})
-		nowMs := time.Now().UnixMilli()
-		assert.Equal(t, result, float64(nowMs))
+		afterMs := time.Now().UnixMilli()
+		assert.True(t, result.(float64) >= float64(beforeMs) && result.(float64) <= float64(afterMs))
 	})
 }
 
@@ -417,14 +419,16 @@ func TestExprFunctionNormalizer(t *testing.T) {
 	t.Run("timestamp", func(t *testing.T) {
 		// timestamp() returns unix timestamp in seconds
 		normalizer := NewExprNormalizer("timestamp()")
+		before := time.Now().Unix()
 		result := normalizer.Apply(map[string]interface{}{})
-		now := time.Now().Unix()
-		assert.Equal(t, result, float64(now))
+		after := time.Now().Unix()
+		assert.True(t, result.(float64) >= float64(before) && result.(float64) <= float64(after))
 
 		// timestamp("ms") returns unix timestamp in milliseconds
 		normalizer = NewExprNormalizer("timestamp('ms')")
+		beforeMs := time.Now().UnixMilli()
 		result = normalizer.Apply(map[string]interface{}{})
-		nowMs := time.Now().UnixMilli()
-		assert.Equal(t, result, float64(nowMs))
+		afterMs := time.Now().UnixMilli()
+		assert.True(t, result.(float64) >= float64(beforeMs) && result.(float64) <= float64(afterMs))
 	})
 }

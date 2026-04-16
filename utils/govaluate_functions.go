@@ -258,16 +258,16 @@ var (
 		},
 
 		"timestamp": func(args ...interface{}) (interface{}, error) {
-				now := time.Now().Unix()
-				if len(args) > 0 {
-					unit := strings.ToLower(ToString(args[0], ""))
-					if unit == "ms" || unit == "millisecond" || unit == "milliseconds" {
-						return float64(time.Now().UnixMilli()), nil
-					}
+			now := time.Now()
+			if len(args) > 0 {
+				unit := strings.ToLower(ToString(args[0], ""))
+				if unit == "ms" || unit == "millisecond" || unit == "milliseconds" {
+					return float64(now.UnixMilli()), nil
 				}
-				return float64(now), nil
-			},
-			"maxIndex": func(args ...interface{}) (interface{}, error) {
+			}
+			return float64(now.Unix()), nil
+		},
+		"maxIndex": func(args ...interface{}) (interface{}, error) {
 			if len(args) != 1 {
 				return nil, errors.New("maxIndex: expects exactly one argument")
 			}
