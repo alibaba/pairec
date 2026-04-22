@@ -10,6 +10,7 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	be "github.com/aliyun/aliyun-be-go-sdk"
+	"github.com/expr-lang/expr/vm"
 )
 
 type User2ItemExposureBeDao struct {
@@ -18,6 +19,7 @@ type User2ItemExposureBeDao struct {
 	userIdName               string
 	itemIdName               string
 	generateItemDataFuncName string
+	generateItemProgram      *vm.Program
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
 }
@@ -37,6 +39,7 @@ func NewUser2ItemExposureBeDao(config recconf.FilterConfig) *User2ItemExposureBe
 	}
 	dao.beClient = client.BeClient
 	dao.table = config.DaoConf.BeTableName
+	dao.generateItemProgram = compileItemDataExpr(config.GenerateItemDataExpr)
 
 	for _, scene := range config.WriteLogExcludeScenes {
 		dao.writeLogExcludeScenes[scene] = true
@@ -60,7 +63,7 @@ func (d *User2ItemExposureBeDao) LogHistory(user *User, items []*Item, context *
 	createTime := time.Now().Unix()
 	var contents []map[string]string
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item)
 		contents = append(contents, map[string]string{
 			d.userIdName: uid,
 			d.itemIdName: itemData,

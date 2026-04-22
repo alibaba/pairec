@@ -19,6 +19,7 @@ type User2ItemExposureFeatureStoreDao struct {
 	table                    string
 	timeInterval             int64 //  second
 	generateItemDataFuncName string
+	generateItemProgram      *vm.Program
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
 	onlyLogUserExposeFlag    bool
@@ -54,6 +55,7 @@ func NewUser2ItemExposureFeatureStoreDao(config recconf.FilterConfig) *User2Item
 			dao.generateUserProgram = p
 		}
 	}
+	dao.generateItemProgram = compileItemDataExpr(config.GenerateItemDataExpr)
 	return dao
 }
 
@@ -88,7 +90,7 @@ func (d *User2ItemExposureFeatureStoreDao) LogHistory(user *User, items []*Item,
 	ts := start.Unix() - ttl + d.timeInterval
 
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item)
 		request.Kvs = append(request.Kvs, &fdbserverpb.KVData{
 			Key:   userData,
 			Value: []byte(itemData),
@@ -125,7 +127,7 @@ func (d *User2ItemExposureFeatureStoreDao) FilterByHistory(uid UID, items []*Ite
 
 	request.Key = userData
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item)
 		request.Items = append(request.Items, itemData)
 	}
 
