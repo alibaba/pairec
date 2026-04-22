@@ -4,3 +4,4 @@ commands/tmp
 docs/
 .vscode/
 parse_pb_log.py
+.claude
