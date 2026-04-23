@@ -154,7 +154,7 @@ func (d *User2ItemExposureHologresV2Dao) LogHistory(user *User, items []*Item, c
 	createTime := time.Now().Unix()
 	var ret string
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		ret = ret + "," + itemData
 	}
 	ret = ret[1:]
@@ -227,7 +227,7 @@ func (d *User2ItemExposureHologresV2Dao) FilterByHistory(uid UID, items []*Item,
 	}
 	if d.onlyLogUserExposeFlag {
 		for _, item := range items {
-			itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item)
+			itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 			if _, ok := fiterIds[itemData]; ok {
 				item.AddProperty("_is_exposure_", 1)
 			}
@@ -236,7 +236,7 @@ func (d *User2ItemExposureHologresV2Dao) FilterByHistory(uid UID, items []*Item,
 		ret = items
 	} else {
 		for _, item := range items {
-			itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item)
+			itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 			if _, ok := fiterIds[itemData]; !ok {
 				ret = append(ret, item)
 			}

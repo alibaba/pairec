@@ -63,7 +63,7 @@ func (d *User2ItemExposureBeDao) LogHistory(user *User, items []*Item, context *
 	createTime := time.Now().Unix()
 	var contents []map[string]string
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		contents = append(contents, map[string]string{
 			d.userIdName: uid,
 			d.itemIdName: itemData,

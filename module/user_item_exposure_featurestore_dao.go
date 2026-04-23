@@ -90,7 +90,7 @@ func (d *User2ItemExposureFeatureStoreDao) LogHistory(user *User, items []*Item,
 	ts := start.Unix() - ttl + d.timeInterval
 
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		request.Kvs = append(request.Kvs, &fdbserverpb.KVData{
 			Key:   userData,
 			Value: []byte(itemData),
@@ -127,7 +127,7 @@ func (d *User2ItemExposureFeatureStoreDao) FilterByHistory(uid UID, items []*Ite
 
 	request.Key = userData
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 		request.Items = append(request.Items, itemData)
 	}
 

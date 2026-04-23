@@ -92,7 +92,7 @@ func (d *User2ItemExposureGraphDao) LogHistory(user *User, items []*Item, contex
 	//将 item 数据写入 item 节点
 	var ret string
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		ret = ret + "," + itemData
 	}
 	ret = ret[1:]
@@ -157,7 +157,7 @@ func (d *User2ItemExposureGraphDao) FilterByHistory(uid UID, items []*Item, cont
 	}
 
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 		if _, ok := fiterIds[itemData]; !ok {
 			ret = append(ret, item)
 		}

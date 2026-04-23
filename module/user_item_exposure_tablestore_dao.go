@@ -64,7 +64,7 @@ func (d *User2ItemExposureTableStoreDao) LogHistory(user *User, items []*Item, c
 	uid := string(user.Id)
 	idList := make([]string, 0)
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		idList = append(idList, itemData)
 	}
 
@@ -138,7 +138,7 @@ func (d *User2ItemExposureTableStoreDao) FilterByHistory(uid UID, items []*Item,
 	}
 
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 		if _, ok := fiterIds[itemData]; !ok {
 			ret = append(ret, item)
 		}

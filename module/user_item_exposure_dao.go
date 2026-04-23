@@ -50,13 +50,17 @@ func compileItemDataExpr(exprStr string) *vm.Program {
 }
 
 // getItemData generates item data using expr program if available, otherwise falls back to registered function.
-func getItemData(funcName string, program *vm.Program, uid UID, item *Item) string {
+func getItemData(funcName string, program *vm.Program, uid UID, item *Item, ctx *context.RecommendContext) string {
 	if program != nil {
 		m := map[string]any{
-			"uid":        string(uid),
-			"item_id":    string(item.Id),
-			"properties": item.GetProperties(),
-			"sprintf":    fmt.Sprintf,
+			"uid":     string(uid),
+			"item_id": string(item.Id),
+			"item":    item.GetProperties(),
+			"sprintf": fmt.Sprintf,
+			"context": map[string]any{
+				"item_id":  utils.ToString(ctx.GetParameter("item_id"), ""),
+				"features": ctx.GetParameter("features"),
+			},
 		}
 		if output, err := expr.Run(program, m); err != nil {
 			log.Error(fmt.Sprintf("module=getItemData\tuid=%s\titem_id=%s\terr=%v", uid, item.Id, err))

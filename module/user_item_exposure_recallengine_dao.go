@@ -83,7 +83,7 @@ func (d *User2ItemExposureRecallEngineDao) LogHistory(user *User, items []*Item,
 
 	writeRequest := re.WriteRequest{}
 	for _, item := range items {
-		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		writeRequest.Content = append(writeRequest.Content, map[string]any{
 			"item_id":   itemData,
 			"timestamp": ts,
