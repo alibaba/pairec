@@ -19,6 +19,7 @@ type User2ItemExposureRecallEngineDao struct {
 	table                    string
 	timeInterval             int64 //  second
 	generateItemDataFuncName string
+	generateItemProgram      *vm.Program
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
 	onlyLogUserExposeFlag    bool
@@ -53,6 +54,7 @@ func NewUser2ItemExposureRecallEngineDao(config recconf.FilterConfig) *User2Item
 			dao.generateUserProgram = p
 		}
 	}
+	dao.generateItemProgram = compileItemDataExpr(config.GenerateItemDataExpr)
 	return dao
 }
 
@@ -81,7 +83,7 @@ func (d *User2ItemExposureRecallEngineDao) LogHistory(user *User, items []*Item,
 
 	writeRequest := re.WriteRequest{}
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		writeRequest.Content = append(writeRequest.Content, map[string]any{
 			"item_id":   itemData,
 			"timestamp": ts,

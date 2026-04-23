@@ -11,6 +11,7 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	igraph "github.com/aliyun/aliyun-igraph-go-sdk"
+	"github.com/expr-lang/expr/vm"
 )
 
 type User2ItemExposureGraphDao struct {
@@ -23,6 +24,7 @@ type User2ItemExposureGraphDao struct {
 	maxItems                 int
 	timeInterval             int //  second
 	generateItemDataFuncName string
+	generateItemProgram      *vm.Program
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
 }
@@ -57,6 +59,7 @@ func NewUser2ItemExposureGraphDao(config recconf.FilterConfig) *User2ItemExposur
 	for _, scene := range config.WriteLogExcludeScenes {
 		dao.writeLogExcludeScenes[scene] = true
 	}
+	dao.generateItemProgram = compileItemDataExpr(config.GenerateItemDataExpr)
 	return dao
 }
 
@@ -89,7 +92,7 @@ func (d *User2ItemExposureGraphDao) LogHistory(user *User, items []*Item, contex
 	//将 item 数据写入 item 节点
 	var ret string
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		ret = ret + "," + itemData
 	}
 	ret = ret[1:]
@@ -154,7 +157,7 @@ func (d *User2ItemExposureGraphDao) FilterByHistory(uid UID, items []*Item, cont
 	}
 
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 		if _, ok := fiterIds[itemData]; !ok {
 			ret = append(ret, item)
 		}
