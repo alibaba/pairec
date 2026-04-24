@@ -14,13 +14,18 @@ import (
 
 type FeatureFeatureStoreDao struct {
 	*FeatureBaseDao
-	client           *fs.FSClient
-	fsModel          string
-	fsEntity         string
-	fsViewName       string
-	userSelectFields string
-	itemSelectFields string
-	fieldsMap        sync.Map
+	client              *fs.FSClient
+	fsModel             string
+	fsEntity            string
+	fsViewName          string
+	userSelectFields    string
+	itemSelectFields    string
+	fieldsMap           sync.Map
+	featureStoreOptions FeatureStoreDaoOptions
+}
+
+type FeatureStoreDaoOptions struct {
+	DlrmHSTU bool
 }
 
 func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureStoreDao {
@@ -31,6 +36,9 @@ func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureS
 		fsViewName:       config.FeatureStoreViewName,
 		userSelectFields: config.UserSelectFields,
 		itemSelectFields: config.ItemSelectFields,
+		featureStoreOptions: FeatureStoreDaoOptions{
+			DlrmHSTU: config.FeatureStoreOptions.DlrmHSTU,
+		},
 	}
 	client, err := fs.GetFeatureStoreClient(config.FeatureStoreName)
 	if err != nil {
@@ -175,7 +183,11 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 		return
 	}
 
-	features, err := model.GetOnlineFeaturesWithEntity(map[string][]interface{}{entity.FeatureEntityJoinid: {key}}, d.fsEntity)
+	modelOptions := domain.ModelOptions{}
+	if d.featureStoreOptions.DlrmHSTU {
+		modelOptions.DlrmHSTU = true
+	}
+	features, err := model.GetOnlineFeaturesWithEntityWithOptions(map[string][]interface{}{entity.FeatureEntityJoinid: {key}}, d.fsEntity, modelOptions)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features error(%s)", context.RecommendId, err))
 		return
@@ -341,7 +353,11 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithFeatureView(user *User, c
 	} else {
 		featuresNames = strings.Split(d.userSelectFields, ",")
 	}
-	features, err := featureView.GetOnlineFeatures([]any{key}, featuresNames, nil)
+	featureViewOptions := domain.FeatureViewOptions{}
+	if d.featureStoreOptions.DlrmHSTU {
+		featureViewOptions.DlrmHSTU = true
+	}
+	features, err := featureView.GetOnlineFeaturesWithOptions([]any{key}, featuresNames, nil, featureViewOptions)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=FeatureFeatureStoreDao\terror=get features error(%s)", context.RecommendId, err))
 		return
