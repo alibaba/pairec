@@ -5,12 +5,14 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
-	"github.com/lib/pq"
-	_ "github.com/lib/pq"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/lib/pq"
+	_ "github.com/lib/pq"
 )
 
 func init() {
@@ -56,8 +58,22 @@ func (m *Postgres) Init() error {
 	}
 
 	db.SetConnMaxLifetime(60 * time.Minute)
-	db.SetMaxIdleConns(50)
-	db.SetMaxOpenConns(100)
+
+	maxIdleConns := 50
+	maxOpenConns := 100
+	if v := os.Getenv("HOLOGRES_MAX_IDLE_CONNS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			maxIdleConns = n
+		}
+	}
+	if v := os.Getenv("HOLOGRES_MAX_OPEN_CONNS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			maxOpenConns = n
+		}
+	}
+	db.SetMaxIdleConns(maxIdleConns)
+	db.SetMaxOpenConns(maxOpenConns)
+	log.Info(fmt.Sprintf("hologres connection pool config, name=%s, maxIdleConns=%d, maxOpenConns=%d", m.Name, maxIdleConns, maxOpenConns))
 
 	m.DB = db
 	err = m.DB.Ping()

@@ -780,6 +780,7 @@ type FilterConfig struct {
 	GroupWeightDimensionLimit map[string]int
 	WriteLogExcludeScenes     []string
 	GenerateItemDataFuncName  string
+	GenerateItemDataExpr      string
 	GenerateUserDataExpr      string
 	AdjustCountConfs          []AdjustCountConfig
 	ItemStateDaoConf          ItemStateDaoConfig

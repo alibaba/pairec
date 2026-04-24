@@ -48,6 +48,7 @@ type User2ItemExposureHologresDao struct {
 	insertStmt               *sql.Stmt
 	selectStmt               *sql.Stmt
 	generateItemDataFuncName string
+	generateItemProgram      *vm.Program
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
 	onlyLogUserExposeFlag    bool
@@ -87,6 +88,7 @@ func NewUser2ItemExposureHologresDao(config recconf.FilterConfig) *User2ItemExpo
 			dao.generateUserProgram = p
 		}
 	}
+	dao.generateItemProgram = compileItemDataExpr(config.GenerateItemDataExpr)
 	return dao
 }
 
@@ -126,7 +128,7 @@ func (d *User2ItemExposureHologresDao) LogHistory(user *User, items []*Item, con
 	createTime := time.Now().Unix()
 	var ret string
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		ret = ret + "," + itemData
 	}
 	ret = ret[1:]
@@ -202,7 +204,7 @@ func (d *User2ItemExposureHologresDao) FilterByHistory(uid UID, items []*Item, c
 	}
 	if d.onlyLogUserExposeFlag {
 		for _, item := range items {
-			itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
+			itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 			if _, ok := fiterIds[itemData]; ok {
 				item.AddProperty("_is_exposure_", 1)
 			}
@@ -211,7 +213,7 @@ func (d *User2ItemExposureHologresDao) FilterByHistory(uid UID, items []*Item, c
 		ret = items
 	} else {
 		for _, item := range items {
-			itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
+			itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 			if _, ok := fiterIds[itemData]; !ok {
 				ret = append(ret, item)
 			}
