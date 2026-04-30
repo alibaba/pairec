@@ -184,7 +184,9 @@ type BeRTCntFieldConfig struct {
 }
 type FeatureDaoConfig struct {
 	DaoConfig
-	NoUsePlayTimeField      bool
+	NoUsePlayTimeField bool
+	// FeatureAsyncLoad use async goroutine to load feature
+	FeatureAsyncLoad        bool
 	FeatureKey              string
 	FeatureAppendKey        string
 	FeatureStore            string // user or item
@@ -196,13 +198,11 @@ type FeatureDaoConfig struct {
 	TsFeatureKeyName        string
 	UserSelectFields        string
 	ItemSelectFields        string
-	// FeatureAsyncLoad use async goroutine to load feature
-	FeatureAsyncLoad bool
-	FeatureType      string // per feature type has different way of build
-	SequenceLength   int
-	SequenceName     string
-	SequenceEvent    string
-	SequenceDelim    string
+	FeatureType             string // per feature type has different way of build
+	SequenceLength          int
+	SequenceName            string
+	SequenceEvent           string
+	SequenceDelim           string
 	// SequencePlayTime filter event by as least play time
 	// like play event need to large than 10s, so set value is "play:10000", timeunit is ms
 	// if has  more than one event to filter, use ';' as delim , like "play:10000;read:50000"
@@ -247,6 +247,11 @@ type FeatureDaoConfig struct {
 	CacheSize int
 	//CacheTime cache featrue data time in second
 	CacheTime int
+
+	FeatureStoreOptions FeatureStoreOptionsConfig
+}
+type FeatureStoreOptionsConfig struct {
+	DlrmHSTU bool
 }
 type FeatureConfig struct {
 	FeatureType         string
