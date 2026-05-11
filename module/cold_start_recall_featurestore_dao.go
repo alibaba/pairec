@@ -216,14 +216,20 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 				time.Sleep(10 * time.Second)
 			}
 			if err != nil {
+				// Preserve previous itemIds on transient errors to avoid flapping.
 				log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\terror=%v", err))
 				return
 			}
+
+			// Always overwrite itemIds with the latest full scan result,
+			// including empty results, so that the recall pool stays in sync
+			// with the underlying featureview. This prevents stale items from
+			// being recalled after the source data has been cleared.
+			d.itemIds = ids
 			if len(ids) == 0 {
+				log.Warning(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=scan returned empty result, itemIds cleared", d.recallName))
 				return
 			}
-
-			d.itemIds = ids
 			go d.fetchItemData(d.itemIds)
 			log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\tmsg=load item\tsize=%d", len(d.itemIds)))
 		}()
