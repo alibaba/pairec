@@ -265,4 +265,7 @@ message TorchRecPBResponse {
   // item ids
   repeated string item_ids = 4;
 
+  // model configured pass-through data
+  map<string, string> pass_through_data = 5;
+
 }
