@@ -620,8 +620,9 @@ func torchrecMutClassificationResponseFuncDebug(data interface{}) (ret []respons
 }
 
 type TorchrecEmbeddingResponse struct {
-	embeddings []float32
-	dimSize    int
+	embeddings      []float32
+	dimSize         int
+	passThroughData map[string]string
 }
 
 func (r *TorchrecEmbeddingResponse) GetScore() float64 {
@@ -640,6 +641,12 @@ func (r *TorchrecEmbeddingResponse) GetEmbedding() []float32 {
 }
 func (r *TorchrecEmbeddingResponse) GetEmbeddingSize() int {
 	return r.dimSize
+}
+
+// GetPassThroughData returns the pass-through map carried from EAS PBResponse,
+// e.g. model_version configured by the model service side.
+func (r *TorchrecEmbeddingResponse) GetPassThroughData() map[string]string {
+	return r.passThroughData
 }
 
 func torchrecEmbeddingResponseFunc(data interface{}) (ret []response.AlgoResponse, err error) {
@@ -662,7 +669,11 @@ func torchrecEmbeddingResponseFunc(data interface{}) (ret []response.AlgoRespons
 		break
 	}
 
-	ret = append(ret, &TorchrecEmbeddingResponse{embeddings: embeddings, dimSize: dimSize})
+	ret = append(ret, &TorchrecEmbeddingResponse{
+		embeddings:      embeddings,
+		dimSize:         dimSize,
+		passThroughData: resp.GetPassThroughData(),
+	})
 
 	return
 }

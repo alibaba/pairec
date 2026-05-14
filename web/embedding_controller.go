@@ -46,7 +46,8 @@ func (r *EmbeddingParam) GetParameter(name string) interface{} {
 
 type EmbeddingResponse struct {
 	Response
-	Embedding []float32 `json:"embedding"`
+	Embedding   []float32         `json:"embedding"`
+	ModelConfig map[string]string `json:"model_config,omitempty"`
 }
 
 func (r *EmbeddingResponse) ToString() string {
@@ -132,10 +133,10 @@ func (r *EmbeddingController) CheckParameter() error {
 func (c *EmbeddingController) doProcess(w http.ResponseWriter, r *http.Request) {
 	c.makeRecommendContext()
 	embeddingService := service.NewEmbeddingService()
-	embeddings, err := embeddingService.Recommend(c.context)
+	embeddings, modelConfig, err := embeddingService.Recommend(c.context)
 
 	if c.param.Debug {
-		fmt.Printf("requestId=%s\tembeddings=%v\terror=%v\n", c.RequestId, embeddings, err)
+		fmt.Printf("requestId=%s\tembeddings=%v\tmodel_config=%v\terror=%v\n", c.RequestId, embeddings, modelConfig, err)
 	}
 	if err != nil {
 		response := EmbeddingResponse{
@@ -150,7 +151,8 @@ func (c *EmbeddingController) doProcess(w http.ResponseWriter, r *http.Request) 
 	}
 
 	response := EmbeddingResponse{
-		Embedding: embeddings,
+		Embedding:   embeddings,
+		ModelConfig: modelConfig,
 		Response: Response{
 			RequestId: c.RequestId,
 			Code:      200,
