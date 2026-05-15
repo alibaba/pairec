@@ -2,17 +2,20 @@ package sort
 
 import (
 	"errors"
+	"time"
+
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
-	"time"
 )
 
 type BoostScoreByWeight struct {
+	name                  string
 	BoostScoreByWeightDao module.BoostScoreByWeightDao
 }
 
 func NewBoostScoreByWeight(config recconf.SortConfig) *BoostScoreByWeight {
 	boostScoreByWeight := BoostScoreByWeight{
+		name:                  config.Name,
 		BoostScoreByWeightDao: module.NewBoostScoreByWeightDao(config),
 	}
 
@@ -34,6 +37,6 @@ func (s *BoostScoreByWeight) doSort(sortData *SortData) error {
 	resultItems := s.BoostScoreByWeightDao.Sort(items)
 
 	sortData.Data = resultItems
-	sortInfoLog(sortData, "BoostScoreByWeight", len(resultItems), start)
+	sortInfoLogWithName(sortData, "BoostScoreByWeight", s.name, len(resultItems), start)
 	return nil
 }
