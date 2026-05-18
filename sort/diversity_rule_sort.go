@@ -278,7 +278,7 @@ func (s *DiversityRuleSort) doSort(sortData *SortData) error {
 	result = append(result, excludeItems...)
 
 	sortData.Data = result
-	sortInfoLog(sortData, "DiversityRuleSort", len(result), start)
+	sortInfoLogWithName(sortData, "DiversityRuleSort", s.name, len(result), start)
 	return nil
 }
 
