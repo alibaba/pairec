@@ -3,6 +3,9 @@ package recall
 import (
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
+	"strings"
+	"sync"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -14,6 +17,13 @@ import (
 
 type Recall interface {
 	GetCandidateItems(user *module.User, context *context.RecommendContext) []*module.Item
+}
+
+// ICloneRecall is implemented by recalls that support AB experiment parameter overrides.
+// Mirrors the sort.ICloneSort pattern: interface assertion + instance-local caching.
+type ICloneRecall interface {
+	CloneWithConfig(params map[string]interface{}) Recall
+	GetRecallName() string
 }
 
 var recalls = make(map[string]Recall)
@@ -106,14 +116,19 @@ type BaseRecall struct {
 	itemType    string
 	recallCount int
 	recallAlgo  string
+
+	// cloneInstances caches recall instances cloned with AB params, keyed by md5 of the AB config.
+	cloneInstances map[string]Recall
+	cloneMu        sync.Mutex
 }
 
 func NewBaseRecall(config recconf.RecallConfig) *BaseRecall {
 	recall := &BaseRecall{
-		modelName:   config.Name,
-		itemType:    config.ItemType,
-		recallCount: config.RecallCount,
-		recallAlgo:  config.RecallAlgo,
+		modelName:      config.Name,
+		itemType:       config.ItemType,
+		recallCount:    config.RecallCount,
+		recallAlgo:     config.RecallAlgo,
+		cloneInstances: make(map[string]Recall),
 	}
 	if len(config.CacheAdapter) > 0 {
 		cache, err := cache.NewCache(config.CacheAdapter,
@@ -131,4 +146,69 @@ func NewBaseRecall(config recconf.RecallConfig) *BaseRecall {
 	}
 
 	return recall
+}
+
+// GetRecallName returns the configured recall name.
+func (r *BaseRecall) GetRecallName() string {
+	return r.modelName
+}
+
+// cloneWithBuilder implements the common clone-by-AB-config flow for all recall types.
+// It computes a cache key from params JSON (Go json.Marshal sorts map keys, so the
+// key is deterministic), checks the instance-local cache, and on miss deserializes
+// params into a RecallConfig and invokes builder to construct a new instance.
+// If anything fails (marshal error / panic in builder), nil is returned and the caller
+// should fall back to the original recall instance.
+func (r *BaseRecall) cloneWithBuilder(params map[string]interface{}, builder func(recconf.RecallConfig) Recall) Recall {
+	// Compute cache key directly from params (hot path: 1 marshal + 1 md5)
+	j, err := json.Marshal(params)
+	if err != nil {
+		log.Error(fmt.Sprintf("event=CloneWithConfig\trecall=%s\terror=%v", r.modelName, err))
+		return nil
+	}
+	key := utils.Md5(string(j))
+
+	// Fast path: check cache
+	r.cloneMu.Lock()
+	if inst, ok := r.cloneInstances[key]; ok {
+		r.cloneMu.Unlock()
+		return inst
+	}
+	r.cloneMu.Unlock()
+
+	// Cache miss: deserialize params into RecallConfig
+	cfg := recconf.RecallConfig{}
+	if err := json.Unmarshal(j, &cfg); err != nil {
+		log.Error(fmt.Sprintf("event=CloneWithConfig\trecall=%s\terror=%v", r.modelName, err))
+		return nil
+	}
+	cfg.Name = r.modelName
+
+	// Build new instance with panic protection
+	var newRecall Recall
+	func() {
+		defer func() {
+			if e := recover(); e != nil {
+				log.Error(fmt.Sprintf("event=CloneWithConfig\trecall=%s\tpanic=%v\tstack=%s",
+					r.modelName, e, strings.ReplaceAll(string(debug.Stack()), "\n", "\t")))
+				newRecall = nil
+			}
+		}()
+		newRecall = builder(cfg)
+	}()
+
+	if newRecall == nil {
+		return nil
+	}
+
+	// Double-check and store
+	r.cloneMu.Lock()
+	if inst, ok := r.cloneInstances[key]; ok {
+		r.cloneMu.Unlock()
+		return inst
+	}
+	r.cloneInstances[key] = newRecall
+	r.cloneMu.Unlock()
+	log.Info(fmt.Sprintf("event=CloneWithConfig\trecall=%s\tkey=%s\tregister new clone", r.modelName, key))
+	return newRecall
 }

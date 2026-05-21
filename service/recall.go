@@ -49,6 +49,7 @@ func getRecallFromABConfig(recallConfig map[string]interface{}, name, recallNewN
 	mutex.Unlock()
 	return nil
 }
+
 func (s *RecallService) GetItems(user *module.User, context *context.RecommendContext) (ret []*module.Item) {
 	sceneName := context.GetParameter("scene")
 	categoryName := context.GetParameter("category").(string)
@@ -86,34 +87,40 @@ func (s *RecallService) GetItems(user *module.User, context *context.RecommendCo
 	}
 
 	for _, name := range recallNames {
-		if context.ExperimentResult != nil {
-			recallConfig := context.ExperimentResult.GetExperimentParams().Get("recall."+name, nil)
-			if recallConfig == nil {
-				if recall, err := recall.GetRecall(name); err == nil {
-					recalls = append(recalls, recall)
-				}
+		r, err := recall.GetRecall(name)
+		if err != nil {
+			continue
+		}
 
-			} else {
-				d, _ := json.Marshal(recallConfig)
-				recallName := name + "#" + utils.Md5(string(d))
-				// find new recall by the new recall name
-				if recall, err := recall.GetRecall(recallName); err == nil {
-					recalls = append(recalls, recall)
-				} else {
+		// AB experiment: interface assertion (same as sort.ICloneSort pattern)
+		if context.ExperimentResult != nil {
+			if cloneRecall, ok := r.(recall.ICloneRecall); ok {
+				recallConfig := context.ExperimentResult.GetExperimentParams().Get("recall."+cloneRecall.GetRecallName(), nil)
+				if recallConfig != nil {
 					if params, ok := recallConfig.(map[string]interface{}); ok {
-						if r := getRecallFromABConfig(params, name, recallName); r != nil {
-							recalls = append(recalls, r)
+						if cloned := cloneRecall.CloneWithConfig(params); !utils.IsNil(cloned) {
+							r = cloned
 						}
 					}
 				}
-
-			}
-		} else {
-			// not find abtest config
-			if recall, err := recall.GetRecall(name); err == nil {
-				recalls = append(recalls, recall)
+			} else {
+				// Legacy fallback: reflection + global registration for custom recalls
+				recallConfig := context.ExperimentResult.GetExperimentParams().Get("recall."+name, nil)
+				if recallConfig != nil {
+					d, _ := json.Marshal(recallConfig)
+					recallNewName := name + "#" + utils.Md5(string(d))
+					if cached, err := recall.GetRecall(recallNewName); err == nil {
+						r = cached
+					} else if params, ok := recallConfig.(map[string]interface{}); ok {
+						if cloned := getRecallFromABConfig(params, name, recallNewName); cloned != nil {
+							r = cloned
+						}
+					}
+				}
 			}
 		}
+
+		recalls = append(recalls, r)
 	}
 
 	ch := make(chan []*module.Item, len(recalls))
