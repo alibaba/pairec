@@ -47,7 +47,7 @@ require (
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260323112208-51b86e8512e0
 	github.com/aliyun/credentials-go v1.4.8
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
-	github.com/bruceding/go-antlr-valuate v0.0.3
+	github.com/bruceding/go-antlr-valuate v0.0.4
 	github.com/golang/geo v0.0.0-20251029182131-33017506d313
 	github.com/google/uuid v1.3.0
 	github.com/mmcloughlin/geohash v0.10.0
