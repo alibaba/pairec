@@ -129,8 +129,8 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		client.SetTimeout(conf.EasConf.Timeout)
 		client.SetHttpTransport(&http.Transport{
 			MaxConnsPerHost:       2000,
-			MaxIdleConnsPerHost:   300,
-			MaxIdleConns:          300,
+			MaxIdleConnsPerHost:   2000,
+			MaxIdleConns:          2000,
 			TLSHandshakeTimeout:   100 * time.Millisecond,
 			ExpectContinueTimeout: 200 * time.Millisecond,
 			DialContext: (&net.Dialer{
