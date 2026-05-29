@@ -55,7 +55,10 @@ func Send(controller *CallBackController) {
 //
 // The downstream worker behavior (makeCallBackContext + doCallbackLog) is
 // identical to the HTTP path, so DataHub training logs are byte-for-byte
-// equivalent.
+// equivalent. makeCallBackContext is intentionally NOT invoked here; it is
+// called by the worker goroutine inside doCallbackLog, exactly like the
+// HTTP path. Calling it here would trigger a duplicated A/B experiment
+// match RPC and a duplicated experiment log line.
 func SendDirect(param *CallBackParam) {
 	if callBackControllerHandler == nil {
 		once.Do(func() {
@@ -79,11 +82,13 @@ func SendDirect(param *CallBackParam) {
 		}
 	}
 
-	if param.RequestId != "" {
-		c.RequestId = param.RequestId
-	} else {
-		c.RequestId = utils.UUID()
+	// Fall back to a generated UUID when the caller does not set RequestId.
+	// Write it back to c.param so doCallbackLog logs the same id as the one
+	// used by the controller and the recommend context.
+	if c.param.RequestId == "" {
+		c.param.RequestId = utils.UUID()
 	}
-	c.makeCallBackContext()
+	c.RequestId = c.param.RequestId
+
 	callBackControllerHandler.controllerCh <- c
 }
