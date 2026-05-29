@@ -65,6 +65,20 @@ func SendDirect(param *CallBackParam) {
 
 	c := &CallBackController{}
 	c.param = *param
+
+	// Mirror the merge logic from CheckParameter so both entry paths
+	// produce the same param.Features for downstream consumers
+	// (NewUserWithContext copies these into user.Properties, which
+	// drives the DataHub user_features field).
+	if len(c.param.ComplexTypeFeatures.FeaturesMap) > 0 {
+		if c.param.Features == nil {
+			c.param.Features = make(FeaturesMap)
+		}
+		for k, v := range c.param.ComplexTypeFeatures.FeaturesMap {
+			c.param.Features[k] = v
+		}
+	}
+
 	if param.RequestId != "" {
 		c.RequestId = param.RequestId
 	} else {
