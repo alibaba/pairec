@@ -1,10 +1,7 @@
 package pairec
 
 import (
-	"bytes"
 	"math"
-
-	jsoniter "github.com/json-iterator/go"
 
 	randv2 "math/rand/v2"
 
@@ -13,8 +10,6 @@ import (
 	"github.com/alibaba/pairec/v2/service/hook"
 	"github.com/alibaba/pairec/v2/web"
 )
-
-var jsonFast = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	scene := context.GetParameter("scene").(string)
@@ -81,21 +76,6 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 		}
 	}
 
-	requestData := map[string]any{
-		"request_id": context.RecommendId,
-		"scene_id":   scene,
-		"features":   features,
-		"uid":        user.Id,
-		"debug":      context.Debug,
-	}
-	if context.GetParameter("complex_type_features") != nil {
-		if complexTypeFeatures, ok := context.GetParameter("complex_type_features").(web.ComplexTypeFeatures); ok {
-			if len(complexTypeFeatures.Features) > 0 {
-				requestData["complex_type_features"] = complexTypeFeatures.Features
-			}
-		}
-	}
-
 	itemList := make([]map[string]any, 0, len(items))
 	for _, item := range items {
 		data := make(map[string]any)
@@ -111,11 +91,29 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 
 		itemList = append(itemList, data)
 	}
-	requestData["item_list"] = itemList
 
-	d, _ := jsonFast.Marshal(requestData)
-	response := ForwardWithReader("POST", "/api/callback", bytes.NewReader(d))
-	response.Body.Close()
+	// Build CallBackParam directly and dispatch to the worker channel via
+	// SendDirect, bypassing the HTTP self-call (jsonFast.Marshal +
+	// ForwardWithReader + io.ReadAll + json.Unmarshal). The downstream
+	// worker behavior is identical to /api/callback so DataHub output
+	// stays byte-for-byte consistent.
+	param := &web.CallBackParam{
+		SceneId:   scene,
+		RequestId: context.RecommendId,
+		Uid:       string(user.Id),
+		Features:  web.FeaturesMap(features),
+		ItemList:  itemList,
+		Debug:     context.Debug,
+	}
+	if context.GetParameter("complex_type_features") != nil {
+		if complexTypeFeatures, ok := context.GetParameter("complex_type_features").(web.ComplexTypeFeatures); ok {
+			if len(complexTypeFeatures.Features) > 0 {
+				param.ComplexTypeFeatures = complexTypeFeatures
+			}
+		}
+	}
+
+	web.SendDirect(param)
 }
 
 func init() {
