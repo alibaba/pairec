@@ -1,6 +1,8 @@
 package web
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -67,7 +69,7 @@ func TestRunCallbackSafely_RecoversFromInjectedPanic(t *testing.T) {
 		panic("intentional panic from injected CallBackProcessFunc")
 	})
 	t.Cleanup(func() {
-		delete(callBackProcessFuncMap, sceneID)
+		unregisterCallBackProcessFunc(sceneID)
 	})
 
 	defer func() {
@@ -102,4 +104,42 @@ func TestRunCallbackSafely_NilController(t *testing.T) {
 	}()
 
 	runCallbackSafely(nil)
+}
+
+// TestCallBackProcessFuncMap_ConcurrentAccess verifies that concurrent
+// Register / lookup / unregister against callBackProcessFuncMap is race-free.
+// Production code reads this map from worker goroutines while user code may
+// still be registering new scenes at startup, so the synchronization in
+// callback_controller_func.go is load-bearing. Run with `go test -race` to
+// detect any regression that drops the mutex.
+func TestCallBackProcessFuncMap_ConcurrentAccess(t *testing.T) {
+	const workers = 32
+	const opsPerWorker = 200
+
+	noop := func(user *module.User, items []*module.Item, ctx *context.RecommendContext) {}
+
+	// Make sure none of the scenes used here survive the test.
+	t.Cleanup(func() {
+		for i := 0; i < workers; i++ {
+			unregisterCallBackProcessFunc(fmt.Sprintf("race_scene_%d", i))
+		}
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func(id int) {
+			defer wg.Done()
+			scene := fmt.Sprintf("race_scene_%d", id)
+			for j := 0; j < opsPerWorker; j++ {
+				RegisterCallBackProcessFunc(scene, noop)
+				if _, ok := lookupCallBackProcessFunc(scene); !ok {
+					t.Errorf("scene %q: lookup miss right after register", scene)
+					return
+				}
+				unregisterCallBackProcessFunc(scene)
+			}
+		}(i)
+	}
+	wg.Wait()
 }
