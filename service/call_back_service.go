@@ -31,7 +31,11 @@ func getCallbackLimiter(scene string, qps float64) *rate.Limiter {
 	if v, ok := callbackLimiters.Load(scene); ok {
 		return v.(*rate.Limiter)
 	}
-	limiter := rate.NewLimiter(rate.Limit(qps), int(qps))
+	burst := int(qps)
+	if burst < 1 {
+		burst = 1
+	}
+	limiter := rate.NewLimiter(rate.Limit(qps), burst)
 	actual, _ := callbackLimiters.LoadOrStore(scene, limiter)
 	return actual.(*rate.Limiter)
 }
