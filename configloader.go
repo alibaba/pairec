@@ -179,12 +179,17 @@ func ListenConfig(configName string) {
 }
 
 // initCallbackHandler initializes the callback worker pool from config.
-// Uses the first CallBackConfig found for pool settings (pool is global).
+// Aggregates across all scenes: uses max WorkerPoolSize, OR of DropOnBackpressure.
 func initCallbackHandler(config *recconf.RecommendConfig) {
+	var poolSize int
+	var drop bool
 	for _, cbConf := range config.CallBackConfs {
-		poolSize := cbConf.WorkerPoolSize
-		drop := cbConf.DropOnBackpressure
-		web.InitHandler(poolSize, 5000, drop)
-		return
+		if cbConf.WorkerPoolSize > poolSize {
+			poolSize = cbConf.WorkerPoolSize
+		}
+		if cbConf.DropOnBackpressure {
+			drop = true
+		}
 	}
+	web.InitHandler(poolSize, 5000, drop)
 }
