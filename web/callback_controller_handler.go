@@ -6,11 +6,16 @@ import (
 	"sync/atomic"
 
 	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/utils"
 )
 
 var callBackControllerHandler *CallBackControllerHandler
 var once sync.Once
+
+func init() {
+	metrics.CallbackPendingFunc = CallbackPending
+}
 
 type CallBackControllerHandler struct {
 	controllerCh chan *CallBackController
