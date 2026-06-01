@@ -160,7 +160,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 		rankConfig.RankScore = rankscore
 	}
 
-	batchCount := 100
+	batchCount := 200
 	if rankConfig.BatchCount > 0 {
 		batchCount = rankConfig.BatchCount
 	}
