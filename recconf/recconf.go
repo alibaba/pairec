@@ -846,13 +846,17 @@ type AdjustCountConfig struct {
 	Weight     int
 }
 type CallBackConfig struct {
-	DataSource      DataSourceConfig
-	RankConf        RankConfig
-	RawFeatures     bool
-	RawFeaturesRate int
-	ItemSize        int
-	ItemSizeRate    int
-	UseUserFeatures bool
+	DataSource         DataSourceConfig
+	RankConf           RankConfig
+	RawFeatures        bool
+	RawFeaturesRate    int
+	ItemSize           int
+	ItemSizeRate       int
+	UseUserFeatures    bool
+	WorkerPoolSize     int     `json:"WorkerPoolSize"`
+	RateLimitQPS       float64 `json:"RateLimitQPS"`
+	JitterMaxMs        int     `json:"JitterMaxMs"`
+	DropOnBackpressure bool    `json:"DropOnBackpressure"`
 }
 type EmbeddingConfig struct {
 	DataSource DataSourceConfig
