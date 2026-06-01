@@ -243,7 +243,13 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 			}
 			if callBackConfig.RateLimitQPS > 0 {
 				limiter := getCallbackLimiter(scene_name, callBackConfig.RateLimitQPS)
-				_ = limiter.Wait(gocontext.Background())
+				ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 2*time.Second)
+				if err := limiter.Wait(ctx); err != nil {
+					cancel()
+					log.Warning(fmt.Sprintf("requestId=%s\tcallback rate limit timeout, skipping EAS call", context.RecommendId))
+					return
+				}
+				cancel()
 			}
 			if callBackConfig.JitterMaxMs > 0 {
 				time.Sleep(time.Duration(rand.Intn(callBackConfig.JitterMaxMs)) * time.Millisecond)
