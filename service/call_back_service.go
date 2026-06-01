@@ -1,6 +1,7 @@
 package service
 
 import (
+	gocontext "context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -21,7 +22,19 @@ import (
 	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/rank"
 	"github.com/alibaba/pairec/v2/utils"
+	"golang.org/x/time/rate"
 )
+
+var callbackLimiters sync.Map
+
+func getCallbackLimiter(scene string, qps float64) *rate.Limiter {
+	if v, ok := callbackLimiters.Load(scene); ok {
+		return v.(*rate.Limiter)
+	}
+	limiter := rate.NewLimiter(rate.Limit(qps), int(qps))
+	actual, _ := callbackLimiters.LoadOrStore(scene, limiter)
+	return actual.(*rate.Limiter)
+}
 
 type CallBackService struct {
 	recallService      *RecallService
@@ -238,6 +251,13 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 						break
 					}
 				}
+			}
+			if callBackConfig.RateLimitQPS > 0 {
+				limiter := getCallbackLimiter(scene_name, callBackConfig.RateLimitQPS)
+				_ = limiter.Wait(gocontext.Background())
+			}
+			if callBackConfig.JitterMaxMs > 0 {
+				time.Sleep(time.Duration(rand.Intn(callBackConfig.JitterMaxMs)) * time.Millisecond)
 			}
 			// run 返回原始的值，然后处理返回数据// 注册配置
 			ret, err := algorithm.Run(newAlgoName, algoData.GetFeatures())

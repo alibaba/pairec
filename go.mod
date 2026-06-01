@@ -52,6 +52,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/mmcloughlin/geohash v0.10.0
 	go.uber.org/automaxprocs v1.5.2
+	golang.org/x/time v0.11.0
 )
 
 require (

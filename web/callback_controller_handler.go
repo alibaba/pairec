@@ -3,8 +3,9 @@ package web
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
-	plog "github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/utils"
 )
 
@@ -14,14 +15,20 @@ var once sync.Once
 type CallBackControllerHandler struct {
 	controllerCh chan *CallBackController
 	poolSize     int
+	pending      atomic.Int64
 }
 
-func NewCallBackControllerHandler() *CallBackControllerHandler {
-	handler := &CallBackControllerHandler{
-		controllerCh: make(chan *CallBackController, 5000),
-		poolSize:     20,
+func NewCallBackControllerHandler(poolSize int, bufferSize int) *CallBackControllerHandler {
+	if poolSize <= 0 {
+		poolSize = 20
 	}
-
+	if bufferSize <= 0 {
+		bufferSize = 5000
+	}
+	handler := &CallBackControllerHandler{
+		controllerCh: make(chan *CallBackController, bufferSize),
+		poolSize:     poolSize,
+	}
 	handler.start()
 	return handler
 }
@@ -31,19 +38,36 @@ func (h *CallBackControllerHandler) start() {
 		go func() {
 			for controller := range h.controllerCh {
 				controller.doCallbackLog()
+				h.pending.Add(-1)
 			}
 		}()
 	}
 }
 
+func (h *CallBackControllerHandler) Pending() int64 {
+	return h.pending.Load()
+}
+
+func CallbackPending() int64 {
+	if callBackControllerHandler == nil {
+		return 0
+	}
+	return callBackControllerHandler.Pending()
+}
+
 func Send(controller *CallBackController) {
 	if callBackControllerHandler == nil {
 		once.Do(func() {
-			callBackControllerHandler = NewCallBackControllerHandler()
+			callBackControllerHandler = NewCallBackControllerHandler(20, 5000)
 		})
 	}
 
-	callBackControllerHandler.controllerCh <- controller
+	select {
+	case callBackControllerHandler.controllerCh <- controller:
+		callBackControllerHandler.pending.Add(1)
+	default:
+		log.Warning("callback channel full, dropping request")
+	}
 }
 
 // SendDirect bypasses the HTTP self-call path used by the external
@@ -67,7 +91,7 @@ func SendDirect(param *CallBackParam) {
 	// so a panic here would crash the request goroutine. Logging the error
 	// keeps the misuse visible without taking down the request.
 	if param == nil {
-		plog.Error("event=SendDirect\terror=nil param")
+		log.Error("event=SendDirect\terror=nil param")
 		return
 	}
 
@@ -77,13 +101,13 @@ func SendDirect(param *CallBackParam) {
 	// at a nil algoData. Owning the invariant here makes SendDirect spec-
 	// equivalent to the HTTP entry, so any future caller is automatically safe.
 	if len(param.ItemList) == 0 {
-		plog.Info(fmt.Sprintf("requestId=%s\tevent=SendDirect\tmsg=empty item list, skip", param.RequestId))
+		log.Info(fmt.Sprintf("requestId=%s\tevent=SendDirect\tmsg=empty item list, skip", param.RequestId))
 		return
 	}
 
 	if callBackControllerHandler == nil {
 		once.Do(func() {
-			callBackControllerHandler = NewCallBackControllerHandler()
+			callBackControllerHandler = NewCallBackControllerHandler(20, 5000)
 		})
 	}
 
