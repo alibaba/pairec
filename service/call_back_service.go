@@ -1,7 +1,6 @@
 package service
 
 import (
-	gocontext "context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -28,12 +27,16 @@ import (
 var callbackLimiters sync.Map
 
 func getCallbackLimiter(scene string, qps float64) *rate.Limiter {
-	if v, ok := callbackLimiters.Load(scene); ok {
-		return v.(*rate.Limiter)
-	}
 	burst := int(qps)
 	if burst < 1 {
 		burst = 1
+	}
+	if v, ok := callbackLimiters.Load(scene); ok {
+		limiter := v.(*rate.Limiter)
+		// Support hot reload: update limit if config changed
+		limiter.SetLimit(rate.Limit(qps))
+		limiter.SetBurst(burst)
+		return limiter
 	}
 	limiter := rate.NewLimiter(rate.Limit(qps), burst)
 	actual, _ := callbackLimiters.LoadOrStore(scene, limiter)
@@ -258,13 +261,10 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 			}
 			if callBackConfig.RateLimitQPS > 0 {
 				limiter := getCallbackLimiter(scene_name, callBackConfig.RateLimitQPS)
-				ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 2*time.Second)
-				if err := limiter.Wait(ctx); err != nil {
-					cancel()
-					log.Warning(fmt.Sprintf("requestId=%s\tcallback rate limit timeout, skipping EAS call", context.RecommendId))
+				if !limiter.Allow() {
+					log.Warning(fmt.Sprintf("requestId=%s\tcallback rate limited, skipping EAS call", context.RecommendId))
 					return
 				}
-				cancel()
 			}
 			if callBackConfig.JitterMaxMs > 0 {
 				time.Sleep(time.Duration(rand.Intn(callBackConfig.JitterMaxMs)) * time.Millisecond)
