@@ -5,12 +5,20 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/config"
 	"github.com/alibaba/pairec/v2/pkg/eas"
 	proto "github.com/golang/protobuf/proto"
 )
+
+// marshalBufPool reuses proto.Buffer to reduce marshal allocations
+var marshalBufPool = sync.Pool{
+	New: func() interface{} {
+		return proto.NewBuffer(make([]byte, 0, 4096))
+	},
+}
 
 type EasyrecRequest struct {
 	EasRequest
@@ -24,7 +32,14 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{}, 
 		return
 	}
 
-	data, _ := proto.Marshal(request)
+	buf := marshalBufPool.Get().(*proto.Buffer)
+	buf.Reset()
+	if err = buf.Marshal(request); err != nil {
+		marshalBufPool.Put(buf)
+		return
+	}
+	data := buf.Bytes()
+
 	if config.AppConfig.WarmUpData {
 		warmupFunc := func(data []byte) {
 			if file, err := os.OpenFile("warm_up.bin", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0664); err == nil {
@@ -36,6 +51,7 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{}, 
 	}
 
 	body, err := r.EasClient.BytesPredict(data)
+	marshalBufPool.Put(buf)
 	if err != nil {
 		return
 	}
