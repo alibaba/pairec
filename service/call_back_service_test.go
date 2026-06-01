@@ -50,6 +50,16 @@ func TestCallBackService_Rank_EmptyItems(t *testing.T) {
 	svc.User = module.NewUser("test_user")
 	svc.Items = nil // the regression: zero candidates
 
+	// NOTE: The recover() below is a *backstop only*. The real bug surfaces
+	// inside a goroutine spawned by Rank() (call_back_service.go:209) and
+	// cannot be caught by recover in the parent goroutine. The regression is
+	// instead detected by the test binary crashing with an unrecovered
+	// goroutine panic, which Go's test framework reports as FAIL. If anyone
+	// later wraps the spawned goroutine in its own defer/recover, this test
+	// will silently start passing even with the bug back in place. In that
+	// case, refactor Rank() so the nil-algoData branch is synchronously
+	// observable (e.g. extract the goroutine body into a method that returns
+	// an error) and assert on that instead.
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("Rank() panicked with empty items: %v", r)

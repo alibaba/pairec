@@ -198,8 +198,12 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 	// algoData, so without this guard we hit a nil pointer panic at
 	// algoData.GetFeatures(). Returning here also avoids spawning goroutines
 	// that have no work to do.
+	//
+	// With the upstream guards in callback_hook.go and web.SendDirect, this
+	// branch is only reachable when a future caller bypasses both, i.e.
+	// misuse, so log at Warning level for ops triage.
 	if algoData == nil {
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=callback\tevent=Rank\tmsg=skip rank, no features available", context.RecommendId))
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=callback\tevent=Rank\tmsg=algoData is nil, skipping rank fan-out", context.RecommendId))
 		return
 	}
 
