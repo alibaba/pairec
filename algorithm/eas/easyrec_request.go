@@ -51,10 +51,8 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{}, 
 	}
 
 	body, err := r.EasClient.BytesPredict(data)
-	// Cap oversized buffers to avoid retaining large allocations in pool
-	if cap(buf.Bytes()) > 1<<20 {
-		marshalBufPool.Put(proto.NewBuffer(make([]byte, 0, 4096)))
-	} else {
+	// Only return normal-sized buffers to pool; let oversized ones be GC'd
+	if cap(buf.Bytes()) <= 1<<20 {
 		marshalBufPool.Put(buf)
 	}
 	if err != nil {

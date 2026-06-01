@@ -9,7 +9,7 @@ import (
 )
 
 var callBackControllerHandler *CallBackControllerHandler
-var once sync.Once
+var initOnce sync.Once
 
 func init() {
 	metrics.CallbackPendingFunc = CallbackPending
@@ -63,14 +63,15 @@ func CallbackPending() int64 {
 // InitHandler initializes the callback handler with config values.
 // Must be called during service startup after config is loaded.
 func InitHandler(poolSize int, bufferSize int, dropOnBackpressure bool) {
-	once.Do(func() {
+	initOnce.Do(func() {
 		callBackControllerHandler = NewCallBackControllerHandler(poolSize, bufferSize, dropOnBackpressure)
 	})
 }
 
 func Send(controller *CallBackController) {
 	if callBackControllerHandler == nil {
-		once.Do(func() {
+		// Fallback: config not yet loaded, use defaults
+		initOnce.Do(func() {
 			callBackControllerHandler = NewCallBackControllerHandler(20, 5000, false)
 		})
 	}
