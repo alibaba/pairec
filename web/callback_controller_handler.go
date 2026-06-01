@@ -69,12 +69,10 @@ func InitHandler(poolSize int, bufferSize int, dropOnBackpressure bool) {
 }
 
 func Send(controller *CallBackController) {
-	if callBackControllerHandler == nil {
-		// Fallback: config not yet loaded, use defaults
-		initOnce.Do(func() {
-			callBackControllerHandler = NewCallBackControllerHandler(20, 5000, false)
-		})
-	}
+	// initOnce ensures exactly one initialization, whether from InitHandler or here
+	initOnce.Do(func() {
+		callBackControllerHandler = NewCallBackControllerHandler(20, 5000, false)
+	})
 
 	// Increment pending BEFORE enqueue to avoid transient negative values
 	h := callBackControllerHandler
