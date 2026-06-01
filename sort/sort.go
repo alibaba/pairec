@@ -187,6 +187,10 @@ func RegisterSortWithConfig(config *recconf.RecommendConfig) {
 			s = NewBoostScoreByWeight(conf)
 		} else if conf.SortType == "DistinctIdSort" {
 			s = NewDistinctIdSort(conf)
+		} else if conf.SortType == "CustomFieldSort" {
+			s = NewCustomFieldSort(conf)
+		} else if conf.SortType == "ConditionSort" {
+			s = NewConditionSort(conf)
 		}
 
 		if s == nil {

@@ -39,7 +39,7 @@ func NewEmbeddingService() *EmbeddingService {
 	return &service
 }
 
-func (r *EmbeddingService) Recommend(context *context.RecommendContext) ([]float32, error) {
+func (r *EmbeddingService) Recommend(context *context.RecommendContext) ([]float32, map[string]string, error) {
 	var (
 		user  *module.User
 		items []*module.Item
@@ -75,13 +75,13 @@ func (r *EmbeddingService) Recommend(context *context.RecommendContext) ([]float
 	// load features
 	items = r.featureService.LoadFeatures(user, items, context)
 
-	embeddings, err := r.Rank(user, items, context)
+	embeddings, modelConfig, err := r.Rank(user, items, context)
 	go r.recordLog(user, items, context, embeddings)
 
-	return embeddings, err
+	return embeddings, modelConfig, err
 }
 
-func (r *EmbeddingService) Rank(user *module.User, items []*module.Item, context *context.RecommendContext) (embeddings []float32, err error) {
+func (r *EmbeddingService) Rank(user *module.User, items []*module.Item, context *context.RecommendContext) (embeddings []float32, modelConfig map[string]string, err error) {
 	start := time.Now()
 	if context.Debug {
 		data, _ := json.Marshal(user)
@@ -140,18 +140,22 @@ func (r *EmbeddingService) Rank(user *module.User, items []*module.Item, context
 
 	wg.Wait()
 	if algoData.Error() != nil {
-		return nil, algoData.Error()
+		return nil, nil, algoData.Error()
 	}
 
 	for _, algoResults := range algoData.GetAlgoResult() {
 		if len(algoResults) > 0 {
 			if embeddingReponse, ok := algoResults[0].(*eas.TorchrecEmbeddingResponse); ok {
 				embeddings = embeddingReponse.GetEmbedding()
+				// Pass through the model_config map (e.g. model_version) returned by EAS.
+				if modelConfig == nil {
+					modelConfig = embeddingReponse.GetPassThroughData()
+				}
 			}
 		}
 	}
 	if len(embeddings) == 0 {
-		return nil, fmt.Errorf("embeddings is empty")
+		return nil, nil, fmt.Errorf("embeddings is empty")
 	}
 
 	log.Info(fmt.Sprintf("requestId=%s\tmodule=EmbeddingRank\tcost=%d", context.RecommendId, utils.CostTime(start)))

@@ -23,7 +23,7 @@ type CallBackParam struct {
 	SceneId             string                   `json:"scene_id"`
 	RequestId           string                   `json:"request_id"`
 	Uid                 string                   `json:"uid"`
-	Features            map[string]interface{}   `json:"features"`
+	Features            FeaturesMap              `json:"features"`
 	ComplexTypeFeatures ComplexTypeFeatures      `json:"complex_type_features"`
 	ItemList            []map[string]interface{} `json:"item_list"`
 	RequestInfo         map[string]interface{}   `json:"request_info"`
@@ -38,7 +38,8 @@ func (r *CallBackParam) GetParameter(name string) interface{} {
 	} else if name == "request_id" {
 		return r.RequestId
 	} else if name == "features" {
-		return r.Features
+		// Convert FeaturesMap to map[string]interface{} for type assertion in NewUserWithContext
+		return map[string]interface{}(r.Features)
 	} else if name == "category" {
 		return "default"
 	}

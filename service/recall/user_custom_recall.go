@@ -48,7 +48,7 @@ func (r *UserCustomRecall) GetCandidateItems(user *module.User, context *context
 				item.RetrieveId = r.modelName
 				ret = append(ret, item)
 			}
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=UserCustomRecall\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=UserCustomRecall\tname=%s\tfrom=cache\tcount=%d\tcost=%d", context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 			return
 		}
 	}

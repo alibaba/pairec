@@ -444,10 +444,11 @@ func TestRemainItemByCondition(t *testing.T) {
 		items = append(items, item)
 	}
 
+	user := module.NewUser("user_1")
 	for size := 10; size <= 30; size++ {
 		context := context.NewRecommendContext()
 		context.Size = size
-		sortData := SortData{Data: items, Context: context}
+		sortData := SortData{Data: items, Context: context, User: user}
 
 		NewItemRankScoreSort().Sort(&sortData)
 

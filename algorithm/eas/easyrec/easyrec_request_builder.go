@@ -2,6 +2,7 @@ package easyrec
 
 import (
 	"bytes"
+	"math"
 	"strings"
 )
 
@@ -23,7 +24,7 @@ func NewEasyrecRequestBuilder() *EasyrecRequestBuilder {
 			UserFeatures:    make(map[string]*PBFeature, 0),
 			ContextFeatures: make(map[string]*ContextFeatures, 0),
 			ItemFeatures:    make(map[string]*ContextFeatures, 0),
-			// DebugLevel:      int32(1),
+			MetaData:        make(map[string]string),
 		},
 		separator: "\u0002",
 	}
@@ -41,6 +42,14 @@ func NewEasyrecRequestBuilderDebugWithLevel(level int) *EasyrecRequestBuilder {
 	builder.request.DebugLevel = int32(level)
 	return builder
 }
+func (b *EasyrecRequestBuilder) SetRequestId(requestId string) {
+	b.request.MetaData["request_id"] = requestId
+}
+func (b *EasyrecRequestBuilder) SetMetaData(metaData map[string]string) {
+	for k, v := range metaData {
+		b.request.MetaData[k] = v
+	}
+}
 
 func (b *EasyrecRequestBuilder) EasyrecRequest() *PBRequest {
 	return b.request
@@ -53,7 +62,12 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 	case int32:
 		b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{val}}
 	case int:
-		b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(val)}}
+		// Use IntFeature if value fits in int32 range, otherwise use LongFeature
+		if val >= math.MinInt32 && val <= math.MaxInt32 {
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(val)}}
+		} else {
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{int64(val)}}
+		}
 	case int64:
 		b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{val}}
 	case float64:
@@ -141,11 +155,27 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 	case []int32:
 		b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: val}}}
 	case []int:
-		values := make([]int32, len(val))
-		for i, v := range val {
-			values[i] = int32(v)
+		// Check if all values fit in int32 range
+		useInt32 := true
+		for _, v := range val {
+			if v < math.MinInt32 || v > math.MaxInt32 {
+				useInt32 = false
+				break
+			}
 		}
-		b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: values}}}
+		if useInt32 {
+			values := make([]int32, len(val))
+			for i, v := range val {
+				values[i] = int32(v)
+			}
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: values}}}
+		} else {
+			values := make([]int64, len(val))
+			for i, v := range val {
+				values[i] = int64(v)
+			}
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongList{LongList: &LongList{Features: values}}}
+		}
 	case []int64:
 		b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongList{LongList: &LongList{Features: val}}}
 	case []string:
@@ -253,7 +283,12 @@ func (b *EasyrecRequestBuilder) AddContextFeature(key string, features []interfa
 		case int32:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntFeature{val}})
 		case int:
-			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntFeature{int32(val)}})
+			// Use IntFeature if value fits in int32 range, otherwise use LongFeature
+			if val >= math.MinInt32 && val <= math.MaxInt32 {
+				contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntFeature{int32(val)}})
+			} else {
+				contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_LongFeature{int64(val)}})
+			}
 		case int64:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_LongFeature{val}})
 		case float64:
@@ -341,11 +376,27 @@ func (b *EasyrecRequestBuilder) AddContextFeature(key string, features []interfa
 		case []int32:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: val}}})
 		case []int:
-			values := make([]int32, len(val))
-			for i, v := range val {
-				values[i] = int32(v)
+			// Check if all values fit in int32 range
+			useInt32 := true
+			for _, v := range val {
+				if v < math.MinInt32 || v > math.MaxInt32 {
+					useInt32 = false
+					break
+				}
 			}
-			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: values}}})
+			if useInt32 {
+				values := make([]int32, len(val))
+				for i, v := range val {
+					values[i] = int32(v)
+				}
+				contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: values}}})
+			} else {
+				values := make([]int64, len(val))
+				for i, v := range val {
+					values[i] = int64(v)
+				}
+				contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_LongList{LongList: &LongList{Features: values}}})
+			}
 		case []int64:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_LongList{LongList: &LongList{Features: val}}})
 		case []string:
@@ -404,7 +455,12 @@ func (b *EasyrecRequestBuilder) AddItemFeature(key string, features []interface{
 		case int32:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntFeature{val}})
 		case int:
-			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntFeature{int32(val)}})
+			// Use IntFeature if value fits in int32 range, otherwise use LongFeature
+			if val >= math.MinInt32 && val <= math.MaxInt32 {
+				contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntFeature{int32(val)}})
+			} else {
+				contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_LongFeature{int64(val)}})
+			}
 		case int64:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_LongFeature{val}})
 		case float64:
@@ -492,11 +548,27 @@ func (b *EasyrecRequestBuilder) AddItemFeature(key string, features []interface{
 		case []int32:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: val}}})
 		case []int:
-			values := make([]int32, len(val))
-			for i, v := range val {
-				values[i] = int32(v)
+			// Check if all values fit in int32 range
+			useInt32 := true
+			for _, v := range val {
+				if v < math.MinInt32 || v > math.MaxInt32 {
+					useInt32 = false
+					break
+				}
 			}
-			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: values}}})
+			if useInt32 {
+				values := make([]int32, len(val))
+				for i, v := range val {
+					values[i] = int32(v)
+				}
+				contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_IntList{IntList: &IntList{Features: values}}})
+			} else {
+				values := make([]int64, len(val))
+				for i, v := range val {
+					values[i] = int64(v)
+				}
+				contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_LongList{LongList: &LongList{Features: values}}})
+			}
 		case []int64:
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_LongList{LongList: &LongList{Features: val}}})
 		case []string:

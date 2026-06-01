@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"fortio.org/assert"
 	"github.com/alibaba/pairec/v2/context"
@@ -252,6 +253,21 @@ func TestExpressionFunctionNormalizer(t *testing.T) {
 
 		assert.Equal(t, utils.ToInt(result, 0), 1067)
 	})
+	t.Run("timestamp", func(t *testing.T) {
+		// timestamp() returns unix timestamp in seconds
+		normalizer := NewExpressionNormalizer("timestamp()")
+		before := time.Now().Unix()
+		result := normalizer.Apply(map[string]interface{}{})
+		after := time.Now().Unix()
+		assert.True(t, result.(float64) >= float64(before) && result.(float64) <= float64(after))
+
+		// timestamp("ms") returns unix timestamp in milliseconds
+		normalizer = NewExpressionNormalizer("timestamp('ms')")
+		beforeMs := time.Now().UnixMilli()
+		result = normalizer.Apply(map[string]interface{}{})
+		afterMs := time.Now().UnixMilli()
+		assert.True(t, result.(float64) >= float64(beforeMs) && result.(float64) <= float64(afterMs))
+	})
 }
 
 func TestExprFunctionNormalizer(t *testing.T) {
@@ -388,5 +404,31 @@ func TestExprFunctionNormalizer(t *testing.T) {
 		result := normalizer.Apply(map[string]interface{}{"lat1": 39.9042, "lng1": 116.4074, "lat2": 31.2304, "lng2": 121.4737})
 
 		assert.Equal(t, utils.ToInt(result, 0), 1067)
+	})
+	t.Run("maxIndex && maxValue", func(t *testing.T) {
+		normalizer := NewExprNormalizer("maxIndex(arr)")
+		result := normalizer.Apply(map[string]interface{}{"arr": []float64{0.1, 0.2, 0.3, 0.4}})
+
+		assert.Equal(t, utils.ToInt(result, 0), 3)
+
+		normalizer = NewExprNormalizer("maxValue(arr)")
+		result = normalizer.Apply(map[string]interface{}{"arr": []float64{0.1, 0.2, 0.3, 0.4}})
+
+		assert.Equal(t, result.(float64), float64(0.4))
+	})
+	t.Run("timestamp", func(t *testing.T) {
+		// timestamp() returns unix timestamp in seconds
+		normalizer := NewExprNormalizer("timestamp()")
+		before := time.Now().Unix()
+		result := normalizer.Apply(map[string]interface{}{})
+		after := time.Now().Unix()
+		assert.True(t, result.(float64) >= float64(before) && result.(float64) <= float64(after))
+
+		// timestamp("ms") returns unix timestamp in milliseconds
+		normalizer = NewExprNormalizer("timestamp('ms')")
+		beforeMs := time.Now().UnixMilli()
+		result = normalizer.Apply(map[string]interface{}{})
+		afterMs := time.Now().UnixMilli()
+		assert.True(t, result.(float64) >= float64(beforeMs) && result.(float64) <= float64(afterMs))
 	})
 }

@@ -1,11 +1,13 @@
 package web
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/service/metrics"
+	"github.com/alibaba/pairec/v2/utils"
 )
 
 var callBackControllerHandler *CallBackControllerHandler
@@ -68,14 +70,16 @@ func InitHandler(poolSize int, bufferSize int, dropOnBackpressure bool) {
 	})
 }
 
-func Send(controller *CallBackController) {
-	// initOnce ensures exactly one initialization, whether from InitHandler or here
+func ensureHandler() *CallBackControllerHandler {
 	initOnce.Do(func() {
 		callBackControllerHandler = NewCallBackControllerHandler(20, 5000, false)
 	})
+	return callBackControllerHandler
+}
 
-	// Increment pending BEFORE enqueue to avoid transient negative values
-	h := callBackControllerHandler
+func Send(controller *CallBackController) {
+	h := ensureHandler()
+
 	if h.dropOnBackpressure {
 		h.pending.Add(1)
 		select {
@@ -87,6 +91,43 @@ func Send(controller *CallBackController) {
 		}
 	} else {
 		h.pending.Add(1)
-		h.controllerCh <- controller // block if full
+		h.controllerCh <- controller
 	}
+}
+
+// SendDirect bypasses the HTTP self-call path used by the external
+// /api/callback endpoint. It constructs a CallBackController directly
+// from the provided param and enqueues it into the worker channel.
+func SendDirect(param *CallBackParam) {
+	if param == nil {
+		log.Error("event=SendDirect\terror=nil param")
+		return
+	}
+
+	if len(param.ItemList) == 0 {
+		log.Info(fmt.Sprintf("requestId=%s\tevent=SendDirect\tmsg=empty item list, skip", param.RequestId))
+		return
+	}
+
+	h := ensureHandler()
+
+	c := &CallBackController{}
+	c.param = *param
+
+	if len(c.param.ComplexTypeFeatures.FeaturesMap) > 0 {
+		if c.param.Features == nil {
+			c.param.Features = make(FeaturesMap)
+		}
+		for k, v := range c.param.ComplexTypeFeatures.FeaturesMap {
+			c.param.Features[k] = v
+		}
+	}
+
+	if c.param.RequestId == "" {
+		c.param.RequestId = utils.UUID()
+	}
+	c.RequestId = c.param.RequestId
+
+	h.pending.Add(1)
+	h.controllerCh <- c
 }

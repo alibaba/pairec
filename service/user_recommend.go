@@ -28,6 +28,7 @@ type UserRecommendService struct {
 	userFeatureService           *feature.UserFeatureService
 	featureService               *feature.FeatureService
 	featureConsistencyJobService *rank.FeatureConsistencyJobService
+	user                         *module.User
 }
 
 func NewUserRecommendService() *UserRecommendService {
@@ -55,6 +56,7 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 
 	userId := r.GetUID(context)
 	user := module.NewUserWithContext(userId, context)
+	r.user = user
 
 	//loadFeatureStart := time.Now()
 
@@ -178,6 +180,10 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	}
 
 	return items
+}
+
+func (r *UserRecommendService) GetUser() *module.User {
+	return r.user
 }
 
 func (r *UserRecommendService) mergePipelineItems(items []*module.Item, pipelineItems []*module.Item) []*module.Item {

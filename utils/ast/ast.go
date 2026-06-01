@@ -290,14 +290,22 @@ func (e *exprAST) Evaluate(data map[string]any) (result float64, err error) {
 		err = err1
 		return
 	}
-	if r, ok := ret.(float64); ok {
+	switch r := ret.(type) {
+	case float64:
 		result = r
-		return
-	} else {
+	case float32:
+		result = float64(r)
+	case int:
+		result = float64(r)
+	case int32:
+		result = float64(r)
+	case int64:
+		result = float64(r)
+	default:
 		result = float64(0)
 		err = fmt.Errorf("expression invoke result:%v", ret)
-		return
 	}
+	return
 }
 func (e *exprAST) toStr() string {
 	return ""
@@ -312,7 +320,7 @@ func GetExpASTByAntlr(source string) (ExprAST, error) {
 	exprAst, ok := cachesByAntlr[source]
 	mutex.RUnlock()
 	if !ok {
-		expression, err := valuate.NewEvaluableExpression(source)
+		expression, err := valuate.NewEvaluableExpressionWithFunctions(source, AntlrFunctions())
 		if err != nil {
 			return nil, err
 		}

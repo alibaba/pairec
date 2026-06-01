@@ -1,3 +1,7 @@
 commands/bin
 commands/tmp
 .idea/
+docs/
+.vscode/
+parse_pb_log.py
+.claude

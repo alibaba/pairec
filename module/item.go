@@ -298,7 +298,13 @@ func (t *Item) DeepClone() *Item {
 	algoScores := maps.Clone(t.algoScores)
 	recallScores := maps.Clone(t.RecallScores)
 
-	item := NewItemWithProperty(string(t.Id), t.Properties)
+	// Deep copy properties to avoid sharing nested objects
+	clonedProperties := make(map[string]interface{}, len(t.Properties))
+	for k, v := range t.Properties {
+		clonedProperties[k] = deepCopyInterface(v)
+	}
+
+	item := NewItemWithProperty(string(t.Id), clonedProperties)
 
 	item.Score = t.Score
 	item.RetrieveId = t.RetrieveId
@@ -306,6 +312,9 @@ func (t *Item) DeepClone() *Item {
 
 	item.algoScores = algoScores
 	item.RecallScores = recallScores
+	if item.algoScores == nil {
+		item.algoScores = make(map[string]float64)
+	}
 	return item
 }
 func (t *Item) String() string {
@@ -314,4 +323,24 @@ func (t *Item) String() string {
 	return fmt.Sprintf("item_id:%s,score:%v,recall_name:%s,properties:%v,algo_scores:%v,recall_scores:%v",
 		t.Id, t.Score, t.RetrieveId, t.Properties, t.algoScores, t.RecallScores)
 
+}
+
+// deepCopyInterface performs deep copy of interface{} value
+func deepCopyInterface(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		clonedMap := make(map[string]interface{}, len(val))
+		for k, v := range val {
+			clonedMap[k] = deepCopyInterface(v)
+		}
+		return clonedMap
+	case []interface{}:
+		clonedSlice := make([]interface{}, len(val))
+		for i, v := range val {
+			clonedSlice[i] = deepCopyInterface(v)
+		}
+		return clonedSlice
+	default:
+		return v // For primitive types, just return as-is
+	}
 }

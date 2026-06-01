@@ -33,6 +33,10 @@ type IFilter interface {
 	Filter(filterData *FilterData) error
 }
 
+type RecallEngineFilter interface {
+	GetExposureItemIds(user *module.User, context *context.RecommendContext) string
+}
+
 type ICloneFilter interface {
 	CloneWithConfig(params map[string]interface{}) IFilter
 	GetFilterName() string

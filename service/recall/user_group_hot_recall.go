@@ -73,7 +73,7 @@ func (r *UserGroupHotRecall) GetCandidateItems(user *module.User, context *conte
 		}
 
 		if len(ret) > 0 {
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecall\tfrom=cache\tcount=%d\tcost=%d", context.RecommendId, len(ret), utils.CostTime(start)))
+			log.Info(fmt.Sprintf("requestId=%s\tmodule=UserGroupHotRecall\tname=%s\tfrom=cache\tcount=%d\tcost=%d", context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 			return
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/alibaba/pairec/v2/persist/tablestoredb"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
+	"github.com/expr-lang/expr/vm"
 )
 
 type User2ItemExposureTableStoreDao struct {
@@ -18,6 +19,7 @@ type User2ItemExposureTableStoreDao struct {
 	maxItems                 int32
 	timeInterval             int //  second
 	generateItemDataFuncName string
+	generateItemProgram      *vm.Program
 	writeLogExcludeScenes    map[string]bool
 	clearLogScene            string
 }
@@ -48,6 +50,7 @@ func NewUser2ItemExposureTableStoreDao(config recconf.FilterConfig) *User2ItemEx
 	for _, scene := range config.WriteLogExcludeScenes {
 		dao.writeLogExcludeScenes[scene] = true
 	}
+	dao.generateItemProgram = compileItemDataExpr(config.GenerateItemDataExpr)
 
 	return dao
 }
@@ -61,7 +64,7 @@ func (d *User2ItemExposureTableStoreDao) LogHistory(user *User, items []*Item, c
 	uid := string(user.Id)
 	idList := make([]string, 0)
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(user.Id, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, user.Id, item, context)
 		idList = append(idList, itemData)
 	}
 
@@ -135,7 +138,7 @@ func (d *User2ItemExposureTableStoreDao) FilterByHistory(uid UID, items []*Item,
 	}
 
 	for _, item := range items {
-		itemData := getGenerateItemDataFunc(d.generateItemDataFuncName)(uid, item)
+		itemData := getItemData(d.generateItemDataFuncName, d.generateItemProgram, uid, item, context)
 		if _, ok := fiterIds[itemData]; !ok {
 			ret = append(ret, item)
 		}

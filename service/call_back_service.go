@@ -206,10 +206,25 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 
 	if algoGenerator.HasFeatures() {
 		if context.Debug {
-			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(2)
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(2, nil)
 		} else {
-			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel)
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel, nil)
 		}
+	}
+
+	// Explicit guard: when no item carried features (e.g. r.Items is empty
+	// or every item returned an empty feature map), algoGenerator.HasFeatures
+	// is false and algoData stays nil. The goroutine loop below dereferences
+	// algoData, so without this guard we hit a nil pointer panic at
+	// algoData.GetFeatures(). Returning here also avoids spawning goroutines
+	// that have no work to do.
+	//
+	// With the upstream guards in callback_hook.go and web.SendDirect, this
+	// branch is only reachable when a future caller bypasses both, i.e.
+	// misuse, so log at Warning level for ops triage.
+	if algoData == nil {
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=callback\tevent=Rank\tmsg=algoData is nil, skipping rank fan-out", context.RecommendId))
+		return
 	}
 
 	var wg sync.WaitGroup
@@ -265,14 +280,26 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 					if processor == eas.Eas_Processor_EASYREC {
 						itemList := algoData.GetItems()
 						for j := 0; j < len(result) && j < len(itemList); j++ {
-							response, _ := (result[j]).(*eas.EasyrecResponse)
-							if writeRawFeatrues {
-								itemList[j].AddProperty("raw_features", response.RawFeatures)
-							}
+							switch response := result[j].(type) {
+							case *eas.EasyrecResponse:
+								if writeRawFeatrues {
+									itemList[j].AddProperty("raw_features", response.RawFeatures)
+								}
 
-							itemList[j].AddProperty("generate_features", response.GenerateFeatures)
-							//itemList[j].Properties["generate_features"] = response.GenerateFeatures
-							itemList[j].AddProperty("context_features", response.ContextFeatures)
+								itemList[j].AddProperty("generate_features", response.GenerateFeatures)
+								//itemList[j].Properties["generate_features"] = response.GenerateFeatures
+								itemList[j].AddProperty("context_features", response.ContextFeatures)
+							case *eas.EasyrecClassificationResponse:
+								if writeRawFeatrues {
+									itemList[j].AddProperty("raw_features", response.RawFeatures)
+								}
+
+								itemList[j].AddProperty("generate_features", response.GenerateFeatures)
+								//itemList[j].Properties["generate_features"] = response.GenerateFeatures
+								itemList[j].AddProperty("context_features", response.ContextFeatures)
+							default:
+								log.Error(fmt.Sprintf("requestId=%s\tmodule=callback\terror=algo response type(%T) not supported", context.RecommendId, response))
+							}
 						}
 					}
 				}

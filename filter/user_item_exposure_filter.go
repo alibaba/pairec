@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 )
@@ -43,4 +44,8 @@ func (f *User2ItemExposureFilter) doFilter(filterData *FilterData) error {
 func (f *User2ItemExposureFilter) MatchTag(tag string) bool {
 	// default filter, so filter all tag
 	return true
+}
+
+func (f *User2ItemExposureFilter) GetExposureItemIds(user *module.User, context *context.RecommendContext) string {
+	return f.user2ItemExposureDao.GetExposureItemIds(user, context)
 }

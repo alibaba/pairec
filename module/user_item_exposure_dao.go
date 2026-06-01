@@ -4,8 +4,12 @@ import (
 	"fmt"
 
 	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/hook"
+	"github.com/alibaba/pairec/v2/utils"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 )
 
 type GenerateItemDataFunc func(uid UID, item *Item) string
@@ -33,6 +37,42 @@ func defaultGenerateItemDataFunc(uid UID, item *Item) string {
 	return string(item.Id)
 }
 
+// compileItemDataExpr compiles the item data expr expression at init time.
+func compileItemDataExpr(exprStr string) *vm.Program {
+	if exprStr == "" {
+		return nil
+	}
+	p, err := expr.Compile(exprStr)
+	if err != nil {
+		panic(fmt.Sprintf("compile GenerateItemDataExpr error: %v", err))
+	}
+	return p
+}
+
+// getItemData generates item data using expr program if available, otherwise falls back to registered function.
+func getItemData(funcName string, program *vm.Program, uid UID, item *Item, ctx *context.RecommendContext) string {
+	if program != nil {
+		m := map[string]any{
+			"uid":     string(uid),
+			"item_id": string(item.Id),
+			"item":    item.GetProperties(),
+			"sprintf": fmt.Sprintf,
+			"context": map[string]any{
+				"item_id":  utils.ToString(ctx.GetParameter("item_id"), ""),
+				"features": ctx.GetParameter("features"),
+			},
+		}
+		if output, err := expr.Run(program, m); err != nil {
+			log.Error(fmt.Sprintf("module=getItemData\tuid=%s\titem_id=%s\terr=%v", uid, item.Id, err))
+		} else {
+			if str := utils.ToString(output, ""); str != "" {
+				return str
+			}
+		}
+	}
+	return getGenerateItemDataFunc(funcName)(uid, item)
+}
+
 type User2ItemExposureDao interface {
 	LogHistory(user *User, items []*Item, context *context.RecommendContext)
 	FilterByHistory(uid UID, items []*Item, context *context.RecommendContext) (ret []*Item)
@@ -58,6 +98,8 @@ func NewUser2ItemExposureDao(config recconf.FilterConfig) User2ItemExposureDao {
 		dao = NewUser2ItemExposureBeDao(config)
 	} else if config.DaoConf.AdapterType == recconf.Datasource_Type_Graph {
 		dao = NewUser2ItemExposureGraphDao(config)
+	} else if config.DaoConf.AdapterType == recconf.DataSource_Type_RecallEngine {
+		dao = NewUser2ItemExposureRecallEngineDao(config)
 	} else {
 		panic("not found User2ItemExposureDao implement")
 	}

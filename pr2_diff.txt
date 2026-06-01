@@ -1,0 +1,540 @@
+diff --git a/algorithm/eas/easyrec_request.go b/algorithm/eas/easyrec_request.go
+index 1fb8ba1..af414d5 100644
+--- a/algorithm/eas/easyrec_request.go
++++ b/algorithm/eas/easyrec_request.go
+@@ -5,6 +5,7 @@ import (
+ 	"fmt"
+ 	"os"
+ 	"strings"
++	"sync"
+ 
+ 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
+ 	"github.com/alibaba/pairec/v2/config"
+@@ -12,6 +13,13 @@ import (
+ 	proto "github.com/golang/protobuf/proto"
+ )
+ 
++// marshalBufPool reuses proto.Buffer to reduce marshal allocations
++var marshalBufPool = sync.Pool{
++	New: func() interface{} {
++		return proto.NewBuffer(make([]byte, 0, 4096))
++	},
++}
++
+ type EasyrecRequest struct {
+ 	EasRequest
+ 	EasClient *eas.PredictClient
+@@ -24,7 +32,14 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{},
+ 		return
+ 	}
+ 
+-	data, _ := proto.Marshal(request)
++	buf := marshalBufPool.Get().(*proto.Buffer)
++	buf.Reset()
++	if err = buf.Marshal(request); err != nil {
++		marshalBufPool.Put(buf)
++		return
++	}
++	data := buf.Bytes()
++
+ 	if config.AppConfig.WarmUpData {
+ 		warmupFunc := func(data []byte) {
+ 			if file, err := os.OpenFile("warm_up.bin", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0664); err == nil {
+@@ -36,6 +51,12 @@ func (r *EasyrecRequest) Invoke(requestData interface{}) (response interface{},
+ 	}
+ 
+ 	body, err := r.EasClient.BytesPredict(data)
++	// Cap oversized buffers to avoid retaining large allocations in pool
++	if cap(buf.Bytes()) > 1<<20 {
++		marshalBufPool.Put(proto.NewBuffer(make([]byte, 0, 4096)))
++	} else {
++		marshalBufPool.Put(buf)
++	}
+ 	if err != nil {
+ 		return
+ 	}
+diff --git a/configloader.go b/configloader.go
+index 76eb6eb..2c1a2a0 100644
+--- a/configloader.go
++++ b/configloader.go
+@@ -38,6 +38,7 @@ import (
+ 	"github.com/alibaba/pairec/v2/service/recall/berecall"
+ 	"github.com/alibaba/pairec/v2/sort"
+ 	"github.com/alibaba/pairec/v2/utils"
++	"github.com/alibaba/pairec/v2/web"
+ )
+ 
+ var (
+@@ -116,6 +117,7 @@ func (l *ConfigLoader) reloadConfig(config *recconf.RecommendConfig) {
+ 	general_rank.LoadGeneralRankWithConfig(config)
+ 	pipeline.LoadPipelineConfigs(config)
+ 	fallback.LoadFallbackConfig(config)
++	initCallbackHandler(config)
+ }
+ 
+ func (l *ConfigLoader) loadConfigFromConfigServer() (*recconf.RecommendConfig, error) {
+@@ -173,3 +175,14 @@ func ListenConfig(configName string) {
+ 
+ 	go loader.loopLoadConfig()
+ }
++
++// initCallbackHandler initializes the callback worker pool from config.
++// Uses the first CallBackConfig found for pool settings (pool is global).
++func initCallbackHandler(config *recconf.RecommendConfig) {
++	for _, cbConf := range config.CallBackConfs {
++		poolSize := cbConf.WorkerPoolSize
++		drop := cbConf.DropOnBackpressure
++		web.InitHandler(poolSize, 5000, drop)
++		return
++	}
++}
+diff --git a/go.mod b/go.mod
+index e559acb..7f8ba50 100644
+--- a/go.mod
++++ b/go.mod
+@@ -88,6 +88,7 @@ require (
+ 	github.com/xinsnake/go-http-digest-auth-client v0.6.0 // indirect
+ 	golang.org/x/crypto v0.24.0 // indirect
+ 	golang.org/x/sync v0.11.0 // indirect
++	golang.org/x/time v0.11.0 // indirect
+ 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+ 	gopkg.in/ini.v1 v1.67.0 // indirect
+ 	modernc.org/mathutil v1.6.0 // indirect
+diff --git a/go.sum b/go.sum
+index af01dbc..1e22e7e 100644
+--- a/go.sum
++++ b/go.sum
+@@ -771,6 +771,8 @@ golang.org/x/text v0.16.0 h1:a94ExnEXNtEwYLGJSIUxnWoxoRz/ZcCsV63ROupILh4=
+ golang.org/x/text v0.16.0/go.mod h1:GhwF1Be+LQoKShO3cGOHzqOgRrGaYc9AvblQOmPVHnI=
+ golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
+ golang.org/x/time v0.0.0-20191024005414-555d28b269f0/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
++golang.org/x/time v0.11.0 h1:/bpjEDfN9tkoN/ryeYHnv5hcMlc8ncjMcM4XBk5NWV0=
++golang.org/x/time v0.11.0/go.mod h1:CDIdPxbZBQxdj6cxyCIdrNogrJKMJ7pr37NYpMcMDSg=
+ golang.org/x/tools v0.0.0-20180221164845-07fd8470d635/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
+ golang.org/x/tools v0.0.0-20180525024113-a5b4c53f6e8b/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
+ golang.org/x/tools v0.0.0-20180828015842-6cd1fcedba52/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
+diff --git a/recconf/recconf.go b/recconf/recconf.go
+index 99a2d0f..d4e273c 100644
+--- a/recconf/recconf.go
++++ b/recconf/recconf.go
+@@ -846,13 +846,17 @@ type AdjustCountConfig struct {
+ 	Weight     int
+ }
+ type CallBackConfig struct {
+-	DataSource      DataSourceConfig
+-	RankConf        RankConfig
+-	RawFeatures     bool
+-	RawFeaturesRate int
+-	ItemSize        int
+-	ItemSizeRate    int
+-	UseUserFeatures bool
++	DataSource         DataSourceConfig
++	RankConf           RankConfig
++	RawFeatures        bool
++	RawFeaturesRate    int
++	ItemSize           int
++	ItemSizeRate       int
++	UseUserFeatures    bool
++	WorkerPoolSize     int     `json:"WorkerPoolSize"`
++	RateLimitQPS       float64 `json:"RateLimitQPS"`
++	JitterMaxMs        int     `json:"JitterMaxMs"`
++	DropOnBackpressure bool    `json:"DropOnBackpressure"`
+ }
+ type EmbeddingConfig struct {
+ 	DataSource DataSourceConfig
+diff --git a/service/call_back_service.go b/service/call_back_service.go
+index d38d575..1bab3f11 100644
+--- a/service/call_back_service.go
++++ b/service/call_back_service.go
+@@ -1,6 +1,7 @@
+ package service
+ 
+ import (
++	gocontext "context"
+ 	"encoding/json"
+ 	"fmt"
+ 	"math/rand"
+@@ -21,8 +22,24 @@ import (
+ 	"github.com/alibaba/pairec/v2/service/feature"
+ 	"github.com/alibaba/pairec/v2/service/rank"
+ 	"github.com/alibaba/pairec/v2/utils"
++	"golang.org/x/time/rate"
+ )
+ 
++var callbackLimiters sync.Map
++
++func getCallbackLimiter(scene string, qps float64) *rate.Limiter {
++	if v, ok := callbackLimiters.Load(scene); ok {
++		return v.(*rate.Limiter)
++	}
++	burst := int(qps)
++	if burst < 1 {
++		burst = 1
++	}
++	limiter := rate.NewLimiter(rate.Limit(qps), burst)
++	actual, _ := callbackLimiters.LoadOrStore(scene, limiter)
++	return actual.(*rate.Limiter)
++}
++
+ type CallBackService struct {
+ 	recallService      *RecallService
+ 	featureService     *feature.FeatureService
+@@ -224,6 +241,19 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
+ 					}
+ 				}
+ 			}
++			if callBackConfig.RateLimitQPS > 0 {
++				limiter := getCallbackLimiter(scene_name, callBackConfig.RateLimitQPS)
++				ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 2*time.Second)
++				if err := limiter.Wait(ctx); err != nil {
++					cancel()
++					log.Warning(fmt.Sprintf("requestId=%s\tcallback rate limit timeout, skipping EAS call", context.RecommendId))
++					return
++				}
++				cancel()
++			}
++			if callBackConfig.JitterMaxMs > 0 {
++				time.Sleep(time.Duration(rand.Intn(callBackConfig.JitterMaxMs)) * time.Millisecond)
++			}
+ 			// run 返回原始的值，然后处理返回数据// 注册配置
+ 			ret, err := algorithm.Run(newAlgoName, algoData.GetFeatures())
+ 			if err != nil {
+diff --git a/service/metrics/metrics.go b/service/metrics/metrics.go
+index 35ea8fc..d476dd3 100644
+--- a/service/metrics/metrics.go
++++ b/service/metrics/metrics.go
+@@ -11,24 +11,28 @@ import (
+ )
+ 
+ var (
+-	SizeNotEnoughTotal    *prometheus.CounterVec
+-	RecTotal              *prometheus.CounterVec
+-	RecallCount           *prometheus.CounterVec
+-	RecallCountTotal      *prometheus.CounterVec
+-	RecallItemsPercentage *prometheus.GaugeVec
+-	RecallDurSecs         *prometheus.HistogramVec
+-	FilterDurSecs         *prometheus.HistogramVec
+-	GeneralRankDurSecs    *prometheus.HistogramVec
+-	LoadFeatureDurSecs    *prometheus.HistogramVec
+-	RankDurSecs           *prometheus.HistogramVec
+-	SortDurSecs           *prometheus.HistogramVec
+-	RecDurSecs            *prometheus.HistogramVec
+-	FallbackTotal         *prometheus.CounterVec
++	SizeNotEnoughTotal      *prometheus.CounterVec
++	RecTotal                *prometheus.CounterVec
++	RecallCount             *prometheus.CounterVec
++	RecallCountTotal        *prometheus.CounterVec
++	RecallItemsPercentage   *prometheus.GaugeVec
++	RecallDurSecs           *prometheus.HistogramVec
++	FilterDurSecs           *prometheus.HistogramVec
++	GeneralRankDurSecs      *prometheus.HistogramVec
++	LoadFeatureDurSecs      *prometheus.HistogramVec
++	RankDurSecs             *prometheus.HistogramVec
++	SortDurSecs             *prometheus.HistogramVec
++	RecDurSecs              *prometheus.HistogramVec
++	FallbackTotal           *prometheus.CounterVec
++	CallbackChannelPending  prometheus.GaugeFunc
+ 
+ 	enabled = false
+ 	once    sync.Once
+ )
+ 
++// CallbackPendingFunc is set by the web package to avoid import cycle
++var CallbackPendingFunc func() int64
++
+ var CustomRegister = prometheus.NewRegistry()
+ 
+ func Enabled() bool {
+@@ -51,7 +55,8 @@ func Load(conf *recconf.RecommendConfig) {
+ 			LoadFeatureDurSecs,
+ 			RankDurSecs,
+ 			SortDurSecs,
+-			FallbackTotal)
++			FallbackTotal,
++			CallbackChannelPending)
+ 	})
+ 
+ 	enabled = conf.PrometheusConfig.Enable
+@@ -173,4 +178,15 @@ func initMetrics(conf *recconf.RecommendConfig) {
+ 		Name:      "fallback_total",
+ 		Help:      "How many times of fallback recommend.",
+ 	}, []string{"scene"})
++
++	CallbackChannelPending = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
++		Subsystem: subsystem,
++		Name:      "callback_channel_pending",
++		Help:      "Number of pending callback requests in channel.",
++	}, func() float64 {
++		if CallbackPendingFunc != nil {
++			return float64(CallbackPendingFunc())
++		}
++		return 0
++	})
+ }
+diff --git a/service/rank/algo_data.go b/service/rank/algo_data.go
+index b297b43..58188b3 100644
+--- a/service/rank/algo_data.go
++++ b/service/rank/algo_data.go
+@@ -86,8 +86,9 @@ func (d *EasyrecAlgoData) GetFeatures() interface{} {
+ }
+ 
+ type AlgoDataGenerator struct {
+-	requestData []map[string]interface{}
+-	requestItem []*module.Item
++	requestData  []map[string]interface{}
++	requestItem  []*module.Item
++	userFeatures map[string]interface{}
+ }
+ 
+ // SetItemFeatures implements IAlgoDataGenerator.
+@@ -105,22 +106,31 @@ func (g *AlgoDataGenerator) AddFeatures(item *module.Item, itemFeatures map[stri
+ 	if item != nil {
+ 		g.requestItem = append(g.requestItem, item)
+ 	}
+-
+-	features := make(map[string]interface{}, len(itemFeatures)+len(userFeatures))
+-	for k, v := range userFeatures {
+-		features[k] = v
++	if g.userFeatures == nil {
++		g.userFeatures = userFeatures
+ 	}
++
++	features := make(map[string]interface{}, len(itemFeatures))
+ 	for k, v := range itemFeatures {
+ 		features[k] = v
+ 	}
+-
+ 	g.requestData = append(g.requestData, features)
+ }
+ func (g *AlgoDataGenerator) GeneratorAlgoData() IAlgoData {
+ 	copydata := make([]map[string]interface{}, len(g.requestData))
++	for i, itemFeatures := range g.requestData {
++		merged := make(map[string]interface{}, len(itemFeatures)+len(g.userFeatures))
++		for k, v := range g.userFeatures {
++			merged[k] = v
++		}
++		for k, v := range itemFeatures {
++			merged[k] = v
++		}
++		copydata[i] = merged
++	}
++
+ 	copyItems := make([]*module.Item, len(g.requestItem))
+ 	copy(copyItems, g.requestItem)
+-	copy(copydata, g.requestData)
+ 
+ 	algoData := &AlgoData{
+ 		AlgoDataBase: &AlgoDataBase{
+@@ -183,8 +193,8 @@ type EasyrecAlgoDataGenerator struct {
+ 
+ func NewEasyrecAlgoDataGenerator(contextFeatures []string) *EasyrecAlgoDataGenerator {
+ 	generator := &EasyrecAlgoDataGenerator{
+-		requestItem:     make([]*module.Item, 0, 100),
+-		contextFeatures: make(map[string][]interface{}, 8),
++		requestItem:     make([]*module.Item, 0, 128),
++		contextFeatures: make(map[string][]interface{}, len(contextFeatures)+8),
+ 		parseFeature:    true,
+ 	}
+ 
+@@ -195,6 +205,7 @@ func NewEasyrecAlgoDataGenerator(contextFeatures []string) *EasyrecAlgoDataGener
+ 				valueType: reflect.TypeOf(""),
+ 			}
+ 			generator.itemFeatures = append(generator.itemFeatures, feature)
++			generator.contextFeatures[featureName] = make([]interface{}, 0, 128)
+ 		}
+ 	}
+ 
+@@ -274,14 +285,15 @@ func (g *EasyrecAlgoDataGenerator) AddFeatures(item *module.Item, itemFeatures m
+ }
+ 
+ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
+-	copyItems := make([]*module.Item, len(g.requestItem))
+-	copy(copyItems, g.requestItem)
++	// Transfer ownership instead of copy — generator resets immediately after
++	items := g.requestItem
++	g.requestItem = make([]*module.Item, 0, 128)
+ 
+ 	builder := easyrec.NewEasyrecRequestBuilder()
+ 	for k, v := range g.userFeatures {
+ 		builder.AddUserFeature(k, v)
+ 	}
+-	for _, item := range g.requestItem {
++	for _, item := range items {
+ 		builder.AddItemId(string(item.Id))
+ 	}
+ 	for k, v := range g.contextFeatures {
+@@ -295,13 +307,12 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
+ 
+ 	algoData := &EasyrecAlgoData{
+ 		AlgoDataBase: &AlgoDataBase{
+-			Items:      copyItems,
++			Items:      items,
+ 			AlgoResult: make(map[string][]response.AlgoResponse),
+ 		},
+ 		easyrecRequest: builder.EasyrecRequest(),
+ 	}
+ 
+-	g.requestItem = g.requestItem[:0]
+ 	return algoData
+ }
+ 
+@@ -310,14 +321,15 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebug() IAlgoData {
+ }
+ 
+ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int) IAlgoData {
+-	copyItems := make([]*module.Item, len(g.requestItem))
+-	copy(copyItems, g.requestItem)
++	// Transfer ownership instead of copy — generator resets immediately after
++	items := g.requestItem
++	g.requestItem = make([]*module.Item, 0, 128)
+ 
+ 	builder := easyrec.NewEasyrecRequestBuilderDebugWithLevel(level)
+ 	for k, v := range g.userFeatures {
+ 		builder.AddUserFeature(k, v)
+ 	}
+-	for _, item := range g.requestItem {
++	for _, item := range items {
+ 		builder.AddItemId(string(item.Id))
+ 	}
+ 	for k, v := range g.contextFeatures {
+@@ -331,13 +343,12 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int) IA
+ 
+ 	algoData := &EasyrecAlgoData{
+ 		AlgoDataBase: &AlgoDataBase{
+-			Items:      copyItems,
++			Items:      items,
+ 			AlgoResult: make(map[string][]response.AlgoResponse),
+ 		},
+ 		easyrecRequest: builder.EasyrecRequest(),
+ 	}
+ 
+-	g.requestItem = g.requestItem[:0]
+ 	return algoData
+ }
+ 
+diff --git a/service/rank/rank_service.go b/service/rank/rank_service.go
+index 468bab2..ca810ff 100644
+--- a/service/rank/rank_service.go
++++ b/service/rank/rank_service.go
+@@ -160,7 +160,7 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
+ 		rankConfig.RankScore = rankscore
+ 	}
+ 
+-	batchCount := 100
++	batchCount := 200
+ 	if rankConfig.BatchCount > 0 {
+ 		batchCount = rankConfig.BatchCount
+ 	}
+diff --git a/web/callback_controller_handler.go b/web/callback_controller_handler.go
+index 0f4db9d..000de70 100644
+--- a/web/callback_controller_handler.go
++++ b/web/callback_controller_handler.go
+@@ -1,21 +1,39 @@
+ package web
+ 
+-import "sync"
++import (
++	"sync"
++	"sync/atomic"
++
++	"github.com/alibaba/pairec/v2/log"
++	"github.com/alibaba/pairec/v2/service/metrics"
++)
+ 
+ var callBackControllerHandler *CallBackControllerHandler
+ var once sync.Once
+ 
++func init() {
++	metrics.CallbackPendingFunc = CallbackPending
++}
++
+ type CallBackControllerHandler struct {
+-	controllerCh chan *CallBackController
+-	poolSize     int
++	controllerCh       chan *CallBackController
++	poolSize           int
++	pending            atomic.Int64
++	dropOnBackpressure bool
+ }
+ 
+-func NewCallBackControllerHandler() *CallBackControllerHandler {
++func NewCallBackControllerHandler(poolSize int, bufferSize int, dropOnBackpressure bool) *CallBackControllerHandler {
++	if poolSize <= 0 {
++		poolSize = 20
++	}
++	if bufferSize <= 0 {
++		bufferSize = 5000
++	}
+ 	handler := &CallBackControllerHandler{
+-		controllerCh: make(chan *CallBackController, 5000),
+-		poolSize:     20,
++		controllerCh:       make(chan *CallBackController, bufferSize),
++		poolSize:           poolSize,
++		dropOnBackpressure: dropOnBackpressure,
+ 	}
+-
+ 	handler.start()
+ 	return handler
+ }
+@@ -23,23 +41,53 @@ func NewCallBackControllerHandler() *CallBackControllerHandler {
+ func (h *CallBackControllerHandler) start() {
+ 	for i := 0; i < h.poolSize; i++ {
+ 		go func() {
+-			for {
+-				select {
+-				case controller := <-h.controllerCh:
+-					controller.doCallbackLog()
+-				}
++			for controller := range h.controllerCh {
++				controller.doCallbackLog()
++				h.pending.Add(-1)
+ 			}
+-
+ 		}()
+ 	}
+ }
+ 
++func (h *CallBackControllerHandler) Pending() int64 {
++	return h.pending.Load()
++}
++
++func CallbackPending() int64 {
++	if callBackControllerHandler == nil {
++		return 0
++	}
++	return callBackControllerHandler.Pending()
++}
++
++// InitHandler initializes the callback handler with config values.
++// Must be called during service startup after config is loaded.
++func InitHandler(poolSize int, bufferSize int, dropOnBackpressure bool) {
++	once.Do(func() {
++		callBackControllerHandler = NewCallBackControllerHandler(poolSize, bufferSize, dropOnBackpressure)
++	})
++}
++
+ func Send(controller *CallBackController) {
+ 	if callBackControllerHandler == nil {
+ 		once.Do(func() {
+-			callBackControllerHandler = NewCallBackControllerHandler()
++			callBackControllerHandler = NewCallBackControllerHandler(20, 5000, false)
+ 		})
+ 	}
+ 
+-	callBackControllerHandler.controllerCh <- controller
++	// Increment pending BEFORE enqueue to avoid transient negative values
++	h := callBackControllerHandler
++	if h.dropOnBackpressure {
++		h.pending.Add(1)
++		select {
++		case h.controllerCh <- controller:
++			// already counted
++		default:
++			h.pending.Add(-1)
++			log.Warning("callback channel full, dropping request")
++		}
++	} else {
++		h.pending.Add(1)
++		h.controllerCh <- controller // block if full
++	}
+ }

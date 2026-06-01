@@ -46,7 +46,7 @@ func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRe
 		itemIds:     make([]string, 0, 1024),
 
 		cache:     cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Minute)),
-		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(10*time.Minute)),
+		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Hour)),
 	}
 	featureView := dao.fsClient.GetProject().GetFeatureView(dao.table)
 	if featureView == nil {
@@ -144,7 +144,11 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 	}
 	if cacheValue, ok := d.cache.GetIfPresent(cacheKey); ok {
 		if items, ok := cacheValue.([]*Item); ok {
-			return items
+			clonedItems := make([]*Item, len(items))
+			for i, item := range items {
+				clonedItems[i] = item.DeepClone()
+			}
+			return clonedItems
 		}
 	}
 
@@ -212,14 +216,20 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 				time.Sleep(10 * time.Second)
 			}
 			if err != nil {
+				// Preserve previous itemIds on transient errors to avoid flapping.
 				log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\terror=%v", err))
 				return
 			}
+
+			// Always overwrite itemIds with the latest full scan result,
+			// including empty results, so that the recall pool stays in sync
+			// with the underlying featureview. This prevents stale items from
+			// being recalled after the source data has been cleared.
+			d.itemIds = ids
 			if len(ids) == 0 {
+				log.Warning(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=scan returned empty result, itemIds cleared", d.recallName))
 				return
 			}
-
-			d.itemIds = ids
 			go d.fetchItemData(d.itemIds)
 			log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\tmsg=load item\tsize=%d", len(d.itemIds)))
 		}()
