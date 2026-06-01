@@ -43,6 +43,16 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	user := params[0].(*module.User)
 	items := params[1].([]*module.Item)
 
+	// Skip when upstream produced no candidate items (e.g. filters dropped
+	// everything). The HTTP self-call path used to be guarded by
+	// CallBackController.CheckParameter which rejects empty item_list with
+	// "recommend item list not empty"; SendDirect bypasses that check, so
+	// without this early return an empty-items request would reach
+	// CallBackService.Rank and panic on a nil algoData.
+	if len(items) == 0 {
+		return
+	}
+
 	if callbackConfig.ItemSize > 0 && len(items) > callbackConfig.ItemSize {
 		items = items[:callbackConfig.ItemSize]
 	}

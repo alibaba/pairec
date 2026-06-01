@@ -192,6 +192,17 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 		}
 	}
 
+	// Explicit guard: when no item carried features (e.g. r.Items is empty
+	// or every item returned an empty feature map), algoGenerator.HasFeatures
+	// is false and algoData stays nil. The goroutine loop below dereferences
+	// algoData, so without this guard we hit a nil pointer panic at
+	// algoData.GetFeatures(). Returning here also avoids spawning goroutines
+	// that have no work to do.
+	if algoData == nil {
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=callback\tevent=Rank\tmsg=skip rank, no features available", context.RecommendId))
+		return
+	}
+
 	var wg sync.WaitGroup
 	for _, algoName := range rankConfig.RankAlgoList {
 		wg.Add(1)
