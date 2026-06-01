@@ -285,14 +285,15 @@ func (g *EasyrecAlgoDataGenerator) AddFeatures(item *module.Item, itemFeatures m
 }
 
 func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
-	copyItems := make([]*module.Item, len(g.requestItem))
-	copy(copyItems, g.requestItem)
+	// Transfer ownership instead of copy — generator resets immediately after
+	items := g.requestItem
+	g.requestItem = make([]*module.Item, 0, 128)
 
 	builder := easyrec.NewEasyrecRequestBuilder()
 	for k, v := range g.userFeatures {
 		builder.AddUserFeature(k, v)
 	}
-	for _, item := range g.requestItem {
+	for _, item := range items {
 		builder.AddItemId(string(item.Id))
 	}
 	for k, v := range g.contextFeatures {
@@ -306,13 +307,12 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
 
 	algoData := &EasyrecAlgoData{
 		AlgoDataBase: &AlgoDataBase{
-			Items:      copyItems,
+			Items:      items,
 			AlgoResult: make(map[string][]response.AlgoResponse),
 		},
 		easyrecRequest: builder.EasyrecRequest(),
 	}
 
-	g.requestItem = g.requestItem[:0]
 	return algoData
 }
 
@@ -321,8 +321,9 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebug() IAlgoData {
 }
 
 func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int, meta map[string]string) IAlgoData {
-	copyItems := make([]*module.Item, len(g.requestItem))
-	copy(copyItems, g.requestItem)
+	// Transfer ownership instead of copy — generator resets immediately after
+	items := g.requestItem
+	g.requestItem = make([]*module.Item, 0, 128)
 
 	builder := easyrec.NewEasyrecRequestBuilderDebugWithLevel(level)
 	if meta != nil && len(meta) > 0 {
@@ -332,7 +333,7 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int, me
 	for k, v := range g.userFeatures {
 		builder.AddUserFeature(k, v)
 	}
-	for _, item := range g.requestItem {
+	for _, item := range items {
 		builder.AddItemId(string(item.Id))
 	}
 	for k, v := range g.contextFeatures {
@@ -346,13 +347,12 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int, me
 
 	algoData := &EasyrecAlgoData{
 		AlgoDataBase: &AlgoDataBase{
-			Items:      copyItems,
+			Items:      items,
 			AlgoResult: make(map[string][]response.AlgoResponse),
 		},
 		easyrecRequest: builder.EasyrecRequest(),
 	}
 
-	g.requestItem = g.requestItem[:0]
 	return algoData
 }
 
