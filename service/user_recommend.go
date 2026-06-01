@@ -169,9 +169,15 @@ func (r *UserRecommendService) Recommend(context *context.RecommendContext) []*m
 	go feature_log.FeatureLog(user, items, context)
 	go r.featureConsistencyJobService.LogSampleResult(user, items, context)
 	debugService.WriteRecommendLog(user, items, context)
-	// asynchronous clean hook func
+	// asynchronous clean hook func.
+	// Wrap each hook in hook.SafeRun so a panic inside any registered hook
+	// (e.g. nil deref, failed type assertion, user-supplied callback bug) is
+	// recovered with a stack trace instead of crashing the process. Without
+	// this guard, a single faulty hook implementation can take down the
+	// recommendation server because the goroutine has no other recover
+	// upstream.
 	for _, hf := range hook.RecommendCleanHooks {
-		go hf(context, user, items)
+		go hook.SafeRun(hf, context, user, items)
 	}
 
 	if metrics.Enabled() {
