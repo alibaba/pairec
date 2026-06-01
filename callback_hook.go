@@ -1,6 +1,7 @@
 package pairec
 
 import (
+	"maps"
 	"math"
 
 	randv2 "math/rand/v2"
@@ -71,8 +72,16 @@ func CallBackHookFunc(context *context.RecommendContext, params ...any) {
 	if callbackConfig.UseUserFeatures {
 		features = user.MakeUserFeatures2()
 	} else {
-		if context.GetParameter("features") != nil {
-			features = context.GetParameter("features").(map[string]any)
+		// Clone the shared features map from RecommendContext. The original
+		// HTTP self-call path implicitly isolated this map via a
+		// jsonFast.Marshal + json.Unmarshal round-trip; without that copy,
+		// the worker goroutine (doCallbackLog) and the recommend main path
+		// would share the same map, which can trigger a Go fatal on
+		// concurrent map read/write.
+		if raw := context.GetParameter("features"); raw != nil {
+			if src, ok := raw.(map[string]any); ok {
+				features = maps.Clone(src)
+			}
 		}
 	}
 
