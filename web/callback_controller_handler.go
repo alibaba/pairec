@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"sync"
 
 	plog "github.com/alibaba/pairec/v2/log"
@@ -67,6 +68,16 @@ func SendDirect(param *CallBackParam) {
 	// keeps the misuse visible without taking down the request.
 	if param == nil {
 		plog.Error("event=SendDirect\terror=nil param")
+		return
+	}
+
+	// Mirror the empty ItemList rejection that CallBackController.CheckParameter
+	// enforces on the HTTP /api/callback path (web/callback_controller.go:109).
+	// Without this, an empty ItemList reaches CallBackService.Rank and panics
+	// at a nil algoData. Owning the invariant here makes SendDirect spec-
+	// equivalent to the HTTP entry, so any future caller is automatically safe.
+	if len(param.ItemList) == 0 {
+		plog.Info(fmt.Sprintf("requestId=%s\tevent=SendDirect\tmsg=empty item list, skip", param.RequestId))
 		return
 	}
 
