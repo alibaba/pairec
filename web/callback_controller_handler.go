@@ -77,7 +77,7 @@ func SendDirect(param *CallBackParam) {
 	// at a nil algoData. Owning the invariant here makes SendDirect spec-
 	// equivalent to the HTTP entry, so any future caller is automatically safe.
 	if len(param.ItemList) == 0 {
-		plog.Info(fmt.Sprintf("event=SendDirect\trequestId=%s\tmsg=empty item list, skip", param.RequestId))
+		plog.Info(fmt.Sprintf("requestId=%s\tevent=SendDirect\tmsg=empty item list, skip", param.RequestId))
 		return
 	}
 
