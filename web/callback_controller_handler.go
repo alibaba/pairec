@@ -3,6 +3,7 @@ package web
 import (
 	"sync"
 
+	plog "github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/utils"
 )
 
@@ -60,6 +61,15 @@ func Send(controller *CallBackController) {
 // HTTP path. Calling it here would trigger a duplicated A/B experiment
 // match RPC and a duplicated experiment log line.
 func SendDirect(param *CallBackParam) {
+	// Guard against nil param to avoid a nil pointer dereference panic.
+	// SendDirect is invoked from the recommend main path (RecommendCleanHook),
+	// so a panic here would crash the request goroutine. Logging the error
+	// keeps the misuse visible without taking down the request.
+	if param == nil {
+		plog.Error("event=SendDirect\terror=nil param")
+		return
+	}
+
 	if callBackControllerHandler == nil {
 		once.Do(func() {
 			callBackControllerHandler = NewCallBackControllerHandler()
