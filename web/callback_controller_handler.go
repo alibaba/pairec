@@ -129,8 +129,8 @@ func SendDirect(param *CallBackParam) {
 	}
 
 	if callBackControllerHandler == nil {
-		once.Do(func() {
-			callBackControllerHandler = NewCallBackControllerHandler(20, 5000)
+		initOnce.Do(func() {
+			callBackControllerHandler = NewCallBackControllerHandler(20, 5000, false)
 		})
 	}
 

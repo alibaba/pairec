@@ -58,6 +58,8 @@ require (
 require (
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.13 // indirect
+	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
+	github.com/alibabacloud-go/openapi-util v0.1.1 // indirect
 	github.com/alibabacloud-go/paifeaturestore-20230621/v6 v6.0.5 // indirect
 	github.com/alibabacloud-go/pairecservice-20221213/v3 v3.3.0 // indirect
 	github.com/alibabacloud-go/pairecservice-20221213/v4 v4.0.0 // indirect
