@@ -15,9 +15,10 @@ type EasyrecResponse struct {
 	RawFeatures      string
 	GenerateFeatures *bytes.Buffer
 	ContextFeatures  string
-	multiValModule   bool
 	score            float64
 	scoreArr         map[string]float64
+	multiValModule   bool
+	IsHstuContext    bool
 }
 
 func (r *EasyrecResponse) GetScore() float64 {
@@ -504,7 +505,35 @@ func torchrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoRespo
 		itemFeatures     []string
 		generateFeatures []*bytes.Buffer
 	)
-	for i, itemId := range resp.ItemIds {
+	// Use a local slice to avoid mutating the input proto's ItemIds.
+	itemIds := resp.ItemIds
+	if len(outputs) == 0 && len(resp.GetGenerateFeatures()) == 1 {
+		// hstu response
+		if len(itemIds) > 0 {
+			var (
+				rawFeatures     string
+				genFeatStr      string
+				contextFeatures string
+			)
+			for k, v := range resp.GenerateFeatures {
+				genFeatStr = v
+				contextFeatures = k
+				break
+			}
+			for _, v := range resp.RawFeatures {
+				rawFeatures = v
+				break
+			}
+			ret = append(ret, &EasyrecResponse{scoreArr: make(map[string]float64),
+				multiValModule: true, RawFeatures: rawFeatures,
+				GenerateFeatures: bytes.NewBufferString(genFeatStr),
+				ContextFeatures:  contextFeatures,
+				IsHstuContext:    true})
+			itemIds = itemIds[1:]
+		}
+
+	}
+	for i, itemId := range itemIds {
 		scores := make(map[string]float64)
 		for output, arrayProto := range outputs {
 			if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
