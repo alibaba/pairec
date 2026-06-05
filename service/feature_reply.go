@@ -281,8 +281,11 @@ func (r *FeatureReplyService) rank(user *module.User, items []*module.Item, cont
 							response, _ := (result[j]).(*eas.EasyrecResponse)
 							itemList[j].AddProperty("raw_features", response.RawFeatures)
 							itemList[j].AddProperty("generate_features", response.GenerateFeatures.String())
-							itemList[j].AddProperty("context_features", response.ContextFeatures)
-
+							if response.IsHstuContext {
+								itemList[j].AddProperty("hstu_itemids", response.ContextFeatures)
+							} else {
+								itemList[j].AddProperty("context_features", response.ContextFeatures)
+							}
 						}
 					}
 				}
@@ -342,6 +345,13 @@ func (r *FeatureReplyService) logReatureReplyResultToPairecConfigServer(user *mo
 		replyData.RawFeatures = item.StringProperty("raw_features")
 		replyData.ContextFeatures = item.StringProperty("context_features")
 		replyData.GeneratedFeatures = item.StringProperty("generate_features")
+		if replyData.RawFeatures == "" && replyData.ContextFeatures == "" && replyData.GeneratedFeatures == "" {
+			continue
+		}
+		// hstu itemids
+		if item.StringProperty("hstu_itemids") != "" {
+			replyData.LogItemId = item.StringProperty("hstu_itemids")
+		}
 
 		resp, err := abtest.GetExperimentClient().SyncFeatureConsistencyCheckJobReplayLog(&replyData)
 		if err != nil {
