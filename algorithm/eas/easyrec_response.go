@@ -478,8 +478,14 @@ func torchrecMutValResponseFunc(data interface{}) (ret []response.AlgoResponse, 
 		scores := make(map[string]float64)
 		for output, arrayProto := range outputs {
 			if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+				if i >= len(arrayProto.FloatVal) {
+					return nil, fmt.Errorf("torchrec output %s has %d float values for %d items", output, len(arrayProto.FloatVal), len(resp.ItemIds))
+				}
 				scores[output] = float64(arrayProto.FloatVal[i])
 			} else if arrayProto.Dtype == easyrec.ArrayDataType_DT_DOUBLE {
+				if i >= len(arrayProto.DoubleVal) {
+					return nil, fmt.Errorf("torchrec output %s has %d double values for %d items", output, len(arrayProto.DoubleVal), len(resp.ItemIds))
+				}
 				scores[output] = arrayProto.DoubleVal[i]
 			}
 		}
@@ -537,8 +543,14 @@ func torchrecMutValResponseFuncDebug(data interface{}) (ret []response.AlgoRespo
 		scores := make(map[string]float64)
 		for output, arrayProto := range outputs {
 			if arrayProto.Dtype == easyrec.ArrayDataType_DT_FLOAT {
+				if i >= len(arrayProto.FloatVal) {
+					return nil, fmt.Errorf("torchrec output %s has %d float values for %d items", output, len(arrayProto.FloatVal), len(itemIds))
+				}
 				scores[output] = float64(arrayProto.FloatVal[i])
 			} else if arrayProto.Dtype == easyrec.ArrayDataType_DT_DOUBLE {
+				if i >= len(arrayProto.DoubleVal) {
+					return nil, fmt.Errorf("torchrec output %s has %d double values for %d items", output, len(arrayProto.DoubleVal), len(itemIds))
+				}
 				scores[output] = arrayProto.DoubleVal[i]
 			}
 		}
