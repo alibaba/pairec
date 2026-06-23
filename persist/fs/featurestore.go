@@ -53,20 +53,26 @@ func Load(config *recconf.RecommendConfig) {
 			err    error
 		)
 		l := log.FeatureStoreLogger{}
+		options := []featurestore.ClientOption{
+			featurestore.WithLogger(featurestore.LoggerFunc(l.Infof)),
+			featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
+			featurestore.WithFeatureDBLogin(conf.FeatureDBUsername, conf.FeatureDBPassword),
+			featurestore.WithHologresPort(hologresPort),
+		}
+		if conf.Domain != "" {
+			options = append(options, featurestore.WithDomain(conf.Domain))
+		}
+		if conf.TestMode {
+			options = append(options, featurestore.WithTestMode())
+		}
 		if conf.HologresUsername == "" || conf.HologresPassword == "" {
 			client, err = featurestore.NewFeatureStoreClient(conf.RegionId, conf.AccessId, conf.AccessKey, conf.ProjectName,
-				featurestore.WithLogger(featurestore.LoggerFunc(l.Infof)),
-				featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
-				featurestore.WithFeatureDBLogin(conf.FeatureDBUsername, conf.FeatureDBPassword),
-				featurestore.WithHologresPort(hologresPort),
+				options...,
 			)
 		} else {
+			options = append(options, featurestore.WithHologresLogin(conf.HologresUsername, conf.HologresPassword))
 			client, err = featurestore.NewFeatureStoreClient(conf.RegionId, conf.AccessId, conf.AccessKey, conf.ProjectName,
-				featurestore.WithLogger(featurestore.LoggerFunc(l.Infof)),
-				featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
-				featurestore.WithFeatureDBLogin(conf.FeatureDBUsername, conf.FeatureDBPassword),
-				featurestore.WithHologresPort(hologresPort),
-				featurestore.WithHologresLogin(conf.HologresUsername, conf.HologresPassword),
+				options...,
 			)
 		}
 

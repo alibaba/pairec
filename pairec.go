@@ -170,6 +170,7 @@ func registerRouteInfo() {
 	Route("/api/callback", &web.CallBackController{})
 	Route("/api/feature_reply", &web.FeatureReplyController{})
 	Route("/api/embedding", &web.EmbeddingController{})
+	Route("/api/chat_search", &web.ChatController{})
 	HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		promhttp.Handler().ServeHTTP(w, r)
 	})

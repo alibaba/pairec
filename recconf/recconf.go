@@ -273,6 +273,13 @@ type AlgoConfig struct {
 	LookupConf    LookupConfig
 	SeldonConf    SeldonConfig
 	TFservingConf TFservingConfig
+	PAIModelConf  PAIModelConfig
+}
+
+type PAIModelConfig struct {
+	APIKey  string
+	Model   string
+	Timeout int
 }
 
 type PIDControllerConfig struct {
@@ -363,7 +370,16 @@ type RecallConfig struct {
 	// recall engine config
 	RecallEngineConf RecallEngineConfig
 
-	FilterParams []FilterParamConfig
+	Ha3ChatRecallConf Ha3ChatRecallConfig
+	FilterParams      []FilterParamConfig
+}
+
+type Ha3ChatRecallConfig struct {
+	EngineName   string
+	IndexName    string
+	DefaultField string
+	Analyzer     string
+	PriceField   string
 }
 
 type GraphConf struct {
@@ -640,6 +656,8 @@ type FeatureStoreConfig struct {
 	AccessId  string
 	AccessKey string
 	RegionId  string
+	Domain    string
+	TestMode  bool
 
 	ProjectName       string
 	FeatureDBUsername string
@@ -679,6 +697,7 @@ type Ha3EngineConfig struct {
 	Password   string
 	Endpoint   string
 	InstanceId string
+	Timeout    int
 }
 type OpenSearchConfig struct {
 	EndPoint        string
@@ -719,10 +738,27 @@ type SceneConfig struct {
 type CategoryConfig struct {
 	RecallNames            []string
 	FallbackConfig         *FallbackConfig
+	AIChatConfig           *AIChatConfig
 	AutoInvokeCallBack     bool
 	AutoInvokeCallBackRate int
 	OutputFields           []string
 	SubRank                map[string]any
+}
+
+type AIChatConfig struct {
+	DefaultLanguage         string
+	OutputLanguages         []string
+	PlannerPromptTemplates  map[string]string
+	ReplyPromptTemplates    map[string]string
+	FallbackTemplates       map[string]map[string]string
+	ToolMaxRounds           int
+	DisplayItemCountMax     int
+	LLMAlgoName             string
+	RecallName              string
+	SessionFeatureStoreName string
+	SessionFeatureView      string
+	SessionMaxTurns         int
+	SessionMaxTokens        int
 }
 
 type FallbackConfig struct {

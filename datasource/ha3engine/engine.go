@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"sync"
 
-	util "github.com/alibabacloud-go/tea-utils/service"
-	"github.com/alibabacloud-go/tea/tea"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine/ha3client"
 	"github.com/alibaba/pairec/v2/recconf"
+	util "github.com/alibabacloud-go/tea-utils/service"
+	"github.com/alibabacloud-go/tea/tea"
 )
 
 type Ha3EngineClient struct {
@@ -37,7 +37,7 @@ func RegisterHa3EngineClient(name string, client *Ha3EngineClient) {
 	}
 }
 
-func NewHa3EngineClient(username, password, endpoint, instanceId string) *Ha3EngineClient {
+func NewHa3EngineClient(username, password, endpoint, instanceId string, timeout int) *Ha3EngineClient {
 	p := &Ha3EngineClient{}
 	config := &ha3client.Config{
 		Endpoint:       tea.String(endpoint),
@@ -59,6 +59,9 @@ func NewHa3EngineClient(username, password, endpoint, instanceId string) *Ha3Eng
 		MaxIdleConns:   tea.Int(50),
 		//HttpProxy:      tea.String("http://116.*.*.187:8088"),
 	}
+	if timeout > 0 {
+		p.runtime.ReadTimeout = tea.Int(timeout)
+	}
 	return p
 }
 
@@ -67,12 +70,16 @@ func (d *Ha3EngineClient) Init() error {
 	return nil
 }
 
+func (d *Ha3EngineClient) Runtime() *util.RuntimeOptions {
+	return d.runtime
+}
+
 func Load(config *recconf.RecommendConfig) {
 	for name, conf := range config.Ha3EngineConfs {
 		if _, ok := ha3Instances[name]; ok {
 			continue
 		}
-		m := NewHa3EngineClient(conf.Username, conf.Password, conf.Endpoint, conf.InstanceId)
+		m := NewHa3EngineClient(conf.Username, conf.Password, conf.Endpoint, conf.InstanceId, conf.Timeout)
 
 		err := m.Init()
 		if err != nil {

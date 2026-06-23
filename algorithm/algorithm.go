@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	"github.com/alibaba/pairec/v2/algorithm/eas"
 	"github.com/alibaba/pairec/v2/algorithm/faiss"
 	"github.com/alibaba/pairec/v2/algorithm/seldon"
@@ -99,8 +100,23 @@ func (a *AlgorithmFactory) initAlgo(conf recconf.AlgoConfig) (IAlgorithm, error)
 			return nil, fmt.Errorf("init algorithm error, name:%s, err:%v", conf.Name, err)
 		}
 
+	} else if conf.Type == "PAI_CHAT" {
+		algo = aichat.NewModel(conf.Name)
+		err := algo.Init(&conf)
+		if err != nil {
+			return nil, fmt.Errorf("init algorithm error, name:%s, err:%v", conf.Name, err)
+		}
 	} else {
 		return nil, fmt.Errorf("algorithm type not support , type:%s", conf.Type)
+	}
+	return algo, nil
+}
+func (a *AlgorithmFactory) Get(name string) (IAlgorithm, error) {
+	a.mutex.RLock()
+	defer a.mutex.RUnlock()
+	algo, found := a.algorithms[name]
+	if !found {
+		return nil, errors.New("not found algorithm, name:" + name)
 	}
 	return algo, nil
 }
@@ -125,6 +141,9 @@ func Load(config *recconf.RecommendConfig) {
 }
 func Run(name string, algoData interface{}) (interface{}, error) {
 	return algoFactory.Run(name, algoData)
+}
+func Get(name string) (IAlgorithm, error) {
+	return algoFactory.Get(name)
 }
 func AddAlgo(conf recconf.AlgoConfig) {
 	algoFactory.mutex.Lock()
