@@ -474,13 +474,13 @@ type UserEmbeddingO2OTriggerConfig struct {
 	UserFeatureConfs    []FeatureLoadConfig // get user features
 }
 type UserRealtimeEmbeddingTriggerConfig struct {
-	Debug              bool
 	DebugLogDatahub    string
 	EmbeddingNum       int
 	RecallAlgo         string
 	DistinctParamName  string
 	DistinctParamValue string
 	UserFeatureConfs   []FeatureLoadConfig // get user features
+	Debug              bool
 }
 
 type BeTriggerParam struct {
