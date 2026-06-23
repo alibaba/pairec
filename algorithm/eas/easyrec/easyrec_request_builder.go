@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
+
+	"github.com/alibaba/pairec/v2/log"
 )
 
 const (
@@ -228,7 +231,14 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 		// kind and convert accordingly.
 		rv := reflect.ValueOf(v)
 		switch rv.Kind() {
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		case reflect.Int8, reflect.Int16, reflect.Int32:
+			// Always fits in int32, mirrors the concrete int32 case.
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(rv.Int())}}
+		case reflect.Int64:
+			// Mirrors the concrete int64 case: always LongFeature.
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{rv.Int()}}
+		case reflect.Int:
+			// Mirrors the concrete int case: IntFeature if it fits in int32, otherwise LongFeature.
 			intVal := rv.Int()
 			if intVal >= math.MinInt32 && intVal <= math.MaxInt32 {
 				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(intVal)}}
@@ -237,10 +247,17 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 			}
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			uintVal := rv.Uint()
-			if uintVal <= math.MaxInt32 {
+			switch {
+			case uintVal <= math.MaxInt32:
 				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(uintVal)}}
-			} else {
+			case uintVal <= math.MaxInt64:
 				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{int64(uintVal)}}
+			default:
+				// PBFeature has no unsigned type; a uint value above int64 range
+				// would wrap around to a negative number if cast to int64.
+				// Encode it as a string to preserve the exact value.
+				log.Warning(fmt.Sprintf("AddUserFeature: uint value %d for feature %q exceeds int64 range, encoding as string", uintVal, k))
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{strconv.FormatUint(uintVal, 10)}}
 			}
 		case reflect.Float32:
 			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_FloatFeature{float32(rv.Float())}}
@@ -249,8 +266,10 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 		case reflect.String:
 			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{rv.String()}}
 		default:
-			// Last resort: convert to string representation
-			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{fmt.Sprintf("%v", v)}}
+			// Unsupported feature type (struct, map, slice, pointer, bool, typed-nil, ...).
+			// Keep the old no-op behavior instead of writing a meaningless string value,
+			// but log a warning to help diagnose misconfigured features.
+			log.Warning(fmt.Sprintf("AddUserFeature: unsupported feature type %T for feature %q, ignored", v, k))
 		}
 	}
 }
