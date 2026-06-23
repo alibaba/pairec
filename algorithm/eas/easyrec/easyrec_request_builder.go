@@ -3,6 +3,8 @@ package easyrec
 import (
 	"bytes"
 	"math"
+	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -216,6 +218,53 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 		b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_DoubleLists{DoubleLists: &DoubleLists{Lists: values}}}
 
 	default:
+		// Preserve old behavior: nil features are silently ignored.
+		if v == nil {
+			return
+		}
+		// Handle named types (e.g. time.Month which is based on int) via reflection.
+		// Go's type switch matches concrete types only, so named types like
+		// time.Month won't match "case int:". Use reflect to check the underlying
+		// kind and convert accordingly.
+		rv := reflect.ValueOf(v)
+		switch rv.Kind() {
+		case reflect.Int8, reflect.Int16, reflect.Int32:
+			// Always fits in int32, mirrors the concrete int32 case.
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(rv.Int())}}
+		case reflect.Int64:
+			// Mirrors the concrete int64 case: always LongFeature.
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{rv.Int()}}
+		case reflect.Int:
+			// Mirrors the concrete int case: IntFeature if it fits in int32, otherwise LongFeature.
+			intVal := rv.Int()
+			if intVal >= math.MinInt32 && intVal <= math.MaxInt32 {
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(intVal)}}
+			} else {
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{intVal}}
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			uintVal := rv.Uint()
+			switch {
+			case uintVal <= math.MaxInt32:
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(uintVal)}}
+			case uintVal <= math.MaxInt64:
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{int64(uintVal)}}
+			default:
+				// PBFeature has no unsigned type; a uint value above int64 range
+				// would wrap around to a negative number if cast to int64.
+				// Encode it as a string to preserve the exact value.
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{strconv.FormatUint(uintVal, 10)}}
+			}
+		case reflect.Float32:
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_FloatFeature{float32(rv.Float())}}
+		case reflect.Float64:
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_DoubleFeature{rv.Float()}}
+		case reflect.String:
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{rv.String()}}
+		default:
+			// Unsupported feature type (struct, map, slice, pointer, bool, typed-nil, ...).
+			// Keep the old no-op behavior instead of writing a meaningless string value.
+		}
 	}
 }
 
