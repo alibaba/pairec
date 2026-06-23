@@ -2,13 +2,10 @@ package easyrec
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/alibaba/pairec/v2/log"
 )
 
 const (
@@ -256,7 +253,6 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 				// PBFeature has no unsigned type; a uint value above int64 range
 				// would wrap around to a negative number if cast to int64.
 				// Encode it as a string to preserve the exact value.
-				log.Warning(fmt.Sprintf("AddUserFeature: uint value %d for feature %q exceeds int64 range, encoding as string", uintVal, k))
 				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{strconv.FormatUint(uintVal, 10)}}
 			}
 		case reflect.Float32:
@@ -267,9 +263,7 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{rv.String()}}
 		default:
 			// Unsupported feature type (struct, map, slice, pointer, bool, typed-nil, ...).
-			// Keep the old no-op behavior instead of writing a meaningless string value,
-			// but log a warning to help diagnose misconfigured features.
-			log.Warning(fmt.Sprintf("AddUserFeature: unsupported feature type %T for feature %q, ignored", v, k))
+			// Keep the old no-op behavior instead of writing a meaningless string value.
 		}
 	}
 }
