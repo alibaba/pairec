@@ -426,6 +426,7 @@ type RecallEngineParam struct {
 	RecallTableName string
 	DiversityParam  string
 	CustomParams    map[string]interface{}
+	TriggerLimit    int
 }
 type RecallNameMappingConfig struct {
 	Format string
