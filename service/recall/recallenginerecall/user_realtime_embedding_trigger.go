@@ -87,8 +87,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 		}
 	}
 
-	//user := u.Clone()
-	user := u
+	user := u.Clone()
 	t.loadUserFeatures(user, context)
 	//plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger_loadfeature\tcost=%v", context.RecommendId, utils.CostTime(start)))
 
