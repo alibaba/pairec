@@ -2,7 +2,9 @@ package easyrec
 
 import (
 	"bytes"
+	"fmt"
 	"math"
+	"reflect"
 	"strings"
 )
 
@@ -216,6 +218,40 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 		b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_DoubleLists{DoubleLists: &DoubleLists{Lists: values}}}
 
 	default:
+		// Preserve old behavior: nil features are silently ignored.
+		if v == nil {
+			return
+		}
+		// Handle named types (e.g. time.Month which is based on int) via reflection.
+		// Go's type switch matches concrete types only, so named types like
+		// time.Month won't match "case int:". Use reflect to check the underlying
+		// kind and convert accordingly.
+		rv := reflect.ValueOf(v)
+		switch rv.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			intVal := rv.Int()
+			if intVal >= math.MinInt32 && intVal <= math.MaxInt32 {
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(intVal)}}
+			} else {
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{intVal}}
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			uintVal := rv.Uint()
+			if uintVal <= math.MaxInt32 {
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(uintVal)}}
+			} else {
+				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{int64(uintVal)}}
+			}
+		case reflect.Float32:
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_FloatFeature{float32(rv.Float())}}
+		case reflect.Float64:
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_DoubleFeature{rv.Float()}}
+		case reflect.String:
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{rv.String()}}
+		default:
+			// Last resort: convert to string representation
+			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{fmt.Sprintf("%v", v)}}
+		}
 	}
 }
 
