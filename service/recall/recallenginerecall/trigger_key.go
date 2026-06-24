@@ -69,8 +69,9 @@ func NewUserTrigger(userTriggers []recconf.TriggerConfig) *UserTrigger {
 	return &t
 }
 func (t *UserTrigger) GetTriggerKey(user *module.User, context *context.RecommendContext) *TriggerResult {
+	triggerValues := t.trigger.GetTriggerValues(user.MakeUserFeatures2())
 	return &TriggerResult{
-		TriggerItem: t.trigger.GetValue(user.MakeUserFeatures2()),
+		TriggerItem: module.ParseTriggerValues(triggerValues),
 	}
 }
 
