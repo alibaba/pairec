@@ -162,6 +162,7 @@ func (r *RecallEngineX2IRecall) CloneWithConfig(params map[string]interface{}) R
 		customParams:    recallParams.CustomParams,
 		triggerLimit:    recallParams.TriggerLimit,
 		triggerKey:      NewTriggerKey(&recallParams, r.client),
+		cloneInstances:  make(map[string]*RecallEngineX2IRecall),
 	}
 
 	r.cloneInstances[md5] = recall
