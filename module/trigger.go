@@ -104,6 +104,47 @@ func (t *Trigger) GetValue(features map[string]interface{}) string {
 	return strings.Join(values, "_")
 }
 
+// GetTriggerValues returns per-dimension trigger values as a string slice.
+// Each element is one trigger item's value (may contain TIRRGER_SPLIT for array features).
+func (t *Trigger) GetTriggerValues(features map[string]interface{}) []string {
+	values := make([]string, 0, len(t.triggers))
+	for _, trigger := range t.triggers {
+		if val, ok := features[trigger.Key]; ok {
+			values = append(values, trigger.GetValue(val))
+		} else {
+			values = append(values, trigger.DefaultValue)
+		}
+	}
+	return values
+}
+
+// ParseTriggerValues expands trigger values into cartesian product combinations,
+// joined with comma. Unlike ParseTriggerId which splits by "_", this function
+// takes pre-split per-dimension values to avoid ambiguity when values contain "_".
+func ParseTriggerValues(triggerValues []string) string {
+	combinations := []string{""}
+	for i, val := range triggerValues {
+		var items []string
+		if strings.Contains(val, TIRRGER_SPLIT) {
+			items = strings.Split(val, TIRRGER_SPLIT)
+		} else {
+			items = []string{val}
+		}
+		var next []string
+		for _, combo := range combinations {
+			for _, item := range items {
+				if i == 0 {
+					next = append(next, item)
+				} else {
+					next = append(next, combo+"_"+item)
+				}
+			}
+		}
+		combinations = next
+	}
+	return strings.Join(combinations, ",")
+}
+
 func ParseTriggerId(triggerId string) []any {
 	if !strings.ContainsAny(triggerId, TIRRGER_SPLIT) {
 		return []any{triggerId}
