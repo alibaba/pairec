@@ -205,4 +205,21 @@ func TestParseTriggerValues(t *testing.T) {
 		result := ParseTriggerValues(trigger.GetTriggerValues(features))
 		assert.Equal(t, result, "trigger_a_unknown,trigger_b_unknown")
 	})
+
+	t.Run("empty string value preserves dimension", func(t *testing.T) {
+		// When first dimension is empty string, second dimension should still be "_Android"
+		result := ParseTriggerValues([]string{"", "Android"})
+		assert.Equal(t, result, "_Android")
+	})
+
+	t.Run("empty array produces empty string", func(t *testing.T) {
+		config := []recconf.TriggerConfig{
+			{TriggerKey: "tags"},
+			{TriggerKey: "os"},
+		}
+		trigger := NewTrigger(config)
+		features := map[string]interface{}{"tags": []string{}, "os": "Android"}
+		result := ParseTriggerValues(trigger.GetTriggerValues(features))
+		assert.Equal(t, result, "_Android")
+	})
 }

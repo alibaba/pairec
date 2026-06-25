@@ -123,7 +123,7 @@ func (t *Trigger) GetTriggerValues(features map[string]interface{}) []string {
 // takes pre-split per-dimension values to avoid ambiguity when values contain "_".
 func ParseTriggerValues(triggerValues []string) string {
 	combinations := []string{""}
-	for _, val := range triggerValues {
+	for i, val := range triggerValues {
 		var items []string
 		if strings.Contains(val, TIRRGER_SPLIT) {
 			items = strings.Split(val, TIRRGER_SPLIT)
@@ -133,7 +133,7 @@ func ParseTriggerValues(triggerValues []string) string {
 		var next []string
 		for _, combo := range combinations {
 			for _, item := range items {
-				if combo == "" {
+				if i == 0 {
 					next = append(next, item)
 				} else {
 					next = append(next, combo+"_"+item)
