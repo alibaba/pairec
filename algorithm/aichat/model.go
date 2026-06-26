@@ -14,7 +14,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 )
 
-const paiModelBaseURL = "https://aiservice.cn-beijing.aliyuncs.com/v1"
+const paiModelBaseURL = "https://cn-beijing.pai-token.aliyuncs.com/v1"
 
 type Model struct {
 	name   string
