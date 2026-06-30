@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	pairecctx "github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine"
@@ -13,6 +14,11 @@ import (
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibabacloud-go/tea/tea"
+)
+
+const (
+	maxSearchKeywordCount = 8
+	maxSearchKeywordRunes = 64
 )
 
 type Ha3ChatRecall struct {
@@ -143,12 +149,53 @@ func (r *Ha3ChatRecall) buildFilterExpr(req SearchGoodsRequest) string {
 func normalizeKeywords(keywords []string) []string {
 	out := make([]string, 0, len(keywords))
 	for _, keyword := range keywords {
-		keyword = strings.TrimSpace(strings.ReplaceAll(keyword, "'", " "))
+		keyword = sanitizeSearchKeyword(keyword)
 		if keyword != "" {
 			out = append(out, keyword)
+			if len(out) >= maxSearchKeywordCount {
+				break
+			}
 		}
 	}
 	return out
+}
+
+func sanitizeSearchKeyword(keyword string) string {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return ""
+	}
+	var b strings.Builder
+	written := 0
+	lastSpace := false
+	for _, r := range keyword {
+		if written >= maxSearchKeywordRunes {
+			break
+		}
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			b.WriteRune(r)
+			lastSpace = false
+			written++
+		case r == '-' || r == '_' || r == '.':
+			b.WriteRune(r)
+			lastSpace = false
+			written++
+		case unicode.IsSpace(r):
+			if !lastSpace {
+				b.WriteByte(' ')
+				lastSpace = true
+				written++
+			}
+		default:
+			if !lastSpace {
+				b.WriteByte(' ')
+				lastSpace = true
+				written++
+			}
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func parseHa3ChatResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResult, error) {

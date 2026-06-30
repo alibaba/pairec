@@ -85,8 +85,9 @@ func (s *replyStreamer) flush(final bool) error {
 		marker := s.buffer[:markerEnd+2]
 		inner := s.buffer[2:markerEnd]
 		if isIndexMarker(inner) {
-			index, _ := strconv.Atoi(inner)
-			if itemID := s.indexMap[index]; itemID != "" && s.used < s.maxItems {
+			index, err := strconv.Atoi(inner)
+			if err == nil && s.indexMap[index] != "" && s.used < s.maxItems {
+				itemID := s.indexMap[index]
 				if err := s.writer.EmitCitation(itemID); err != nil {
 					return err
 				}

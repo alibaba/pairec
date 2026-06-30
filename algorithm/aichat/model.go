@@ -75,7 +75,10 @@ func (m *Model) Stream(ctx context.Context, request *ChatCompletionRequest, onDe
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if readErr != nil {
+			return nil, fmt.Errorf("aichat upstream status:%d read body error:%v", resp.StatusCode, readErr)
+		}
 		detail := strings.TrimSpace(string(body))
 		if detail != "" {
 			return nil, fmt.Errorf("aichat upstream status:%d body:%s", resp.StatusCode, detail)

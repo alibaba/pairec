@@ -3,10 +3,13 @@ package aichat
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
 )
+
+const maxToolCallIndex = 64
 
 type streamChunk struct {
 	Choices []struct {
@@ -67,6 +70,9 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 				result.FinishReason = choice.FinishReason
 			}
 			for _, tc := range choice.Delta.ToolCalls {
+				if tc.Index < 0 || tc.Index >= maxToolCallIndex {
+					return nil, fmt.Errorf("aichat stream invalid tool call index:%d", tc.Index)
+				}
 				slot := toolCalls[tc.Index]
 				if slot == nil {
 					slot = &acc{}

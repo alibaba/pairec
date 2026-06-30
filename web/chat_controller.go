@@ -69,13 +69,17 @@ func (c *ChatController) Process(w http.ResponseWriter, r *http.Request) {
 		c.SendError(w, ERROR_PARAMETER_CODE, err.Error())
 		return
 	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		c.SendError(w, SERVER_ERROR_CODE, "streaming unsupported")
+		return
+	}
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
 	// Chat streams can run longer than the server write timeout while waiting on the model.
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
 
-	flusher, _ := w.(http.Flusher)
 	stream := aishopping.NewStreamWriter(c.RequestId, c.param.SessionId, w, flusher)
 	req := &aishopping.Request{
 		RequestId: c.RequestId,
@@ -99,7 +103,7 @@ func (c *ChatController) CheckParameter() error {
 		c.param.SceneId = "ai_shopping"
 	}
 	if c.param.SessionId == "" {
-		return errors.New("session_id not empty")
+		return errors.New("session_id is empty")
 	}
 	c.param.Uid = strings.TrimSpace(c.param.Uid)
 	if c.param.Uid == "" {

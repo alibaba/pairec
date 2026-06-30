@@ -36,7 +36,10 @@ func resolveReplyEvents(reply string, indexMap map[int]string, maxItems int) (st
 		pos = match[1]
 		itemID := ""
 		if match[2] >= 0 {
-			n, _ := strconv.Atoi(reply[match[2]:match[3]])
+			n, err := strconv.Atoi(reply[match[2]:match[3]])
+			if err != nil {
+				continue
+			}
 			itemID = indexMap[n]
 		} else if refPos < len(refIDs) {
 			itemID = refIDs[refPos]
@@ -93,6 +96,8 @@ func messagesWithPrompt(messages []aichat.Message, prompt string) []aichat.Messa
 	if len(messages) == 0 {
 		return []aichat.Message{{Role: "system", Content: prompt}}
 	}
-	messages[0] = aichat.Message{Role: "system", Content: prompt}
-	return messages
+	copied := make([]aichat.Message, len(messages))
+	copy(copied, messages)
+	copied[0] = aichat.Message{Role: "system", Content: prompt}
+	return copied
 }
