@@ -24,6 +24,7 @@ type RecallEngineX2IRecall struct {
 	recallTableName string
 	diversityParam  string
 	customParams    map[string]interface{}
+	triggerLimit    int
 	triggerKey      TriggerKey
 	client          *recallengine.RecallEngineClient
 	mu              sync.RWMutex
@@ -44,6 +45,7 @@ func NewRecallEngineX2IRecall(client *recallengine.RecallEngineClient, conf recc
 		recallTableName: conf.RecallEngineParams[0].RecallTableName,
 		diversityParam:  conf.RecallEngineParams[0].DiversityParam,
 		customParams:    conf.RecallEngineParams[0].CustomParams,
+		triggerLimit:    conf.RecallEngineParams[0].TriggerLimit,
 		triggerKey:      NewTriggerKey(&conf.RecallEngineParams[0], nil),
 		client:          client,
 		cloneInstances:  make(map[string]*RecallEngineX2IRecall),
@@ -67,6 +69,9 @@ func (r *RecallEngineX2IRecall) BuildQueryParams(user *module.User, context *con
 
 	ret.Trigger = triggerResult.TriggerItem
 	ret.Count = r.returnCount
+	if r.triggerLimit > 0 {
+		ret.Options = &re.RecallOptions{TriggerLimit: r.triggerLimit}
+	}
 	return
 
 	/*
@@ -155,7 +160,9 @@ func (r *RecallEngineX2IRecall) CloneWithConfig(params map[string]interface{}) R
 		recallTableName: recallParams.RecallTableName,
 		diversityParam:  recallParams.DiversityParam,
 		customParams:    recallParams.CustomParams,
+		triggerLimit:    recallParams.TriggerLimit,
 		triggerKey:      NewTriggerKey(&recallParams, r.client),
+		cloneInstances:  make(map[string]*RecallEngineX2IRecall),
 	}
 
 	r.cloneInstances[md5] = recall

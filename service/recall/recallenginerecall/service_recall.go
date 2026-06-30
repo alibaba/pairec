@@ -121,6 +121,7 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 				recallTableName: param.RecallTableName,
 				diversityParam:  param.DiversityParam,
 				customParams:    param.CustomParams,
+				triggerLimit:    param.TriggerLimit,
 				triggerKey:      NewTriggerKey(&param, client),
 				client:          client,
 				cloneInstances:  make(map[string]*RecallEngineX2IRecall),

@@ -12,7 +12,6 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
-	"github.com/alibaba/pairec/v2/service/debug"
 	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/rank"
 	"github.com/alibaba/pairec/v2/utils"
@@ -64,7 +63,6 @@ func NewBaseGeneralRankWithConfig(scene string, config recconf.GeneralRankConfig
 // 3. use goroutines to invoke eas module
 // 4. iterator actions invoke Do function to apply items
 func (r *BaseGeneralRank) DoRank(user *module.User, items []*module.Item, context *context.RecommendContext, pipeline string) (ret []*module.Item) {
-	debugService := debug.NewDebugService(user, context)
 	rankItems := items
 
 	// get user feature by the FeatureService
@@ -97,8 +95,6 @@ func (r *BaseGeneralRank) DoRank(user *module.User, items []*module.Item, contex
 	if len(r.rankConfig.RankAlgoList) > 0 {
 		rankItems = r.doRankWithAlgo(user, rankItems, context)
 	}
-
-	debugService.WriteGeneralLog(user, rankItems, context)
 
 	for _, action := range r.actions {
 		rankItems = action.Do(user, rankItems, context)

@@ -259,7 +259,7 @@ func (r *FeatureConsistencyJobService) logRankResultToPaiConfigServer(user *modu
 		j, _ = json.Marshal(item.GetAlgoScores())
 		itemScores = append(itemScores, string(j))
 
-		if i%20 == 0 {
+		if i%50 == 0 {
 			j, _ := json.Marshal(itemIds)
 			backflowData.LogItemId = string(j)
 			j, _ = json.Marshal(itemFeatures)

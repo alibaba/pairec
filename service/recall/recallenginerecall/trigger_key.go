@@ -32,15 +32,15 @@ func NewTriggerKey(recallParam *recconf.RecallEngineParam, client *recallengine.
 	case "u2i_realtime":
 		trigger := NewU2IRealtimeTrigger(&recallParam.UserTriggerDaoConf, &recallParam.UserTriggerRulesConf)
 		return trigger
+	case "user_realtime_embedding":
+		trigger := NewUserRealtimeEmbeddingTrigger(&recallParam.UserRealtimeEmbeddingTrigger)
+		return trigger
 	/*
 		case "user_vector":
 			trigger := NewUserVectorTrigger(&recallParam.UserVectorTrigger)
 			return trigger
 		case "u2i":
 			trigger := NewU2ITrigger(&recallParam.UserCollaborativeDaoConf, &recallParam.UserTriggerRulesConf)
-			return trigger
-		case "user_realtime_embedding":
-			trigger := NewUserRealtimeEmbeddingTrigger(&recallParam.UserRealtimeEmbeddingTrigger)
 			return trigger
 		case "user_realtime_embedding_mind":
 			trigger := NewUserRealtimeEmbeddingMindTrigger(&recallParam.UserRealtimeEmbeddingTrigger)
@@ -69,8 +69,9 @@ func NewUserTrigger(userTriggers []recconf.TriggerConfig) *UserTrigger {
 	return &t
 }
 func (t *UserTrigger) GetTriggerKey(user *module.User, context *context.RecommendContext) *TriggerResult {
+	triggerValues := t.trigger.GetTriggerValues(user.MakeUserFeatures2())
 	return &TriggerResult{
-		TriggerItem: t.trigger.GetValue(user.MakeUserFeatures2()),
+		TriggerItem: module.ParseTriggerValues(triggerValues),
 	}
 }
 
