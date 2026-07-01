@@ -34,9 +34,10 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 	type acc struct {
 		id        string
 		callType  string
-		name      string
-		arguments string
+		name      strings.Builder
+		arguments strings.Builder
 	}
+	var contentBuf strings.Builder
 	toolCalls := map[int]*acc{}
 	scanner := bufio.NewScanner(reader)
 	buf := make([]byte, 0, 64*1024)
@@ -59,7 +60,7 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 		}
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
-				result.Content += choice.Delta.Content
+				contentBuf.WriteString(choice.Delta.Content)
 				if onDelta != nil {
 					if err := onDelta(choice.Delta.Content); err != nil {
 						return nil, err
@@ -84,14 +85,15 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 				if tc.Type != "" {
 					slot.callType = tc.Type
 				}
-				slot.name += tc.Function.Name
-				slot.arguments += tc.Function.Arguments
+				slot.name.WriteString(tc.Function.Name)
+				slot.arguments.WriteString(tc.Function.Arguments)
 			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
+	result.Content = contentBuf.String()
 	indexes := make([]int, 0, len(toolCalls))
 	for index := range toolCalls {
 		indexes = append(indexes, index)
@@ -106,8 +108,8 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 			ID:   call.id,
 			Type: call.callType,
 			Function: FunctionCall{
-				Name:      call.name,
-				Arguments: call.arguments,
+				Name:      call.name.String(),
+				Arguments: call.arguments.String(),
 			},
 		})
 	}

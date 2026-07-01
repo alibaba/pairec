@@ -280,6 +280,7 @@ type PAIModelConfig struct {
 	APIKey  string
 	Model   string
 	Timeout int
+	Region  string
 }
 
 type PIDControllerConfig struct {

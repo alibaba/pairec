@@ -14,13 +14,18 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 )
 
-const paiModelBaseURL = "https://cn-beijing.pai-token.aliyuncs.com/v1"
+const (
+	defaultPAIModelRegion  = "cn-beijing"
+	defaultPAIModelTimeout = 60000
+	paiModelEndpointFormat = "https://%s.pai-token.aliyuncs.com/v1"
+)
 
 type Model struct {
-	name   string
-	conf   recconf.PAIModelConfig
-	client *http.Client
-	apiKey string
+	name     string
+	conf     recconf.PAIModelConfig
+	client   *http.Client
+	apiKey   string
+	endpoint string
 }
 
 func NewModel(name string) *Model {
@@ -36,11 +41,12 @@ func (m *Model) Init(conf *recconf.AlgoConfig) error {
 		return errors.New("PAIModelConf.APIKey is empty")
 	}
 	m.apiKey = m.conf.APIKey
-	timeout := m.conf.Timeout
-	if timeout <= 0 {
-		timeout = 60000
+	region := strings.TrimSpace(m.conf.Region)
+	if region == "" {
+		region = defaultPAIModelRegion
 	}
-	m.client = &http.Client{Timeout: time.Duration(timeout) * time.Millisecond}
+	m.endpoint = fmt.Sprintf(paiModelEndpointFormat, region)
+	m.client = newHTTPClient(m.conf.Timeout)
 	return nil
 }
 
@@ -57,7 +63,7 @@ func (m *Model) Stream(ctx context.Context, request *ChatCompletionRequest, onDe
 		request.Model = m.conf.Model
 	}
 	request.Stream = true
-	endpoint := paiModelBaseURL + "/chat/completions"
+	endpoint := m.endpoint + "/chat/completions"
 	body, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
@@ -76,6 +82,7 @@ func (m *Model) Stream(ctx context.Context, request *ChatCompletionRequest, onDe
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 		if readErr != nil {
 			return nil, fmt.Errorf("aichat upstream status:%d read body error:%v", resp.StatusCode, readErr)
 		}
@@ -90,4 +97,16 @@ func (m *Model) Stream(ctx context.Context, request *ChatCompletionRequest, onDe
 		return nil, err
 	}
 	return result, nil
+}
+
+func newHTTPClient(timeout int) *http.Client {
+	if timeout <= 0 {
+		timeout = defaultPAIModelTimeout
+	}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.MaxConnsPerHost = 2000
+	tr.MaxIdleConnsPerHost = 2000
+	tr.MaxIdleConns = 2000
+	tr.ResponseHeaderTimeout = time.Duration(timeout) * time.Millisecond
+	return &http.Client{Transport: tr}
 }
