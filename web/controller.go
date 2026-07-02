@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/utils/compress"
@@ -78,6 +79,44 @@ func (c *Controller) LogRequestBeginWithSize(r *http.Request, size int) {
 func (c *Controller) LogRequestEnd(r *http.Request) {
 	info := fmt.Sprintf("requestId=%s\tevent=end\turi=%s\tcost=%d", c.RequestId, r.RequestURI, c.cost())
 	log.Info(info)
+}
+func (c *Controller) LogResponseBody(r *http.Request, body string) {
+	// SLS has a 5000 character limit per log field, use 4000 as chunk size
+	// to leave room for the prefix (requestId, event, uri, etc.)
+	const maxChunkSize = 4000
+	if len(body) <= maxChunkSize {
+		info := fmt.Sprintf("requestId=%s\tevent=response\turi=%s\tbody=%s", c.RequestId, r.RequestURI, body)
+		log.Info(info)
+		return
+	}
+
+	// Split long response body into multiple chunks at valid UTF-8 boundaries first,
+	// so the total count is accurate (back-off may make chunks shorter than maxChunkSize).
+	var chunks []string
+	for i := 0; i < len(body); {
+		end := i + maxChunkSize
+		if end >= len(body) {
+			end = len(body)
+		} else {
+			// Back off to a valid UTF-8 character boundary
+			for end > i && !utf8.RuneStart(body[end]) {
+				end--
+			}
+			// Guard against invalid UTF-8: if no boundary found, keep the byte-length
+			// boundary to ensure progress and avoid an infinite loop.
+			if end == i {
+				end = i + maxChunkSize
+			}
+		}
+		chunks = append(chunks, body[i:end])
+		i = end
+	}
+
+	total := len(chunks)
+	for idx, chunk := range chunks {
+		info := fmt.Sprintf("requestId=%s\tevent=response\turi=%s\tpart=%d/%d\tbody=%s", c.RequestId, r.RequestURI, idx+1, total, chunk)
+		log.Info(info)
+	}
 }
 
 func (c *Controller) SendError(w http.ResponseWriter, code int, msg string) {
