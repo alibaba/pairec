@@ -102,6 +102,7 @@ func (c *ChatController) CheckParameter() error {
 	if c.param.SceneId == "" {
 		c.param.SceneId = "ai_shopping"
 	}
+	c.param.SessionId = strings.TrimSpace(c.param.SessionId)
 	if c.param.SessionId == "" {
 		return errors.New("session_id is empty")
 	}

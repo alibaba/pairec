@@ -31,7 +31,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		return err
 	}
 	store := NewSessionStore(cfg.raw)
-	blob, err := store.Load(req.SessionId, cfg.language, cfg.plannerPrompt)
+	blob, err := store.Load(req.Uid, req.SessionId, cfg.language, cfg.plannerPrompt)
 	if err != nil {
 		log.Error(fmt.Sprintf("ai shopping session read failed, requestId:%s, sessionId:%s, err:%v", req.RequestId, req.SessionId, err))
 		_ = writer.EmitStop("error", "session_read_failed")
@@ -81,7 +81,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		}
 	}
 	recordAssistant(blob, canonical)
-	if err := store.Save(req.SessionId, blob); err != nil {
+	if err := store.Save(req.Uid, req.SessionId, blob); err != nil {
 		log.Error(fmt.Sprintf("ai shopping session write failed, requestId:%s, sessionId:%s, err:%v", req.RequestId, req.SessionId, err))
 		_ = writer.EmitStop("error", "session_write_failed")
 		return err

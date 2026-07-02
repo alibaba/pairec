@@ -19,8 +19,8 @@ func NewSessionStore(cfg *recconf.AIChatConfig) *SessionStore {
 	return &SessionStore{cfg: cfg}
 }
 
-func (s *SessionStore) Load(sessionId, language, prompt string) (*SessionBlob, error) {
-	blob, err := s.read(sessionId)
+func (s *SessionStore) Load(uid, sessionId, language, prompt string) (*SessionBlob, error) {
+	blob, err := s.read(sessionStoreKey(uid, sessionId))
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *SessionStore) Load(sessionId, language, prompt string) (*SessionBlob, e
 	return blob, nil
 }
 
-func (s *SessionStore) Save(sessionId string, blob *SessionBlob) error {
+func (s *SessionStore) Save(uid, sessionId string, blob *SessionBlob) error {
 	blob.LastActiveAt = time.Now().Unix()
 	blob.TurnCount = countTurns(blob.Messages)
 	blob.Messages = trimMessages(blob.Messages, s.cfg.SessionMaxTurns, s.cfg.SessionMaxTokens)
@@ -58,11 +58,15 @@ func (s *SessionStore) Save(sessionId string, blob *SessionBlob) error {
 	}
 	return featureView.WriteFeatures([]map[string]interface{}{
 		{
-			"session_id":   sessionId,
+			"session_id":   sessionStoreKey(uid, sessionId),
 			"session_blob": string(payload),
 			"event_time":   blob.LastActiveAt,
 		},
 	}, domain.WithDirect())
+}
+
+func sessionStoreKey(uid, sessionId string) string {
+	return uid + ":" + sessionId
 }
 
 func (s *SessionStore) read(sessionId string) (*SessionBlob, error) {
