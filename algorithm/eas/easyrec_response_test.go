@@ -71,3 +71,18 @@ func TestEasyrecMutClassificationResponseFunc(t *testing.T) {
 			float32(0.66))
 	})
 }
+
+func TestTorchrecMutValResponseFuncShortOutput(t *testing.T) {
+	resp := &easyrec.TorchRecPBResponse{}
+	resp.ItemIds = []string{"item_1", "item_2"}
+	resp.MapOutputs = map[string]*easyrec.ArrayProto{
+		"score": {
+			Dtype:    easyrec.ArrayDataType_DT_FLOAT,
+			FloatVal: []float32{0.1},
+		},
+	}
+
+	ret, err := torchrecMutValResponseFunc(resp)
+	assert.Equal(t, ret == nil, true)
+	assert.Equal(t, err != nil, true)
+}
