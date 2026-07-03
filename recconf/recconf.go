@@ -724,6 +724,7 @@ type CategoryConfig struct {
 	AutoInvokeCallBackRate int
 	OutputFields           []string
 	SubRank                map[string]any
+	LogResponseBody        bool
 }
 
 type FallbackConfig struct {
