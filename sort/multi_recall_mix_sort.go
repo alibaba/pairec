@@ -69,6 +69,7 @@ func (s *MultiRecallMixSort) doSort(sortData *SortData) error {
 	}
 
 	if len(items) < size {
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=MultiRecallMixSort\tname=%s\tcount=%d\tlength of items less than size, skip this sort", sortData.Context.RecommendId, s.name, len(items)))
 		return nil
 	}
 
