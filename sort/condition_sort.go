@@ -56,17 +56,17 @@ func (s *ConditionSort) Sort(sortData *SortData) error {
 				if flag {
 					sort, err := GetSort(item.sortName)
 					if err != nil {
-						log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tsortName=%s\terror=%v",
-							sortData.Context.RecommendId, item.sortName, err))
+						log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tname=%s\tget sortName(%s) error\terror=%v",
+							sortData.Context.RecommendId, s.name, item.sortName, err))
 						return err
 					}
-					log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tsortName=%s",
-						sortData.Context.RecommendId, item.sortName))
+					log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tname=%s\thit the sortName(%s)",
+						sortData.Context.RecommendId, s.name, item.sortName))
 					return sort.Sort(sortData)
 				}
 			} else {
-				log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tsortName=%s\terror=%v",
-					sortData.Context.RecommendId, item.sortName, err))
+				log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tname=%s\tsortName(%s) evaluate error\terror=%v",
+					sortData.Context.RecommendId, s.name, item.sortName, err))
 			}
 		}
 	}
@@ -75,12 +75,12 @@ func (s *ConditionSort) Sort(sortData *SortData) error {
 	if len(s.defaultSortName) > 0 {
 		sort, err := GetSort(s.defaultSortName)
 		if err != nil {
-			log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tdefaultSortName=%s\terror=%v",
-				sortData.Context.RecommendId, s.defaultSortName, err))
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tname=%s\tget defaultSortName(%s) error\terror=%v",
+				sortData.Context.RecommendId, s.name, s.defaultSortName, err))
 			return err
 		}
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tsortName=%s",
-			sortData.Context.RecommendId, s.defaultSortName))
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tname=%s\thit the defaultSortName(%s)",
+			sortData.Context.RecommendId, s.name, s.defaultSortName))
 		return sort.Sort(sortData)
 	}
 

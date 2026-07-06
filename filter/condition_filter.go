@@ -16,7 +16,8 @@ type ConditionFilterItem struct {
 
 type ConditionFilter struct {
 	filterItems       []*ConditionFilterItem
-	defaultFitlerName string
+	defaultFilterName string
+	name              string
 }
 
 func NewConditionFilter(config recconf.FilterConfig) *ConditionFilter {
@@ -33,8 +34,9 @@ func NewConditionFilter(config recconf.FilterConfig) *ConditionFilter {
 		items = append(items, &filterItem)
 	}
 	filter := ConditionFilter{
-		defaultFitlerName: config.ConditionFilterConfs.DefaultFilterName,
+		defaultFilterName: config.ConditionFilterConfs.DefaultFilterName,
 		filterItems:       items,
+		name:              config.Name,
 	}
 
 	return &filter
@@ -52,25 +54,25 @@ func (f *ConditionFilter) Filter(filterData *FilterData) error {
 				if flag {
 					filter, err := GetFilter(item.filterName)
 					if err != nil {
-						log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tfilterName=%s\terror=%v", filterData.Context.RecommendId, item.filterName, err))
+						log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tname=%s\tget filterName(%s) error\terror=%v", filterData.Context.RecommendId, f.name, item.filterName, err))
 						return err
 					}
-					log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tfilterName=%s", filterData.Context.RecommendId, item.filterName))
+					log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tname=%s\thit the filterName(%s)", filterData.Context.RecommendId, f.name, item.filterName))
 					return filter.Filter(filterData)
 				}
 			} else {
-				log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tfilterName=%s\terror=%v", filterData.Context.RecommendId, item.filterName, err))
+				log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tname=%s\tfilterName(%s) evaluate error\terror=%v", filterData.Context.RecommendId, f.name, item.filterName, err))
 			}
 		}
 	}
 
-	if len(f.defaultFitlerName) > 0 {
-		filter, err := GetFilter(f.defaultFitlerName)
+	if len(f.defaultFilterName) > 0 {
+		filter, err := GetFilter(f.defaultFilterName)
 		if err != nil {
-			log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tdefaultFilterName=%s\terror=%v", filterData.Context.RecommendId, f.defaultFitlerName, err))
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tname=%s\tget defaultFilterName(%s) error\terror=%v", filterData.Context.RecommendId, f.name, f.defaultFilterName, err))
 			return err
 		}
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tfilterName=%s", filterData.Context.RecommendId, f.defaultFitlerName))
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tname=%s\thit the defaultFilterName(%s)", filterData.Context.RecommendId, f.name, f.defaultFilterName))
 		return filter.Filter(filterData)
 
 	}
