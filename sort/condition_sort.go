@@ -79,7 +79,7 @@ func (s *ConditionSort) Sort(sortData *SortData) error {
 				sortData.Context.RecommendId, s.name, s.defaultSortName, err))
 			return err
 		}
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tname=%s\thit the defaultSortName=%s",
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionSort\tname=%s\thit the defaultSortName(%s)",
 			sortData.Context.RecommendId, s.name, s.defaultSortName))
 		return sort.Sort(sortData)
 	}

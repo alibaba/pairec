@@ -72,7 +72,7 @@ func (f *ConditionFilter) Filter(filterData *FilterData) error {
 			log.Error(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tname=%s\tget defaultFilterName(%s) error\terror=%v", filterData.Context.RecommendId, f.name, f.defaultFilterName, err))
 			return err
 		}
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tname=%s\thit the filterName=%s", filterData.Context.RecommendId, f.name, f.defaultFilterName))
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=ConditionFilter\tname=%s\thit the defaultFilterName(%s)", filterData.Context.RecommendId, f.name, f.defaultFilterName))
 		return filter.Filter(filterData)
 
 	}
