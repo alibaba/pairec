@@ -36,6 +36,19 @@ type timingMeta struct {
 	language  string
 }
 
+type toolDispatchResult struct {
+	content      string
+	isSearch     bool
+	operator     string
+	keywordCount int
+	total        int
+	hasError     bool
+}
+
+func (r toolDispatchResult) shouldRetryWithFallback(tried bool) bool {
+	return r.isSearch && !r.hasError && r.operator == "AND" && r.total == 0 && r.keywordCount > 1 && !tried
+}
+
 func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, blob *SessionBlob, cfg *chatConfig, writer *StreamWriter, meta timingMeta) (*agentLoopResult, error) {
 	state := &turnState{
 		indexMap:    make(map[int]string),
@@ -45,15 +58,16 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 	if err := writer.EmitStep("analyze_requirement"); err != nil {
 		return nil, err
 	}
-	hasToolContext := false
+	readyToReply := false
+	fallbackSearchTried := false
 	for round := 1; round <= cfg.raw.ToolMaxRounds; round++ {
-		if hasToolContext {
+		if readyToReply {
 			if err := writer.EmitStep("analyze_results"); err != nil {
 				return nil, err
 			}
 		}
 		prompt := cfg.plannerPrompt
-		if hasToolContext {
+		if readyToReply {
 			prompt = cfg.replyPrompt
 		}
 		llmReq := &aichat.ChatCompletionRequest{
@@ -63,18 +77,18 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			Stream:         true,
 			EnableThinking: false,
 		}
-		if round == cfg.raw.ToolMaxRounds {
+		if readyToReply || round == cfg.raw.ToolMaxRounds {
 			llmReq.ToolChoice = "none"
 		}
 		streamer := newReplyStreamer(writer, state.indexMap, cfg.raw.DisplayItemCountMax)
 		var streamErr error
 		llmPhase := "planner_llm"
-		if hasToolContext {
+		if readyToReply {
 			llmPhase = "reply_llm"
 		}
 		llmStart := time.Now()
 		result, err := model.Stream(ctx, llmReq, func(text string) error {
-			if !hasToolContext {
+			if !readyToReply {
 				return nil
 			}
 			if err := streamer.Feed(text); err != nil {
@@ -108,7 +122,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 					IndexMap: state.indexMap,
 				}, nil
 			}
-			if !hasToolContext {
+			if !readyToReply {
 				return &agentLoopResult{
 					Reply:    result.Content,
 					IndexMap: state.indexMap,
@@ -126,20 +140,24 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		if err := writer.EmitStep("tool_call"); err != nil {
 			return nil, err
 		}
+		readyToReply = true
 		for i, toolCall := range result.ToolCalls {
 			log.Info(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
 				meta.requestId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, 512)))
-			toolContent := dispatchTool(ctx, recall, toolCall, state, cfg.raw.DisplayItemCountMax, meta, round)
+			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg.raw.DisplayItemCountMax, meta, round)
 			blob.Messages = append(blob.Messages, aichat.Message{
 				Role:       "tool",
 				ToolCallId: toolCall.ID,
-				Content:    toolContent,
+				Content:    toolResult.content,
 			})
+			if toolResult.shouldRetryWithFallback(fallbackSearchTried) {
+				fallbackSearchTried = true
+				readyToReply = false
+			}
 		}
 		if err := writer.EmitStep("get_results"); err != nil {
 			return nil, err
 		}
-		hasToolContext = true
 	}
 	return &agentLoopResult{
 		Reply:    fallbackText(cfg.raw, cfg.language, "empty_after_tools"),
@@ -147,33 +165,47 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 	}, nil
 }
 
-func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCall, state *turnState, limit int, meta timingMeta, round int) string {
+func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCall, state *turnState, limit int, meta timingMeta, round int) toolDispatchResult {
 	if toolCall.Function.Name != "search_goods" {
-		return `{"error":"unsupported tool"}`
+		return toolDispatchResult{content: `{"error":"unsupported tool"}`, hasError: true}
 	}
 	var req recallsvc.SearchGoodsRequest
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &req); err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=tool_parse\tround=%d\terr=%v\targs=%s",
 			meta.requestId, round, err, compactJSONString(toolCall.Function.Arguments, 512)))
-		return fmt.Sprintf(`{"error":%q}`, err.Error())
+		return toolDispatchResult{content: fmt.Sprintf(`{"error":%q}`, err.Error()), isSearch: true, hasError: true}
 	}
 	req.Limit = limit
+	dispatchResult := toolDispatchResult{
+		isSearch:     true,
+		operator:     effectiveOperator(req.Operator),
+		keywordCount: countSearchKeywords(req.Keywords),
+	}
 	recallStart := time.Now()
 	result, err := recall.Search(ctx, req)
 	recallCost := utils.CostTime(recallStart)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tkeywords=%s\toperator=%s\tlimit=%d\tcost=%d\terr=%v",
-			meta.requestId, round, compactJSON(req.Keywords), effectiveOperator(req.Operator), req.Limit, recallCost, err))
-		return fmt.Sprintf(`{"error":%q}`, err.Error())
+			meta.requestId, round, compactJSON(req.Keywords), dispatchResult.operator, req.Limit, recallCost, err))
+		dispatchResult.content = fmt.Sprintf(`{"error":%q}`, err.Error())
+		dispatchResult.hasError = true
+		return dispatchResult
+	}
+	if result == nil {
+		result = &recallsvc.SearchGoodsResult{}
 	}
 	log.Info(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tkeywords=%s\toperator=%s\tlimit=%d\ttotal=%d\thits=%d\tcost=%d",
-		meta.requestId, round, compactJSON(req.Keywords), effectiveOperator(req.Operator), req.Limit, result.Total, len(result.Hits), recallCost))
+		meta.requestId, round, compactJSON(req.Keywords), dispatchResult.operator, req.Limit, result.Total, len(result.Hits), recallCost))
+	dispatchResult.total = result.Total
 	modelResult := annotateSearchResult(result, state)
 	payload, err := json.Marshal(modelResult)
 	if err != nil {
-		return fmt.Sprintf(`{"error":%q}`, err.Error())
+		dispatchResult.content = fmt.Sprintf(`{"error":%q}`, err.Error())
+		dispatchResult.hasError = true
+		return dispatchResult
 	}
-	return string(payload)
+	dispatchResult.content = string(payload)
+	return dispatchResult
 }
 
 func effectiveOperator(operator string) string {
@@ -181,6 +213,16 @@ func effectiveOperator(operator string) string {
 		return "OR"
 	}
 	return "AND"
+}
+
+func countSearchKeywords(keywords []string) int {
+	count := 0
+	for _, keyword := range keywords {
+		if strings.TrimSpace(keyword) != "" {
+			count++
+		}
+	}
+	return count
 }
 
 func compactJSON(value interface{}) string {
