@@ -212,18 +212,31 @@ func (f *SnakeFilter) doFilter(filterData *FilterData) error {
 	size := 0
 	for size < f.retainNum {
 		iterSize := 0
+		progressed := false
 		for i, config := range f.configs {
 			iter := snakeItemIterators[i]
+			before := iter.index
 			items := iter.Next(config.Weight)
+			if iter.index > before {
+				progressed = true
+			}
 			if len(items) > 0 {
 				iterSize += len(items)
 				newItems = append(newItems, items...)
 			}
 		}
-		if iterSize == 0 {
+		size += iterSize
+
+		// Terminate only when a full round advances no iterator at all. Under
+		// SKIP_ON_DUPLICATE a round can yield nothing (iterSize == 0) because every
+		// iterator landed on an already-taken duplicate; that must not stop the loop
+		// while fresh items remain, or the remaining candidates are silently
+		// dropped. Keying on index progress (rather than iterSize) also guarantees
+		// termination when a recall is misconfigured with weight <= 0, whose Next
+		// never advances.
+		if !progressed {
 			break
 		}
-		size += iterSize
 	}
 
 	if len(newItems) > f.retainNum {
