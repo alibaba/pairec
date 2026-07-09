@@ -2,6 +2,8 @@
 package ha3client
 
 import (
+	"errors"
+
 	encodeutil "github.com/alibabacloud-go/darabonba-encode-util/client"
 	map_ "github.com/alibabacloud-go/darabonba-map/client"
 	string_ "github.com/alibabacloud-go/darabonba-string/client"
@@ -369,6 +371,8 @@ type SearchRequestModel struct {
 	Headers map[string]*string `json:"headers,omitempty" xml:"headers,omitempty"`
 	// query
 	Query *SearchQuery `json:"query,omitempty" xml:"query,omitempty" require:"true"`
+	// body
+	Body *string `json:"body,omitempty" xml:"body,omitempty"`
 }
 
 func (s SearchRequestModel) String() string {
@@ -386,6 +390,11 @@ func (s *SearchRequestModel) SetHeaders(v map[string]*string) *SearchRequestMode
 
 func (s *SearchRequestModel) SetQuery(v *SearchQuery) *SearchRequestModel {
 	s.Query = v
+	return s
+}
+
+func (s *SearchRequestModel) SetBody(v string) *SearchRequestModel {
+	s.Body = &v
 	return s
 }
 
@@ -996,6 +1005,38 @@ func (client *Client) SearchWithOptions(request *SearchRequestModel, runtime *ut
 	}
 	_result = _body
 	return _result, _err
+}
+
+/**
+ * 支持 HA3 JSON 查询语法。
+ */
+func (client *Client) SearchRestEx(indexName *string, request *SearchRequestModel, runtime *util.RuntimeOptions) (_result *SearchResponseModel, _err error) {
+	_result = &SearchResponseModel{}
+	if tea.StringValue(indexName) == "" {
+		return _result, errors.New("indexName should be set")
+	}
+	if request == nil {
+		return _result, errors.New("request should be set")
+	}
+	if tea.StringValue(request.Body) == "" {
+		return _result, errors.New("request.Body should be set")
+	}
+	if runtime == nil {
+		return _result, errors.New("runtime should be set")
+	}
+	_body, _err := client._request(tea.String("POST"), tea.String("/"+tea.StringValue(indexName)+"/search"), nil, request.Headers, tea.StringValue(request.Body), runtime)
+	if _err != nil {
+		return _result, _err
+	}
+	_err = tea.Convert(_body, &_result)
+	return _result, _err
+}
+
+/**
+ * 支持 HA3 JSON 查询语法, 及传入运行时参数。
+ */
+func (client *Client) SearchRestWithOptions(indexName *string, request *SearchRequestModel, runtime *util.RuntimeOptions) (_result *SearchResponseModel, _err error) {
+	return client.SearchRestEx(indexName, request, runtime)
 }
 
 /**

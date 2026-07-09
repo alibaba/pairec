@@ -152,6 +152,16 @@ func (w *ResponseWriter) Write(b []byte) (n int, err error) {
 	return
 }
 
+func (w *ResponseWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (w *ResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func (w *ResponseWriter) StatusCode() int {
 	return w.statusCode
 }
