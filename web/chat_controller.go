@@ -3,10 +3,12 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/aishopping"
 	"github.com/alibaba/pairec/v2/utils"
@@ -74,6 +76,8 @@ func (c *ChatController) Process(w http.ResponseWriter, r *http.Request) {
 		c.SendError(w, SERVER_ERROR_CODE, "streaming unsupported")
 		return
 	}
+	log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tevent=begin\turi=%s\taddress=%s\tbody=%s",
+		c.RequestId, c.param.Uid, c.param.SessionId, r.RequestURI, r.RemoteAddr, string(c.RequestBody)))
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -92,7 +96,8 @@ func (c *ChatController) Process(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = aishopping.NewChatSearchOrchestrator().Run(r.Context(), req, stream)
 	c.End = time.Now()
-	c.LogRequestEnd(r)
+	log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tevent=end\turi=%s\tcost=%d",
+		c.RequestId, c.param.Uid, c.param.SessionId, r.RequestURI, c.cost()))
 }
 
 func (c *ChatController) CheckParameter() error {

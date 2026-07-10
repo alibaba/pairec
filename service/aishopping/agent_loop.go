@@ -31,6 +31,7 @@ type agentLoopResult struct {
 
 type timingMeta struct {
 	requestId string
+	uid       string
 	sessionId string
 	sceneId   string
 	language  string
@@ -100,19 +101,19 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		llmCost := utils.CostTime(llmStart)
 		if err != nil {
 			if streamErr != nil {
-				log.Error(fmt.Sprintf("requestId=%s\tsessionId=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\tevent=model_stream_callback_error\tcost=%d\tstreamErr=%+v\terr=%+v",
-					meta.requestId, meta.sessionId, llmPhase, round, llmCost, streamErr, err))
+				log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\tevent=model_stream_callback_error\tcost=%d\tstreamErr=%+v\terr=%+v",
+					meta.requestId, meta.uid, meta.sessionId, llmPhase, round, llmCost, streamErr, err))
 				return nil, streamErr
 			}
-			log.Error(fmt.Sprintf("requestId=%s\tsessionId=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\tevent=model_stream_error\tcost=%d\terr=%+v",
-				meta.requestId, meta.sessionId, llmPhase, round, llmCost, err))
+			log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\tevent=model_stream_error\tcost=%d\terr=%+v",
+				meta.requestId, meta.uid, meta.sessionId, llmPhase, round, llmCost, err))
 			return &agentLoopResult{
 				Reply:    fallbackText(cfg.raw, cfg.language, "generic"),
 				IndexMap: state.indexMap,
 			}, nil
 		}
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\ttoolCalls=%d\tfinishReason=%s\tcontentBytes=%d\tcost=%d",
-			meta.requestId, llmPhase, round, len(result.ToolCalls), result.FinishReason, len(result.Content), llmCost))
+		log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\ttoolCalls=%d\tfinishReason=%s\tcontentBytes=%d\tcost=%d",
+			meta.requestId, meta.uid, meta.sessionId, llmPhase, round, len(result.ToolCalls), result.FinishReason, len(result.Content), llmCost))
 		assistant := aichat.Message{Role: "assistant", Content: result.Content, ToolCalls: result.ToolCalls}
 		blob.Messages = append(blob.Messages, assistant)
 		if len(result.ToolCalls) == 0 {
@@ -142,8 +143,8 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		}
 		readyToReply = true
 		for i, toolCall := range result.ToolCalls {
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
-				meta.requestId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, 512)))
+			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
+				meta.requestId, meta.uid, meta.sessionId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, 512)))
 			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg.raw.DisplayItemCountMax, meta, round)
 			blob.Messages = append(blob.Messages, aichat.Message{
 				Role:       "tool",
@@ -171,8 +172,8 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	}
 	var req recallsvc.SearchGoodsRequest
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &req); err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=tool_parse\tround=%d\terr=%v\targs=%s",
-			meta.requestId, round, err, compactJSONString(toolCall.Function.Arguments, 512)))
+		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_parse\tround=%d\terr=%v\targs=%s",
+			meta.requestId, meta.uid, meta.sessionId, round, err, compactJSONString(toolCall.Function.Arguments, 512)))
 		return toolDispatchResult{content: fmt.Sprintf(`{"error":%q}`, err.Error()), isSearch: true, hasError: true}
 	}
 	req.Limit = limit
@@ -185,8 +186,8 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	result, err := recall.Search(ctx, req)
 	recallCost := utils.CostTime(recallStart)
 	if err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tkeywords=%s\toperator=%s\tlimit=%d\tcost=%d\terr=%v",
-			meta.requestId, round, compactJSON(req.Keywords), dispatchResult.operator, req.Limit, recallCost, err))
+		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tkeywords=%s\toperator=%s\tlimit=%d\tcost=%d\terr=%v",
+			meta.requestId, meta.uid, meta.sessionId, round, compactJSON(req.Keywords), dispatchResult.operator, req.Limit, recallCost, err))
 		dispatchResult.content = fmt.Sprintf(`{"error":%q}`, err.Error())
 		dispatchResult.hasError = true
 		return dispatchResult
@@ -194,8 +195,8 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	if result == nil {
 		result = &recallsvc.SearchGoodsResult{}
 	}
-	log.Info(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tkeywords=%s\toperator=%s\tlimit=%d\ttotal=%d\thits=%d\tcost=%d",
-		meta.requestId, round, compactJSON(req.Keywords), dispatchResult.operator, req.Limit, result.Total, len(result.Hits), recallCost))
+	log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tkeywords=%s\toperator=%s\tlimit=%d\ttotal=%d\thits=%d\tcost=%d",
+		meta.requestId, meta.uid, meta.sessionId, round, compactJSON(req.Keywords), dispatchResult.operator, req.Limit, result.Total, len(result.Hits), recallCost))
 	dispatchResult.total = result.Total
 	modelResult := annotateSearchResult(result, state)
 	payload, err := json.Marshal(modelResult)
