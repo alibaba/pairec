@@ -22,8 +22,8 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	totalStart := time.Now()
 	status := "error"
 	defer func() {
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=total\tscene=%s\tsessionId=%s\tlanguage=%s\tstatus=%s\tcost=%d",
-			req.RequestId, req.SceneId, req.SessionId, req.Language, status, utils.CostTime(totalStart)))
+		log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=total\tscene=%s\tlanguage=%s\tstatus=%s\tcost=%d",
+			req.RequestId, req.Uid, req.SessionId, req.SceneId, req.Language, status, utils.CostTime(totalStart)))
 	}()
 	cfg, err := resolveConfig(req.Config, req.SceneId, req.Language)
 	if err != nil {
@@ -33,7 +33,8 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	store := NewSessionStore(cfg.raw)
 	blob, err := store.Load(req.Uid, req.SessionId, cfg.language, cfg.plannerPrompt)
 	if err != nil {
-		log.Error(fmt.Sprintf("ai shopping session read failed, requestId:%s, sessionId:%s, err:%v", req.RequestId, req.SessionId, err))
+		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=session_read\terr=%v",
+			req.RequestId, req.Uid, req.SessionId, err))
 		_ = writer.EmitStop("error", "session_read_failed")
 		return err
 	}
@@ -51,13 +52,15 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	}
 	meta := timingMeta{
 		requestId: req.RequestId,
+		uid:       req.Uid,
 		sessionId: req.SessionId,
 		sceneId:   req.SceneId,
 		language:  cfg.language,
 	}
 	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob, cfg, writer, meta)
 	if err != nil {
-		log.Error(fmt.Sprintf("ai shopping upstream failed, requestId:%s, sessionId:%s, err:%v", req.RequestId, req.SessionId, err))
+		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=upstream\terr=%v",
+			req.RequestId, req.Uid, req.SessionId, err))
 		_ = writer.EmitStop("error", "upstream_error")
 		return err
 	}
@@ -82,7 +85,8 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	}
 	recordAssistant(blob, canonical)
 	if err := store.Save(req.Uid, req.SessionId, blob); err != nil {
-		log.Error(fmt.Sprintf("ai shopping session write failed, requestId:%s, sessionId:%s, err:%v", req.RequestId, req.SessionId, err))
+		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=session_write\terr=%v",
+			req.RequestId, req.Uid, req.SessionId, err))
 		_ = writer.EmitStop("error", "session_write_failed")
 		return err
 	}
