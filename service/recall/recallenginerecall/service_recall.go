@@ -330,74 +330,78 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 	if response != nil && response.Result != nil {
 		record := response.Result
 		ret = make([]*module.Item, record.Size())
-		if record.Size() == 0 {
-			return
-		}
+		if record.Size() > 0 {
+			fieldNames := record.FieldNames()
+			tableIndex := record.TableIndex()
+			size := record.Size()
 
-		fieldNames := record.FieldNames()
-		tableIndex := record.TableIndex()
-		size := record.Size()
+			itemIdColumn := record.GetColumn(REItemIdFieldName)
+			scoreColumn := record.GetColumn(REScoreFieldName)
+			recallNameColumn := record.GetColumn(RERecallName)
+			if itemIdColumn == nil {
+				return nil, fmt.Errorf("item_id column not found")
+			}
 
-		itemIdColumn := record.GetColumn(REItemIdFieldName)
-		scoreColumn := record.GetColumn(REScoreFieldName)
-		recallNameColumn := record.GetColumn(RERecallName)
-		if itemIdColumn == nil {
-			return nil, fmt.Errorf("item_id column not found")
-		}
-
-		for i := 0; i < size; i++ {
-			index := tableIndex.GetIndex(i)
-			if v, err := itemIdColumn.Get(index); err == nil {
-				if itemId := utils.ToString(v, ""); itemId != "" {
-					ret[i] = module.NewItem(itemId)
-					if scoreColumn != nil {
-						if v, err := scoreColumn.Get(index); err == nil {
-							ret[i].Score = utils.ToFloat(v, 0)
+			for i := 0; i < size; i++ {
+				index := tableIndex.GetIndex(i)
+				if v, err := itemIdColumn.Get(index); err == nil {
+					if itemId := utils.ToString(v, ""); itemId != "" {
+						ret[i] = module.NewItem(itemId)
+						if scoreColumn != nil {
+							if v, err := scoreColumn.Get(index); err == nil {
+								ret[i].Score = utils.ToFloat(v, 0)
+							}
+						}
+						if recallNameColumn != nil {
+							if v, err := recallNameColumn.Get(index); err == nil {
+								ret[i].RetrieveId = utils.ToString(v, "")
+							}
 						}
 					}
-					if recallNameColumn != nil {
-						if v, err := recallNameColumn.Get(index); err == nil {
-							ret[i].RetrieveId = utils.ToString(v, "")
-						}
+				}
+			}
+			//  slices.DeleteFunc (Go 1.21+)
+			fieldNames = slices.DeleteFunc(fieldNames, func(name string) bool {
+				return name == REItemIdFieldName || name == REScoreFieldName || name == RERecallName
+			})
+			for i := 0; i < size; i++ {
+				properties := make(map[string]interface{}, len(fieldNames))
+				for _, name := range fieldNames {
+					column := record.GetColumn(name)
+					if column == nil {
+						continue
+					}
+					if v, err := column.Get(tableIndex.GetIndex(i)); err == nil {
+						properties[name] = v
 					}
 				}
-			}
-		}
-		//  slices.DeleteFunc (Go 1.21+)
-		fieldNames = slices.DeleteFunc(fieldNames, func(name string) bool {
-			return name == REItemIdFieldName || name == REScoreFieldName || name == RERecallName
-		})
-		for i := 0; i < size; i++ {
-			properties := make(map[string]interface{}, len(fieldNames))
-			for _, name := range fieldNames {
-				column := record.GetColumn(name)
-				if column == nil {
-					continue
+				item := ret[i]
+				if item != nil {
+					item.AddProperties(properties)
 				}
-				if v, err := column.Get(tableIndex.GetIndex(i)); err == nil {
-					properties[name] = v
-				}
-			}
-			item := ret[i]
-			if item != nil {
-				item.AddProperties(properties)
-			}
 
+			}
+			ret = slices.DeleteFunc(ret, func(item *module.Item) bool {
+				return item == nil
+			})
 		}
-		ret = slices.DeleteFunc(ret, func(item *module.Item) bool {
-			return item == nil
-		})
 	}
 
-	if len(ret) > 0 {
-		m := make(map[string][]*module.Item)
-		for _, item := range ret {
-			m[item.RetrieveId] = append(m[item.RetrieveId], item)
-		}
-		for recallName, items := range m {
-			log.Info(fmt.Sprintf("requestId=%s\tmodule=RecallEngineRecall\tname=%s\tserviceName=%s\trecallName=%s\tcount=%d",
-				context.RecommendId, r.modelName, r.serviceName, recallName, len(items)))
-		}
+	m := make(map[string][]*module.Item)
+	for _, item := range ret {
+		m[item.RetrieveId] = append(m[item.RetrieveId], item)
+	}
+	// Log by the requested recall names first (including recalls that returned no data, count=0)
+	for recallName := range recallRequest.Recalls {
+		count := len(m[recallName])
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=RecallEngineRecall\tname=%s\tserviceName=%s\trecallName=%s\tcount=%d",
+			context.RecommendId, r.modelName, r.serviceName, recallName, count))
+		delete(m, recallName)
+	}
+	// Fallback: recall names present in the response but not in the request (e.g. engine-side name mapping or undeclared recalls)
+	for recallName, items := range m {
+		log.Info(fmt.Sprintf("requestId=%s\tmodule=RecallEngineRecall\tname=%s\tserviceName=%s\trecallName=%s\tcount=%d",
+			context.RecommendId, r.modelName, r.serviceName, recallName, len(items)))
 	}
 
 	return
