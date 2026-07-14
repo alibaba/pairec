@@ -104,6 +104,7 @@ func (r *RecallEngineRandomRecall) CloneWithConfig(params map[string]interface{}
 		diversityParam:  recallParams.DiversityParam,
 		customParams:    recallParams.CustomParams,
 		timeout:         recallParams.Timeout,
+		cloneInstances:  make(map[string]*RecallEngineRandomRecall),
 	}
 
 	r.cloneInstances[md5] = recall

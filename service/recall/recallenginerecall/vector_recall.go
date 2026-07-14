@@ -110,6 +110,7 @@ func (r *RecallEngineVectorRecall) CloneWithConfig(params map[string]interface{}
 		diversityParam: recallParams.DiversityParam,
 		timeout:        recallParams.Timeout,
 		triggerKey:     NewTriggerKey(&recallParams, r.client),
+		cloneInstances: make(map[string]*RecallEngineVectorRecall),
 	}
 
 	r.cloneInstances[md5] = recall
