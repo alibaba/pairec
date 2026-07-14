@@ -122,6 +122,7 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 				diversityParam:  param.DiversityParam,
 				customParams:    param.CustomParams,
 				triggerLimit:    param.TriggerLimit,
+				timeout:         param.Timeout,
 				triggerKey:      NewTriggerKey(&param, client),
 				client:          client,
 				cloneInstances:  make(map[string]*RecallEngineX2IRecall),
@@ -136,6 +137,7 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 				recallTableName: param.RecallTableName,
 				diversityParam:  param.DiversityParam,
 				customParams:    param.CustomParams,
+				timeout:         param.Timeout,
 				client:          client,
 				cloneInstances:  make(map[string]*RecallEngineRandomRecall),
 			}
@@ -146,6 +148,7 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 				returnCount:    param.Count,
 				scorerClause:   param.ScorerClause,
 				diversityParam: param.DiversityParam,
+				timeout:        param.Timeout,
 				triggerKey:     NewTriggerKey(&param, client),
 				client:         client,
 				cloneInstances: make(map[string]*RecallEngineVectorRecall),

@@ -23,6 +23,7 @@ type RecallEngineVectorRecall struct {
 	//itemIdName      string
 	//recallTableName string
 	diversityParam string
+	timeout        int
 	triggerKey     TriggerKey
 	client         *recallengine.RecallEngineClient
 	mu             sync.RWMutex
@@ -41,6 +42,7 @@ func NewRecallEngineVectorRecall(client *recallengine.RecallEngineClient, conf r
 		recallName:   conf.RecallEngineParams[0].RecallName,
 		//recallTableName: conf.RecallEngineParams[0].RecallTableName,
 		diversityParam: conf.RecallEngineParams[0].DiversityParam,
+		timeout:        conf.RecallEngineParams[0].Timeout,
 		triggerKey:     NewTriggerKey(&conf.RecallEngineParams[0], nil),
 		client:         client,
 		cloneInstances: make(map[string]*RecallEngineVectorRecall),
@@ -64,6 +66,9 @@ func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *
 	}
 	ret.Trigger = triggerResult.TriggerItem
 	ret.Count = r.returnCount
+	if r.timeout > 0 {
+		ret.Options = &re.RecallOptions{Timeout: r.timeout}
+	}
 	return
 
 }
@@ -103,6 +108,7 @@ func (r *RecallEngineVectorRecall) CloneWithConfig(params map[string]interface{}
 		returnCount:    recallParams.Count,
 		recallName:     r.recallName,
 		diversityParam: recallParams.DiversityParam,
+		timeout:        recallParams.Timeout,
 		triggerKey:     NewTriggerKey(&recallParams, r.client),
 	}
 
