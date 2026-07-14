@@ -23,6 +23,7 @@ type RecallEngineRandomRecall struct {
 	recallTableName string
 	diversityParam  string
 	customParams    map[string]interface{}
+	timeout         int
 	client          *recallengine.RecallEngineClient
 	mu              sync.RWMutex
 	cloneInstances  map[string]*RecallEngineRandomRecall
@@ -41,6 +42,7 @@ func NewRecallEngineRandomRecall(client *recallengine.RecallEngineClient, conf r
 		recallTableName: conf.RecallEngineParams[0].RecallTableName,
 		diversityParam:  conf.RecallEngineParams[0].DiversityParam,
 		customParams:    conf.RecallEngineParams[0].CustomParams,
+		timeout:         conf.RecallEngineParams[0].Timeout,
 		client:          client,
 		cloneInstances:  make(map[string]*RecallEngineRandomRecall),
 	}
@@ -57,6 +59,9 @@ func (r *RecallEngineRandomRecall) GetItems(user *module.User, context *context.
 
 func (r *RecallEngineRandomRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
 	ret.Count = r.returnCount
+	if r.timeout > 0 {
+		ret.Options = &re.RecallOptions{Timeout: r.timeout}
+	}
 	return
 
 }
@@ -98,6 +103,8 @@ func (r *RecallEngineRandomRecall) CloneWithConfig(params map[string]interface{}
 		recallTableName: recallParams.RecallTableName,
 		diversityParam:  recallParams.DiversityParam,
 		customParams:    recallParams.CustomParams,
+		timeout:         recallParams.Timeout,
+		cloneInstances:  make(map[string]*RecallEngineRandomRecall),
 	}
 
 	r.cloneInstances[md5] = recall

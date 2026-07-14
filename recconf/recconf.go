@@ -444,6 +444,7 @@ type RecallEngineParam struct {
 	DiversityParam  string
 	CustomParams    map[string]interface{}
 	TriggerLimit    int
+	Timeout         int // per-way recall timeout in milliseconds, 0 means no per-way timeout
 }
 type RecallNameMappingConfig struct {
 	Format string
