@@ -3,25 +3,39 @@ package web
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
-	plog "github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/utils"
 )
 
 var callBackControllerHandler *CallBackControllerHandler
-var once sync.Once
+var initOnce sync.Once
 
-type CallBackControllerHandler struct {
-	controllerCh chan *CallBackController
-	poolSize     int
+func init() {
+	metrics.CallbackPendingFunc = CallbackPending
 }
 
-func NewCallBackControllerHandler() *CallBackControllerHandler {
-	handler := &CallBackControllerHandler{
-		controllerCh: make(chan *CallBackController, 5000),
-		poolSize:     20,
-	}
+type CallBackControllerHandler struct {
+	controllerCh       chan *CallBackController
+	poolSize           int
+	pending            atomic.Int64
+	dropOnBackpressure bool
+}
 
+func NewCallBackControllerHandler(poolSize int, bufferSize int, dropOnBackpressure bool) *CallBackControllerHandler {
+	if poolSize <= 0 {
+		poolSize = 20
+	}
+	if bufferSize <= 0 {
+		bufferSize = 5000
+	}
+	handler := &CallBackControllerHandler{
+		controllerCh:       make(chan *CallBackController, bufferSize),
+		poolSize:           poolSize,
+		dropOnBackpressure: dropOnBackpressure,
+	}
 	handler.start()
 	return handler
 }
@@ -31,19 +45,52 @@ func (h *CallBackControllerHandler) start() {
 		go func() {
 			for controller := range h.controllerCh {
 				controller.doCallbackLog()
+				h.pending.Add(-1)
 			}
 		}()
 	}
 }
 
-func Send(controller *CallBackController) {
-	if callBackControllerHandler == nil {
-		once.Do(func() {
-			callBackControllerHandler = NewCallBackControllerHandler()
-		})
-	}
+func (h *CallBackControllerHandler) Pending() int64 {
+	return h.pending.Load()
+}
 
-	callBackControllerHandler.controllerCh <- controller
+func CallbackPending() int64 {
+	if callBackControllerHandler == nil {
+		return 0
+	}
+	return callBackControllerHandler.Pending()
+}
+
+// InitHandler initializes the callback handler with config values.
+// Must be called during service startup after config is loaded.
+func InitHandler(poolSize int, bufferSize int, dropOnBackpressure bool) {
+	initOnce.Do(func() {
+		callBackControllerHandler = NewCallBackControllerHandler(poolSize, bufferSize, dropOnBackpressure)
+	})
+}
+
+func Send(controller *CallBackController) {
+	// initOnce ensures exactly one initialization, whether from InitHandler or here
+	initOnce.Do(func() {
+		callBackControllerHandler = NewCallBackControllerHandler(20, 5000, false)
+	})
+
+	// Increment pending BEFORE enqueue to avoid transient negative values
+	h := callBackControllerHandler
+	if h.dropOnBackpressure {
+		h.pending.Add(1)
+		select {
+		case h.controllerCh <- controller:
+			// already counted
+		default:
+			h.pending.Add(-1)
+			log.Warning("callback channel full, dropping request")
+		}
+	} else {
+		h.pending.Add(1)
+		h.controllerCh <- controller // block if full
+	}
 }
 
 // SendDirect bypasses the HTTP self-call path used by the external
@@ -67,7 +114,7 @@ func SendDirect(param *CallBackParam) {
 	// so a panic here would crash the request goroutine. Logging the error
 	// keeps the misuse visible without taking down the request.
 	if param == nil {
-		plog.Error("event=SendDirect\terror=nil param")
+		log.Error("event=SendDirect\terror=nil param")
 		return
 	}
 
@@ -77,13 +124,13 @@ func SendDirect(param *CallBackParam) {
 	// at a nil algoData. Owning the invariant here makes SendDirect spec-
 	// equivalent to the HTTP entry, so any future caller is automatically safe.
 	if len(param.ItemList) == 0 {
-		plog.Info(fmt.Sprintf("requestId=%s\tevent=SendDirect\tmsg=empty item list, skip", param.RequestId))
+		log.Info(fmt.Sprintf("requestId=%s\tevent=SendDirect\tmsg=empty item list, skip", param.RequestId))
 		return
 	}
 
 	if callBackControllerHandler == nil {
-		once.Do(func() {
-			callBackControllerHandler = NewCallBackControllerHandler()
+		initOnce.Do(func() {
+			callBackControllerHandler = NewCallBackControllerHandler(20, 5000, false)
 		})
 	}
 

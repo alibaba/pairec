@@ -11,23 +11,27 @@ import (
 )
 
 var (
-	SizeNotEnoughTotal    *prometheus.CounterVec
-	RecTotal              *prometheus.CounterVec
-	RecallCount           *prometheus.CounterVec
-	RecallCountTotal      *prometheus.CounterVec
-	RecallItemsPercentage *prometheus.GaugeVec
-	RecallDurSecs         *prometheus.HistogramVec
-	FilterDurSecs         *prometheus.HistogramVec
-	GeneralRankDurSecs    *prometheus.HistogramVec
-	LoadFeatureDurSecs    *prometheus.HistogramVec
-	RankDurSecs           *prometheus.HistogramVec
-	SortDurSecs           *prometheus.HistogramVec
-	RecDurSecs            *prometheus.HistogramVec
-	FallbackTotal         *prometheus.CounterVec
+	SizeNotEnoughTotal      *prometheus.CounterVec
+	RecTotal                *prometheus.CounterVec
+	RecallCount             *prometheus.CounterVec
+	RecallCountTotal        *prometheus.CounterVec
+	RecallItemsPercentage   *prometheus.GaugeVec
+	RecallDurSecs           *prometheus.HistogramVec
+	FilterDurSecs           *prometheus.HistogramVec
+	GeneralRankDurSecs      *prometheus.HistogramVec
+	LoadFeatureDurSecs      *prometheus.HistogramVec
+	RankDurSecs             *prometheus.HistogramVec
+	SortDurSecs             *prometheus.HistogramVec
+	RecDurSecs              *prometheus.HistogramVec
+	FallbackTotal           *prometheus.CounterVec
+	CallbackChannelPending  prometheus.GaugeFunc
 
 	enabled = false
 	once    sync.Once
 )
+
+// CallbackPendingFunc is set by the web package to avoid import cycle
+var CallbackPendingFunc func() int64
 
 var CustomRegister = prometheus.NewRegistry()
 
@@ -51,7 +55,8 @@ func Load(conf *recconf.RecommendConfig) {
 			LoadFeatureDurSecs,
 			RankDurSecs,
 			SortDurSecs,
-			FallbackTotal)
+			FallbackTotal,
+			CallbackChannelPending)
 	})
 
 	enabled = conf.PrometheusConfig.Enable
@@ -173,4 +178,15 @@ func initMetrics(conf *recconf.RecommendConfig) {
 		Name:      "fallback_total",
 		Help:      "How many times of fallback recommend.",
 	}, []string{"scene"})
+
+	CallbackChannelPending = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Subsystem: subsystem,
+		Name:      "callback_channel_pending",
+		Help:      "Number of pending callback requests in channel.",
+	}, func() float64 {
+		if CallbackPendingFunc != nil {
+			return float64(CallbackPendingFunc())
+		}
+		return 0
+	})
 }
