@@ -58,6 +58,7 @@ func Load(config *recconf.RecommendConfig) {
 			featurestore.WithErrorLogger(featurestore.LoggerFunc(l.Errorf)),
 			featurestore.WithFeatureDBLogin(conf.FeatureDBUsername, conf.FeatureDBPassword),
 			featurestore.WithHologresPort(hologresPort),
+			featurestore.WithLoopData(false),
 		}
 		if conf.Domain != "" {
 			options = append(options, featurestore.WithDomain(conf.Domain))
