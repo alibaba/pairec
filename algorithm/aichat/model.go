@@ -18,7 +18,13 @@ const (
 	defaultPAIModelRegion  = "cn-beijing"
 	defaultPAIModelTimeout = 60000
 	paiModelEndpointFormat = "https://%s.pai-token.aliyuncs.com/v1"
+	paiTokenChannel        = "pairec_agent"
 )
+
+type chatCompletionPayload struct {
+	*ChatCompletionRequest
+	ExtraBody map[string]string `json:"extra_body"`
+}
 
 type Model struct {
 	name     string
@@ -64,7 +70,12 @@ func (m *Model) Stream(ctx context.Context, request *ChatCompletionRequest, onDe
 	}
 	request.Stream = true
 	endpoint := m.endpoint + "/chat/completions"
-	body, err := json.Marshal(request)
+	body, err := json.Marshal(chatCompletionPayload{
+		ChatCompletionRequest: request,
+		ExtraBody: map[string]string{
+			"channel": paiTokenChannel,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
