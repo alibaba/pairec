@@ -2,7 +2,9 @@ package feature
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/Knetic/govaluate"
@@ -117,7 +119,7 @@ func NewExpressionNormalizer(expression string) *ExpressionNormalizer {
 	if err == nil {
 		normalizer.evaluableExpression = goExpression
 	} else {
-		log.Error(fmt.Sprintf("event=ExpressionNormalizer\terror=%v", err))
+		log.Error(fmt.Sprintf("event=ExpressionNormalizer\texpression=%s\terror=%v", expression, err))
 	}
 
 	return normalizer
@@ -131,7 +133,7 @@ func (n *ExpressionNormalizer) Apply(value interface{}) interface{} {
 		if result, err := n.evaluableExpression.Evaluate(params); err == nil {
 			return result
 		} else {
-			log.Error(fmt.Sprintf("event=ExpressionNormalizer\terror=%v", err))
+			log.Error(fmt.Sprintf("event=ExpressionNormalizer\texpression=%s\tparams={%s}\terror=%v", n.evaluableExpression.String(), describeExprParams(n.evaluableExpression.Vars(), params), err))
 		}
 
 	}
@@ -139,16 +141,76 @@ func (n *ExpressionNormalizer) Apply(value interface{}) interface{} {
 	return ""
 }
 
+// describeExprParams returns a human-readable description of the params that the
+// expression actually references. It flags problematic values such as nil, NaN,
+// Inf or missing keys, which are the common causes of evaluation errors.
+func describeExprParams(vars []string, params map[string]interface{}) string {
+	var sb strings.Builder
+	for i, name := range vars {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		if v, ok := params[name]; ok {
+			sb.WriteString(fmt.Sprintf("%s=%s", name, describeParamValue(v)))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s=<missing>", name))
+		}
+	}
+	return sb.String()
+}
+
+// describeAllParams renders every param in the map, highlighting problematic
+// values such as nil, NaN or Inf which are the common causes of evaluation errors.
+func describeAllParams(params map[string]interface{}) string {
+	var sb strings.Builder
+	first := true
+	for name, v := range params {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		sb.WriteString(fmt.Sprintf("%s=%s", name, describeParamValue(v)))
+	}
+	return sb.String()
+}
+
+// describeParamValue renders a single param value, highlighting nil/NaN/Inf.
+func describeParamValue(v interface{}) string {
+	if v == nil {
+		return "<nil>"
+	}
+	var f float64
+	switch n := v.(type) {
+	case float64:
+		f = n
+	case float32:
+		f = float64(n)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+	if math.IsNaN(f) {
+		return "<NaN>"
+	}
+	if math.IsInf(f, 1) {
+		return "<+Inf>"
+	}
+	if math.IsInf(f, -1) {
+		return "<-Inf>"
+	}
+	return fmt.Sprintf("%v", f)
+}
+
 type ExprNormalizer struct {
-	prog *vm.Program
+	prog       *vm.Program
+	expression string
 }
 
 func NewExprNormalizer(expression string) *ExprNormalizer {
-	normalizer := &ExprNormalizer{}
+	normalizer := &ExprNormalizer{expression: expression}
 
 	options := append([]expr.Option{expr.AllowUndefinedVariables()}, utils.ExprFunctions()...)
 	if program, err := expr.Compile(expression, options...); err != nil {
-		log.Error(fmt.Sprintf("event=ExprNormalizer\terr=%v", err))
+		log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\terr=%v", expression, err))
 	} else {
 		normalizer.prog = program
 	}
@@ -163,7 +225,7 @@ func (n *ExprNormalizer) Apply(value interface{}) interface{} {
 		if result, err := expr.Run(n.prog, params); err == nil {
 			return result
 		} else {
-			log.Error(fmt.Sprintf("event=ExprNormalizer\terror=%v", err))
+			log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\tparams={%s}\terror=%v", n.expression, describeAllParams(params), err))
 		}
 	}
 
