@@ -96,6 +96,7 @@ func (d *DiversityHologresDao) GetDistinctValue(items []*Item, ctx *pctx.Recomme
 		return err
 	}
 	values := sqlutil.ColumnValues(columns)
+	resolved := make(map[ItemId]bool, len(itemMap))
 	for rows.Next() {
 		if err = rows.Scan(values...); err != nil {
 			ctx.LogError(fmt.Sprintf("module=DiversityHologresDao\tscan err=%v", err))
@@ -126,6 +127,7 @@ func (d *DiversityHologresDao) GetDistinctValue(items []*Item, ctx *pctx.Recomme
 				itemId = ItemId(utils.ToString(key, ""))
 				delete(distinct, d.itemKeyField)
 				d.cache.Put(itemId, distinct)
+				resolved[itemId] = true
 				if item, okey := itemMap[itemId]; okey {
 					item.AddProperties(distinct)
 				}
@@ -133,9 +135,9 @@ func (d *DiversityHologresDao) GetDistinctValue(items []*Item, ctx *pctx.Recomme
 		}
 	}
 
-	// negative cache support: cache items not found in hologres
+	// negative cache support: only cache items that hologres did not return
 	for itemId := range itemMap {
-		if _, ok := d.cache.GetIfPresent(itemId); !ok {
+		if !resolved[itemId] {
 			d.cache.Put(itemId, map[string]interface{}{})
 		}
 	}

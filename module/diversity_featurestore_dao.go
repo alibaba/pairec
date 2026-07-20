@@ -82,6 +82,7 @@ func (d *DiversityFeatureStoreDao) GetDistinctValue(items []*Item, ctx *pctx.Rec
 		return err
 	}
 
+	resolved := make(map[ItemId]bool, len(features))
 	for _, itemFeatures := range features {
 		itemId := ItemId(utils.ToString(itemFeatures[featureEntity.FeatureEntityJoinid], ""))
 		if itemId == "" {
@@ -95,14 +96,15 @@ func (d *DiversityFeatureStoreDao) GetDistinctValue(items []*Item, ctx *pctx.Rec
 			}
 		}
 		d.cache.Put(itemId, distinct)
+		resolved[itemId] = true
 		if item, ok := itemMap[itemId]; ok {
 			item.AddProperties(distinct)
 		}
 	}
 
-	// negative cache support: cache items not found in featurestore
+	// negative cache support: only cache items that featurestore did not return
 	for itemId := range itemMap {
-		if _, ok := d.cache.GetIfPresent(itemId); !ok {
+		if !resolved[itemId] {
 			d.cache.Put(itemId, map[string]interface{}{})
 		}
 	}
