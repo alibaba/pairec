@@ -3,10 +3,12 @@ package feature
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"fortio.org/assert"
+	"github.com/Knetic/govaluate"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -431,4 +433,121 @@ func TestExprFunctionNormalizer(t *testing.T) {
 		afterMs := time.Now().UnixMilli()
 		assert.True(t, result.(float64) >= float64(beforeMs) && result.(float64) <= float64(afterMs))
 	})
+}
+
+// TestDescribeParamValue verifies that problematic values (nil/NaN/Inf) are
+// rendered with clear markers, while normal values print as-is.
+func TestDescribeParamValue(t *testing.T) {
+	assert.Equal(t, describeParamValue(nil), "<nil>")
+	assert.Equal(t, describeParamValue(math.NaN()), "<NaN>")
+	assert.Equal(t, describeParamValue(math.Inf(1)), "<+Inf>")
+	assert.Equal(t, describeParamValue(math.Inf(-1)), "<-Inf>")
+	assert.Equal(t, describeParamValue(float32(math.Inf(1))), "<+Inf>")
+	assert.Equal(t, describeParamValue(3.14), "3.14")
+	assert.Equal(t, describeParamValue("abc"), "abc")
+	assert.Equal(t, describeParamValue(10), "10")
+}
+
+// TestDescribeExprParams verifies that only variables referenced by the
+// expression are described, and that nil/NaN/Inf/missing are flagged clearly.
+func TestDescribeExprParams(t *testing.T) {
+	expr, err := govaluate.NewEvaluableExpression("-price + score * discount")
+	if err != nil {
+		t.Fatalf("build expression error: %v", err)
+	}
+
+	params := map[string]interface{}{
+		"price":     nil,
+		"score":     math.NaN(),
+		"discount":  math.Inf(1),
+		"unrelated": 12345, // not referenced by expression -> must not appear
+	}
+
+	desc := describeExprParams(expr.Vars(), params)
+	t.Logf("params desc: %s", desc)
+
+	assert.True(t, strings.Contains(desc, "price=<nil>"))
+	assert.True(t, strings.Contains(desc, "score=<NaN>"))
+	assert.True(t, strings.Contains(desc, "discount=<+Inf>"))
+	assert.True(t, !strings.Contains(desc, "unrelated"))
+
+	// missing key should be flagged as <missing>
+	desc = describeExprParams(expr.Vars(), map[string]interface{}{"price": 1.0, "score": 2.0})
+	t.Logf("params desc(missing): %s", desc)
+	assert.True(t, strings.Contains(desc, "discount=<missing>"))
+}
+
+// TestExpressionNormalizerErrorLog exercises the real Apply path with a nil
+// param so that the evaluation fails and the enriched error log is emitted.
+// It also confirms Apply degrades gracefully (returns "") without panic.
+func TestExpressionNormalizerErrorLog(t *testing.T) {
+	normalizer := NewExpressionNormalizer("-price + score")
+	// price is nil -> triggers: Value '<nil>' cannot be used with the modifier '-'
+	result := normalizer.Apply(map[string]interface{}{"price": nil, "score": 1.0})
+	assert.Equal(t, result, "")
+}
+
+// TestExprReferencedVars verifies that only the variable identifiers actually
+// referenced by the expression are extracted, excluding function callees.
+func TestExprReferencedVars(t *testing.T) {
+	normalizer := NewExprNormalizer("max(price, score) + discount")
+	if normalizer.prog == nil {
+		t.Fatal("expression should compile")
+	}
+
+	vars := map[string]bool{}
+	for _, v := range normalizer.vars {
+		vars[v] = true
+	}
+	t.Logf("referenced vars: %v", normalizer.vars)
+
+	// variables must be collected
+	assert.True(t, vars["price"])
+	assert.True(t, vars["score"])
+	assert.True(t, vars["discount"])
+	// function callee must NOT be treated as a variable
+	assert.True(t, !vars["max"])
+}
+
+// TestExprNormalizerErrorLogOnlyReferencedParams confirms that the runtime error
+// log describes only the params referenced by the expression, not unrelated
+// (potentially sensitive) params such as user_id.
+func TestExprNormalizerErrorLogOnlyReferencedParams(t *testing.T) {
+	normalizer := NewExprNormalizer("a + b")
+	params := map[string]interface{}{
+		"a":       "not_a_number", // triggers runtime error
+		"b":       1,
+		"user_id": "sensitive-12345", // not referenced -> must not be described
+	}
+
+	desc := describeExprParams(normalizer.vars, params)
+	t.Logf("params desc: %s", desc)
+	assert.True(t, strings.Contains(desc, "a=not_a_number"))
+	assert.True(t, strings.Contains(desc, "b=1"))
+	assert.True(t, !strings.Contains(desc, "user_id"))
+	assert.True(t, !strings.Contains(desc, "sensitive-12345"))
+
+	// Apply still degrades gracefully to "" without panic.
+	result := normalizer.Apply(params)
+	assert.Equal(t, result, "")
+}
+
+// TestExprNormalizerErrorLog exercises the real Apply path with a param that
+// makes the expression fail at runtime, so the enriched error log (expression
+// + params) is emitted. It also confirms Apply degrades gracefully (returns "")
+// without panic.
+func TestExprNormalizerErrorLog(t *testing.T) {
+	// applying string to arithmetic triggers a runtime error inside expr.Run
+	normalizer := NewExprNormalizer("a + b")
+	result := normalizer.Apply(map[string]interface{}{"a": "not_a_number", "b": 1})
+	assert.Equal(t, result, "")
+}
+
+// TestExprNormalizerCompileError verifies that an invalid expression fails to
+// compile, leaving prog nil, and Apply returns "" instead of panicking.
+func TestExprNormalizerCompileError(t *testing.T) {
+	normalizer := NewExprNormalizer("a +") // syntactically invalid
+	assert.Equal(t, normalizer.prog == nil, true)
+	result := normalizer.Apply(map[string]interface{}{"a": 1})
+	assert.Equal(t, result, "")
 }
