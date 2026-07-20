@@ -31,16 +31,15 @@ func (s *DiversityRuleSortV2) CloneWithConfig(params map[string]interface{}) ISo
 	}
 	s.cloneMutex.RUnlock()
 
-	sort := NewDiversityRuleSortV2(config)
-	if sort != nil {
-		s.cloneMutex.Lock()
-		if existing, ok := s.cloneInstances[md5]; ok {
-			s.cloneMutex.Unlock()
-			return existing
-		}
-		s.cloneInstances[md5] = sort
-		s.cloneMutex.Unlock()
+	// create under the write lock so that concurrent misses on the same md5
+	// never build duplicated instances (the dao cache holds goroutine resource)
+	s.cloneMutex.Lock()
+	defer s.cloneMutex.Unlock()
+	if sort, ok := s.cloneInstances[md5]; ok {
+		return sort
 	}
+	sort := NewDiversityRuleSortV2(config)
+	s.cloneInstances[md5] = sort
 	return sort
 }
 

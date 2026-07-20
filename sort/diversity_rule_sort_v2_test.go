@@ -142,12 +142,14 @@ func TestParseLastPageItemIds(t *testing.T) {
 	assert.Equal(t, []string{"1", "2", "3"}, parseLastPageItemIds([]interface{}{"1", "2", "3"}))
 	assert.Equal(t, []string{"1", "2"}, parseLastPageItemIds([]interface{}{"1", 2}))
 	assert.Equal(t, []string{"1", "2"}, parseLastPageItemIds(`["1","2"]`))
+	assert.Equal(t, []string{"1", "2"}, parseLastPageItemIds(`[1,2]`)) // json number elements
 	assert.Equal(t, []string{"1", "2"}, parseLastPageItemIds("1, 2"))
+	assert.Equal(t, []string{"1", "2"}, parseLastPageItemIds([]string{" 1 ", "", "2"}))
 	assert.Equal(t, 0, len(parseLastPageItemIds("")))
 	assert.Equal(t, 0, len(parseLastPageItemIds(nil)))
 	assert.Equal(t, 0, len(parseLastPageItemIds(123)))
-	// invalid json degrades to comma split
-	assert.Equal(t, []string{"[1", "2"}, parseLastPageItemIds("[1,2"))
+	// malformed json array payload is dropped instead of comma split
+	assert.Equal(t, 0, len(parseLastPageItemIds("[1,2")))
 }
 
 func buildCrossPageSortV2(config recconf.SortConfig, dao module.DiversityDao) *DiversityRuleSortV2 {

@@ -180,29 +180,34 @@ func getLastPageParam(ctx *context.RecommendContext, name string) interface{} {
 }
 
 // parseLastPageItemIds parses item ids from the request parameter value.
-// It supports []interface{}, JSON array string and comma separated string.
+// It supports []interface{}, []string, JSON array string and comma separated
+// string. Invalid JSON array payload returns nil so that the warmup is skipped
+// instead of feeding garbage ids.
 func parseLastPageItemIds(value interface{}) []string {
 	switch v := value.(type) {
 	case []interface{}:
+		return normalizeItemIds(v)
+	case []string:
 		ids := make([]string, 0, len(v))
-		for _, item := range v {
-			if id := utils.ToString(item, ""); id != "" {
+		for _, part := range v {
+			if id := strings.TrimSpace(part); id != "" {
 				ids = append(ids, id)
 			}
 		}
 		return ids
-	case []string:
-		return v
 	case string:
 		str := strings.TrimSpace(v)
 		if str == "" {
 			return nil
 		}
 		if strings.HasPrefix(str, "[") {
-			var ids []string
-			if err := json.Unmarshal([]byte(str), &ids); err == nil {
-				return ids
+			// treat as JSON array, use []interface{} to accept both string and
+			// number elements, no comma split fallback for malformed payload
+			var raw []interface{}
+			if err := json.Unmarshal([]byte(str), &raw); err != nil {
+				return nil
 			}
+			return normalizeItemIds(raw)
 		}
 		parts := strings.Split(str, ",")
 		ids := make([]string, 0, len(parts))
@@ -215,6 +220,17 @@ func parseLastPageItemIds(value interface{}) []string {
 	default:
 		return nil
 	}
+}
+
+// normalizeItemIds converts raw values to trimmed non empty id strings.
+func normalizeItemIds(raw []interface{}) []string {
+	ids := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if id := strings.TrimSpace(utils.ToString(item, "")); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 // warmupCrossPage loads dimension values of the previous page tail items and
