@@ -4,17 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/goburrow/cache"
-	"github.com/huandu/go-sqlbuilder"
+	"strconv"
+	"strings"
+	"time"
+
 	pctx "github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/alibaba/pairec/v2/utils/sqlutil"
-	"strconv"
-	"strings"
-	"time"
+	"github.com/goburrow/cache"
+	"github.com/huandu/go-sqlbuilder"
 )
 
 type DiversityHologresDao struct {
@@ -31,16 +32,20 @@ func NewDiversityHologresDao(config recconf.FilterConfig) *DiversityHologresDao 
 		log.Error(fmt.Sprintf("error=%v", err))
 		return nil
 	}
-	cacheTime := 70
+	cacheTime := 30
 	if config.DiversityDaoConf.CacheTimeInMinutes > 0 {
 		cacheTime = config.DiversityDaoConf.CacheTimeInMinutes
+	}
+	cacheSize := 10000000
+	if config.DiversityDaoConf.CacheSize > 0 {
+		cacheSize = config.DiversityDaoConf.CacheSize
 	}
 	d := &DiversityHologresDao{
 		db:             pg.DB,
 		table:          config.DiversityDaoConf.HologresTableName,
 		itemKeyField:   config.DiversityDaoConf.ItemKeyField,
 		distinctFields: config.DiversityDaoConf.DistinctFields,
-		cache:          cache.New(cache.WithMaximumSize(10000000), cache.WithExpireAfterWrite(time.Duration(cacheTime)*time.Minute)),
+		cache:          cache.New(cache.WithMaximumSize(cacheSize), cache.WithExpireAfterWrite(time.Duration(cacheTime)*time.Minute)),
 	}
 	return d
 }
@@ -90,7 +95,6 @@ func (d *DiversityHologresDao) GetDistinctValue(items []*Item, ctx *pctx.Recomme
 		ctx.LogError(fmt.Sprintf("module=DiversityHologresDao\terror=hologres error(%v)", err))
 		return err
 	}
-	count := 0
 	values := sqlutil.ColumnValues(columns)
 	for rows.Next() {
 		if err = rows.Scan(values...); err != nil {
@@ -124,12 +128,17 @@ func (d *DiversityHologresDao) GetDistinctValue(items []*Item, ctx *pctx.Recomme
 				d.cache.Put(itemId, distinct)
 				if item, okey := itemMap[itemId]; okey {
 					item.AddProperties(distinct)
-					count++
 				}
 			}
 		}
 	}
 
-	ctx.LogInfo(fmt.Sprintf("module=DiversityHologresDao\tload %d diversity property", count))
+	// negative cache support: cache items not found in hologres
+	for itemId := range itemMap {
+		if _, ok := d.cache.GetIfPresent(itemId); !ok {
+			d.cache.Put(itemId, map[string]interface{}{})
+		}
+	}
+
 	return nil
 }
