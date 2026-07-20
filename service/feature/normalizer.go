@@ -11,6 +11,7 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/vm"
 )
 
@@ -159,19 +160,50 @@ func describeExprParams(vars []string, params map[string]interface{}) string {
 	return sb.String()
 }
 
-// describeAllParams renders every param in the map, highlighting problematic
-// values such as nil, NaN or Inf which are the common causes of evaluation errors.
-func describeAllParams(params map[string]interface{}) string {
-	var sb strings.Builder
-	first := true
-	for name, v := range params {
-		if !first {
-			sb.WriteString(", ")
-		}
-		first = false
-		sb.WriteString(fmt.Sprintf("%s=%s", name, describeParamValue(v)))
+// exprReferencedVars extracts the variable identifiers referenced by a compiled
+// expression, excluding function callees. It lets ExprNormalizer log only the
+// params the expression actually uses, avoiding dumping unrelated (potentially
+// sensitive) values.
+func exprReferencedVars(program *vm.Program) []string {
+	if program == nil {
+		return nil
 	}
-	return sb.String()
+	collector := &exprVarCollector{
+		idents: make(map[string]struct{}),
+		funcs:  make(map[string]struct{}),
+	}
+	node := program.Node()
+	if node == nil {
+		return nil
+	}
+	ast.Walk(&node, collector)
+
+	vars := make([]string, 0, len(collector.idents))
+	for name := range collector.idents {
+		if _, isFunc := collector.funcs[name]; isFunc {
+			continue
+		}
+		vars = append(vars, name)
+	}
+	return vars
+}
+
+// exprVarCollector walks an expression AST, collecting identifier names and the
+// names used as function callees so the latter can be excluded from vars.
+type exprVarCollector struct {
+	idents map[string]struct{}
+	funcs  map[string]struct{}
+}
+
+func (c *exprVarCollector) Visit(node *ast.Node) {
+	switch n := (*node).(type) {
+	case *ast.IdentifierNode:
+		c.idents[n.Value] = struct{}{}
+	case *ast.CallNode:
+		if callee, ok := n.Callee.(*ast.IdentifierNode); ok {
+			c.funcs[callee.Value] = struct{}{}
+		}
+	}
 }
 
 // describeParamValue renders a single param value, highlighting nil/NaN/Inf.
@@ -203,6 +235,7 @@ func describeParamValue(v interface{}) string {
 type ExprNormalizer struct {
 	prog       *vm.Program
 	expression string
+	vars       []string
 }
 
 func NewExprNormalizer(expression string) *ExprNormalizer {
@@ -213,6 +246,7 @@ func NewExprNormalizer(expression string) *ExprNormalizer {
 		log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\terr=%v", expression, err))
 	} else {
 		normalizer.prog = program
+		normalizer.vars = exprReferencedVars(program)
 	}
 	return normalizer
 }
@@ -225,7 +259,7 @@ func (n *ExprNormalizer) Apply(value interface{}) interface{} {
 		if result, err := expr.Run(n.prog, params); err == nil {
 			return result
 		} else {
-			log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\tparams={%s}\terror=%v", n.expression, describeAllParams(params), err))
+			log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\tparams={%s}\terror=%v", n.expression, describeExprParams(n.vars, params), err))
 		}
 	}
 

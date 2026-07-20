@@ -487,26 +487,49 @@ func TestExpressionNormalizerErrorLog(t *testing.T) {
 	assert.Equal(t, result, "")
 }
 
-// TestDescribeAllParams verifies that every param in the map is described and
-// problematic values (nil/NaN/Inf) are flagged clearly.
-func TestDescribeAllParams(t *testing.T) {
-	params := map[string]interface{}{
-		"price":    nil,
-		"score":    math.NaN(),
-		"discount": math.Inf(1),
-		"count":    10,
+// TestExprReferencedVars verifies that only the variable identifiers actually
+// referenced by the expression are extracted, excluding function callees.
+func TestExprReferencedVars(t *testing.T) {
+	normalizer := NewExprNormalizer("max(price, score) + discount")
+	if normalizer.prog == nil {
+		t.Fatal("expression should compile")
 	}
 
-	desc := describeAllParams(params)
+	vars := map[string]bool{}
+	for _, v := range normalizer.vars {
+		vars[v] = true
+	}
+	t.Logf("referenced vars: %v", normalizer.vars)
+
+	// variables must be collected
+	assert.True(t, vars["price"])
+	assert.True(t, vars["score"])
+	assert.True(t, vars["discount"])
+	// function callee must NOT be treated as a variable
+	assert.True(t, !vars["max"])
+}
+
+// TestExprNormalizerErrorLogOnlyReferencedParams confirms that the runtime error
+// log describes only the params referenced by the expression, not unrelated
+// (potentially sensitive) params such as user_id.
+func TestExprNormalizerErrorLogOnlyReferencedParams(t *testing.T) {
+	normalizer := NewExprNormalizer("a + b")
+	params := map[string]interface{}{
+		"a":       "not_a_number", // triggers runtime error
+		"b":       1,
+		"user_id": "sensitive-12345", // not referenced -> must not be described
+	}
+
+	desc := describeExprParams(normalizer.vars, params)
 	t.Logf("params desc: %s", desc)
+	assert.True(t, strings.Contains(desc, "a=not_a_number"))
+	assert.True(t, strings.Contains(desc, "b=1"))
+	assert.True(t, !strings.Contains(desc, "user_id"))
+	assert.True(t, !strings.Contains(desc, "sensitive-12345"))
 
-	assert.True(t, strings.Contains(desc, "price=<nil>"))
-	assert.True(t, strings.Contains(desc, "score=<NaN>"))
-	assert.True(t, strings.Contains(desc, "discount=<+Inf>"))
-	assert.True(t, strings.Contains(desc, "count=10"))
-
-	// empty params should produce an empty description
-	assert.Equal(t, describeAllParams(map[string]interface{}{}), "")
+	// Apply still degrades gracefully to "" without panic.
+	result := normalizer.Apply(params)
+	assert.Equal(t, result, "")
 }
 
 // TestExprNormalizerErrorLog exercises the real Apply path with a param that
