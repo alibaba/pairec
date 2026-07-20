@@ -24,13 +24,22 @@ func (s *DiversityRuleSortV2) CloneWithConfig(params map[string]interface{}) ISo
 
 	d, _ := json.Marshal(config)
 	md5 := utils.Md5(string(d))
+	s.cloneMutex.RLock()
 	if sort, ok := s.cloneInstances[md5]; ok {
+		s.cloneMutex.RUnlock()
 		return sort
 	}
+	s.cloneMutex.RUnlock()
 
 	sort := NewDiversityRuleSortV2(config)
 	if sort != nil {
+		s.cloneMutex.Lock()
+		if existing, ok := s.cloneInstances[md5]; ok {
+			s.cloneMutex.Unlock()
+			return existing
+		}
 		s.cloneInstances[md5] = sort
+		s.cloneMutex.Unlock()
 	}
 	return sort
 }

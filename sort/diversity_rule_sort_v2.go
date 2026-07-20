@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -26,6 +27,7 @@ type DiversityRuleSortV2 struct {
 	exclusionRules          []recconf.ExclusionRuleConfig
 	excludeRecallMap        map[string]bool
 	filterParam             *module.FilterParam
+	cloneMutex              sync.RWMutex
 	cloneInstances          map[string]*DiversityRuleSortV2
 	name                    string
 	exploreItemSize         int
