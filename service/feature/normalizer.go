@@ -108,16 +108,19 @@ func (n *CreateConstValueNormalizer) Apply(value interface{}) interface{} {
 }
 
 type ExpressionNormalizer struct {
+	// expression is the raw expression string, kept for error logging to
+	// identify which feature config fails when multiple features are configured
+	expression          string
 	evaluableExpression *govaluate.EvaluableExpression
 }
 
 func NewExpressionNormalizer(expression string) *ExpressionNormalizer {
-	normalizer := &ExpressionNormalizer{}
+	normalizer := &ExpressionNormalizer{expression: expression}
 	goExpression, err := govaluate.NewEvaluableExpressionWithFunctions(expression, utils.GovaluateFunctions())
 	if err == nil {
 		normalizer.evaluableExpression = goExpression
 	} else {
-		log.Error(fmt.Sprintf("event=ExpressionNormalizer\terror=%v", err))
+		log.Error(fmt.Sprintf("event=ExpressionNormalizer\texpression=%s\terror=%v", expression, err))
 	}
 
 	return normalizer
@@ -131,7 +134,7 @@ func (n *ExpressionNormalizer) Apply(value interface{}) interface{} {
 		if result, err := n.evaluableExpression.Evaluate(params); err == nil {
 			return result
 		} else {
-			log.Error(fmt.Sprintf("event=ExpressionNormalizer\terror=%v", err))
+			log.Error(fmt.Sprintf("event=ExpressionNormalizer\texpression=%s\terror=%v", n.expression, err))
 		}
 
 	}
@@ -140,15 +143,18 @@ func (n *ExpressionNormalizer) Apply(value interface{}) interface{} {
 }
 
 type ExprNormalizer struct {
-	prog *vm.Program
+	// expression is the raw expression string, kept for error logging to
+	// identify which feature config fails when multiple features are configured
+	expression string
+	prog       *vm.Program
 }
 
 func NewExprNormalizer(expression string) *ExprNormalizer {
-	normalizer := &ExprNormalizer{}
+	normalizer := &ExprNormalizer{expression: expression}
 
 	options := append([]expr.Option{expr.AllowUndefinedVariables()}, utils.ExprFunctions()...)
 	if program, err := expr.Compile(expression, options...); err != nil {
-		log.Error(fmt.Sprintf("event=ExprNormalizer\terr=%v", err))
+		log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\terr=%v", expression, err))
 	} else {
 		normalizer.prog = program
 	}
@@ -163,7 +169,7 @@ func (n *ExprNormalizer) Apply(value interface{}) interface{} {
 		if result, err := expr.Run(n.prog, params); err == nil {
 			return result
 		} else {
-			log.Error(fmt.Sprintf("event=ExprNormalizer\terror=%v", err))
+			log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\terror=%v", n.expression, err))
 		}
 	}
 
