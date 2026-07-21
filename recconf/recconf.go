@@ -878,6 +878,7 @@ type SortConfig struct {
 	TimeInterval            int
 	BoostScoreByWeightDao   BoostScoreByWeightDaoConfig
 	MultiValueDimensionConf []MultiValueDimensionConfig
+	CrossPageDiversity      CrossPageDiversityConfig
 
 	Debug                         bool
 	RemainItem                    bool
@@ -950,6 +951,15 @@ type DiversityDaoConfig struct {
 	ItemKeyField       string
 	DistinctFields     []string
 	CacheTimeInMinutes int
+	CacheSize          int
+}
+
+// CrossPageDiversityConfig warms up the diversity window with the tail items
+// of the previous page, so that diversity rules take effect across pages.
+type CrossPageDiversityConfig struct {
+	Enable           bool
+	LastItemIdsParam string // request param name, default "last_page_item_ids"
+	DiversityDaoConf DiversityDaoConfig
 }
 type AdjustCountConfig struct {
 	RecallName string
