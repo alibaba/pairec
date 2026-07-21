@@ -59,7 +59,7 @@ func aggregatePropertyWeights(triggerInfos []*TriggerInfo, valueFunc func(*Trigg
 	xWeightMap := make(map[string]float64, len(triggerInfos))
 	for _, info := range triggerInfos {
 		xVal := valueFunc(info)
-		if xVal == "" || xVal == "null" {
+		if xVal == "" || strings.EqualFold(xVal, "null") {
 			continue
 		}
 		if delimiter != "" {

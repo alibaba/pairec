@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -72,7 +73,7 @@ func (d *Item2XFeatureStoreDao) ListItem2X(itemIds []string, context *context.Re
 	for _, featureMap := range features {
 		itemId := utils.ToString(featureMap[featureEntity.FeatureEntityJoinid], "")
 		xVal := utils.ToString(featureMap[d.xKey], "")
-		if itemId != "" && xVal != "" && xVal != "null" {
+		if itemId != "" && xVal != "" && !strings.EqualFold(xVal, "null") {
 			item2XMap[itemId] = xVal
 		}
 	}

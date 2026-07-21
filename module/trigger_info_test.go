@@ -59,7 +59,9 @@ func TestAggregateTriggerPropertyWeights(t *testing.T) {
 		triggerInfos := []*TriggerInfo{
 			newTestTriggerInfo("item1", 2, "", "c1"),
 			newTestTriggerInfo("item2", 1, "null", "c2"),
-			newTestTriggerInfo("item3", 1, "tag1|", "c3"),
+			newTestTriggerInfo("item3", 1, "NULL", "c3"),
+			newTestTriggerInfo("item4", 1, "Null", "c4"),
+			newTestTriggerInfo("item5", 1, "tag1|", "c5"),
 		}
 		ret := AggregateTriggerPropertyWeights(triggerInfos, "tags", propertyFieldMap, "|")
 		if len(ret) != 1 || ret[0].ItemId != "tag1" || ret[0].Weight != 1 {
