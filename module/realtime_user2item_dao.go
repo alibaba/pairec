@@ -73,20 +73,23 @@ type RealtimeUser2ItemBaseDao struct {
 	eventWeightMap   map[string]float64
 	mergeMode        string
 	cache            cache.Cache
+	// triggerTimeWindow only uses behaviors within the recent time window (seconds), 0 means no limit
+	triggerTimeWindow int64
 }
 
 func NewRealtimeUser2ItemBaseDao(config *recconf.RecallConfig) *RealtimeUser2ItemBaseDao {
 	dao := &RealtimeUser2ItemBaseDao{
-		recallName:       config.Name,
-		recallCount:      config.RecallCount,
-		diversityRules:   config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.DiversityRules,
-		propertyFields:   config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.PropertyFields,
-		propertyFieldMap: make(map[string]int, len(config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.PropertyFields)),
-		triggerCount:     config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.TriggerCount,
-		limit:            config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.Limit,
-		eventPlayTimeMap: make(map[string]float64),
-		eventWeightMap:   make(map[string]float64),
-		mergeMode:        config.RealTimeUser2ItemDaoConf.MergeMode,
+		recallName:        config.Name,
+		recallCount:       config.RecallCount,
+		diversityRules:    config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.DiversityRules,
+		propertyFields:    config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.PropertyFields,
+		propertyFieldMap:  make(map[string]int, len(config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.PropertyFields)),
+		triggerCount:      config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.TriggerCount,
+		limit:             config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.Limit,
+		eventPlayTimeMap:  make(map[string]float64),
+		eventWeightMap:    make(map[string]float64),
+		mergeMode:         config.RealTimeUser2ItemDaoConf.MergeMode,
+		triggerTimeWindow: config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.TriggerTimeWindow,
 	}
 
 	if dao.triggerCount == 0 {

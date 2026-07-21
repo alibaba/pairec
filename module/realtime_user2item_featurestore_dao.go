@@ -347,6 +347,10 @@ func (d *RealtimeUser2ItemFeatureStoreDao) GetTriggerInfos(user *User, context *
 		trigger.ItemId = utils.ToString(seqData[d.itemIdFieldName], "")
 		trigger.event = utils.ToString(seqData[d.eventFieldName], "")
 		trigger.timestamp = utils.ToInt64(seqData[d.timestampFieldName], 0)
+		// only use behaviors within the recent time window if configured
+		if isTriggerOutOfTimeWindow(trigger.timestamp, currentTime.Unix(), d.triggerTimeWindow) {
+			continue
+		}
 		if d.hasPlayTimeField {
 			trigger.playTime = utils.ToFloat(seqData[d.playtimeFieldName], 0)
 		}
