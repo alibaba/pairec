@@ -272,6 +272,10 @@ func (d *RealtimeUser2ItemHologresDao) GetTriggerInfos(user *User, context *cont
 			}
 		}
 		if err := rows.Scan(dst...); err == nil {
+			// only use behaviors within the recent time window if configured
+			if isTriggerOutOfTimeWindow(trigger.timestamp, currentTime.Unix(), d.triggerTimeWindow) {
+				continue
+			}
 			if t, exist := d.eventPlayTimeMap[trigger.event]; exist {
 				if trigger.playTime <= t {
 					continue

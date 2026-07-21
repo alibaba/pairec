@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/Knetic/govaluate"
-	be "github.com/aliyun/aliyun-be-go-sdk"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/beengine"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	be "github.com/aliyun/aliyun-be-go-sdk"
 )
 
 type RealtimeUser2ItemBeDao struct {
@@ -138,6 +138,10 @@ func (d *RealtimeUser2ItemBeDao) GetTriggerInfos(user *User, context *context.Re
 		}
 		if trigger.ItemId != "" && trigger.event != "" {
 			trigger.propertyFieldValues = propertyFieldValues
+		}
+		// only use behaviors within the recent time window if configured
+		if isTriggerOutOfTimeWindow(trigger.timestamp, currentTime.Unix(), d.triggerTimeWindow) {
+			continue
 		}
 		if t, exist := d.eventPlayTimeMap[trigger.event]; exist {
 			if trigger.playTime <= t {

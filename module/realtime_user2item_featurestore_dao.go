@@ -32,7 +32,6 @@ type RealtimeUser2ItemFeatureStoreDao struct {
 	events                    []any
 	similarItemIdField        string
 	additionUid               string
-	triggerTimeWindow         int64
 }
 
 func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeUser2ItemFeatureStoreDao {
@@ -49,7 +48,6 @@ func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeU
 		timestampFieldName:       "timestamp",
 		similarItemIdField:       "similar_item_ids",
 		additionUid:              config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdditionUid,
-		triggerTimeWindow:        config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.TriggerTimeWindow,
 	}
 	if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.NoUsePlayTimeField {
 		dao.hasPlayTimeField = false
