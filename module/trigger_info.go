@@ -47,9 +47,14 @@ func (us TriggerInfoSlice) Swap(i, j int) {
 }
 
 // isTriggerOutOfTimeWindow reports whether the behavior timestamp is out of the recent time window.
-// timeWindow <= 0 means no time window filter.
+// timeWindow <= 0 means no time window filter. timestamp <= 0 means the behavior has no valid
+// time info (field missing or unparsable), keep it instead of treating it as expired,
+// otherwise a misconfigured timestamp field would silently clear the whole recall path.
 func isTriggerOutOfTimeWindow(timestamp, nowUnix, timeWindow int64) bool {
-	return timeWindow > 0 && timestamp < nowUnix-timeWindow
+	if timeWindow <= 0 || timestamp <= 0 {
+		return false
+	}
+	return timestamp < nowUnix-timeWindow
 }
 
 // aggregatePropertyWeights splits the property value by delimiter and accumulates

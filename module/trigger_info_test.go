@@ -121,6 +121,14 @@ func TestIsTriggerOutOfTimeWindow(t *testing.T) {
 	if !isTriggerOutOfTimeWindow(now-3601, now, 3600) {
 		t.Fatal("expect behavior out of time window to be filtered")
 	}
+	// timestamp 0 means no valid time info, keep it even when timeWindow is configured
+	if isTriggerOutOfTimeWindow(0, now, 3600) {
+		t.Fatal("expect behavior with zero timestamp to be kept")
+	}
+	// negative timestamp is also treated as no valid time info
+	if isTriggerOutOfTimeWindow(-1, now, 3600) {
+		t.Fatal("expect behavior with negative timestamp to be kept")
+	}
 }
 
 func TestItem2XCache(t *testing.T) {
