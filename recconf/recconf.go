@@ -444,7 +444,25 @@ type RecallEngineParam struct {
 	DiversityParam  string
 	CustomParams    map[string]interface{}
 	TriggerLimit    int
-	Timeout         int // per-way recall timeout in milliseconds, 0 means no per-way timeout
+	Timeout         int          // per-way recall timeout in milliseconds, 0 means no per-way timeout
+	Item2XConf      Item2XConfig // aggregate item triggers to item property(x) triggers, empty XKey means disabled
+}
+
+// Item2XConfig aggregates item level trigger weights into item property(x) level triggers.
+// XKey is the property field name, non-empty XKey enables the aggregation.
+// When Item2XTable is empty, the property value comes from UserTriggerDaoConf.PropertyFields (mode 1);
+// otherwise the property value is joined from Item2XTable by item id (mode 2).
+type Item2XConfig struct {
+	XKey             string // property field name, non-empty means enabled; must be in PropertyFields when Item2XTable is empty
+	XDelimiter       string // delimiter to split multi-value property, empty means single value
+	XCount           int    // max number of property triggers after aggregation, 0 means no limit
+	AdapterType      string // hologres or featurestore, only used when Item2XTable is not empty
+	HologresName     string // hologres datasource name
+	FeatureStoreName string // featurestore datasource name
+	Item2XTable      string // hologres table name or featurestore feature view name, empty means mode 1
+	ItemKeyField     string // item id field name of Item2XTable, only for hologres, default is item_id
+	CacheSize        int    // local cache size of itemId => property value, 0 means cache disabled
+	CacheTime        int    // cache expire time in seconds, default is 3600
 }
 type RecallNameMappingConfig struct {
 	Format string
@@ -559,6 +577,8 @@ type UserTriggerDaoConfig struct {
 	PlayTimeFieldName  string
 
 	AdditionUid string
+
+	TriggerTimeWindow int64 // only use behaviors within recent N seconds, 0 means no time window filter
 }
 type TriggerDiversityRuleConfig struct {
 	Dimensions []string

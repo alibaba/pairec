@@ -32,6 +32,7 @@ type RealtimeUser2ItemFeatureStoreDao struct {
 	events                    []any
 	similarItemIdField        string
 	additionUid               string
+	triggerTimeWindow         int64
 }
 
 func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeUser2ItemFeatureStoreDao {
@@ -48,6 +49,7 @@ func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeU
 		timestampFieldName:       "timestamp",
 		similarItemIdField:       "similar_item_ids",
 		additionUid:              config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdditionUid,
+		triggerTimeWindow:        config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.TriggerTimeWindow,
 	}
 	if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.NoUsePlayTimeField {
 		dao.hasPlayTimeField = false
@@ -347,6 +349,10 @@ func (d *RealtimeUser2ItemFeatureStoreDao) GetTriggerInfos(user *User, context *
 		trigger.ItemId = utils.ToString(seqData[d.itemIdFieldName], "")
 		trigger.event = utils.ToString(seqData[d.eventFieldName], "")
 		trigger.timestamp = utils.ToInt64(seqData[d.timestampFieldName], 0)
+		// only use behaviors within the recent time window if configured
+		if isTriggerOutOfTimeWindow(trigger.timestamp, currentTime.Unix(), d.triggerTimeWindow) {
+			continue
+		}
 		if d.hasPlayTimeField {
 			trigger.playTime = utils.ToFloat(seqData[d.playtimeFieldName], 0)
 		}
