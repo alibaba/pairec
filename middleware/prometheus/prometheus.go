@@ -77,8 +77,27 @@ type PushGateway struct {
 
 	PushGatewayToken string
 
+	// Basic auth credentials for the push gateway (optional).
+	// When PushGatewayUsername is not empty, basic auth is used and takes
+	// precedence over PushGatewayToken.
+	PushGatewayUsername string
+	PushGatewayPassword string
+
+	// credential is a dynamic basic auth credential provider (optional).
+	// When set, it takes precedence over the static PushGatewayUsername/Password
+	// and PushGatewayToken. It is typically backed by the Alibaba Cloud credential
+	// chain and supports STS temporary credentials refreshed on each call.
+	credential BasicAuthCredential
+
 	// pushgateway job name, defaults to "recommend"
 	Job string
+}
+
+// BasicAuthCredential provides dynamic username/password for push gateway basic auth.
+// Implementations may be backed by Alibaba Cloud credentials (AK/SK, possibly STS),
+// and are expected to return freshly-refreshed credentials on each call.
+type BasicAuthCredential interface {
+	GetBasicAuth() (username, password string, err error)
 }
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
@@ -120,6 +139,41 @@ func (p *Prometheus) Push(pushGatewayURL, PushGatewayToken string, pushIntervalS
 	}
 }
 
+// SetBasicAuth sets the basic auth credentials used when pushing to the push
+// gateway. When username is not empty, basic auth takes precedence over the
+// bearer token. Call it before Push to take effect.
+func (p *Prometheus) SetBasicAuth(username, password string) {
+	p.Ppg.PushGatewayUsername = username
+	p.Ppg.PushGatewayPassword = password
+}
+
+// SetCredential sets a dynamic basic auth credential provider used when pushing
+// to the push gateway. It takes precedence over the static basic auth and the
+// bearer token. Call it before Push to take effect.
+func (p *Prometheus) SetCredential(cred BasicAuthCredential) {
+	p.Ppg.credential = cred
+}
+
+// setAuthHeader sets the authorization for a push gateway request. The priority
+// is: dynamic credential provider > static basic auth > bearer token.
+func (p *Prometheus) setAuthHeader(req *http.Request) {
+	if p.Ppg.credential != nil {
+		username, password, err := p.Ppg.credential.GetBasicAuth()
+		if err != nil {
+			log.Error(fmt.Sprintf("Error get push gateway credential: %v", err))
+		} else if username != "" {
+			req.SetBasicAuth(username, password)
+			return
+		}
+	}
+
+	if p.Ppg.PushGatewayUsername != "" {
+		req.SetBasicAuth(p.Ppg.PushGatewayUsername, p.Ppg.PushGatewayPassword)
+	} else if p.Ppg.PushGatewayToken != "" {
+		req.Header.Add("Authorization", "Bearer "+p.Ppg.PushGatewayToken)
+	}
+}
+
 func (p *Prometheus) getMetrics() []byte {
 	out := &bytes.Buffer{}
 	metricFamilies, _ := prometheus.DefaultGatherer.Gather()
@@ -150,13 +204,11 @@ func (p *Prometheus) getPushGatewayURL() string {
 
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
-	if p.Ppg.PushGatewayToken != "" {
-		req.Header.Add("Authorization", "Bearer "+p.Ppg.PushGatewayToken)
-	}
 	if err != nil {
 		//log.Errorf("failed to create push gateway request: %v", err)
 		return
 	}
+	p.setAuthHeader(req)
 
 	if resp, err := client.Do(req); err != nil {
 		log.Error(fmt.Sprintf("Error sending to push gateway: %v", err))

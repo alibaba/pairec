@@ -96,15 +96,22 @@ type ListenConfig struct {
 	HttpPort int
 }
 type PrometheusConfig struct {
-	Enable           bool
-	Subsystem        string
-	PushGatewayURL   string
-	PushGatewayToken string
-	PushIntervalSecs int
-	Job              string
-	ReqDurBuckets    []float64
-	ReqSizeBuckets   []float64
-	RespSizeBuckets  []float64
+	Enable              bool
+	Subsystem           string
+	PushGatewayURL      string
+	PushGatewayToken    string
+	PushGatewayUsername string
+	PushGatewayPassword string
+	PushIntervalSecs    int
+	Job                 string
+	ReqDurBuckets       []float64
+	ReqSizeBuckets      []float64
+	RespSizeBuckets     []float64
+	// PushGatewayUseAliyunCredential enables dynamic basic auth for the push gateway,
+	// sourced from the Alibaba Cloud default credential chain (env / ECS RAM role /
+	// OIDC, etc.), and supports STS temporary credentials. When true, it takes
+	// precedence over PushGatewayUsername/Password and PushGatewayToken.
+	PushGatewayUseAliyunCredential bool
 }
 type DaoConfig struct {
 	Adapter             string
