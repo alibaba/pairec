@@ -7,3 +7,4 @@ parse_pb_log.py
 .claude
 .worktrees/
 CLAUDE.md
+.qoder/
