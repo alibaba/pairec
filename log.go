@@ -68,65 +68,65 @@ func (us fileInfoSlice) Swap(i, j int) {
 	us[j] = tmp
 }
 func clearLoop(config recconf.LogConfig) {
-	fileInfoList := make([]*fileInfo, 0)
 	fmt.Println("setup clean log dir", logDir)
 	for {
-		fileInfoList = fileInfoList[:0]
+		clearOnce(config)
+		time.Sleep(10 * time.Second)
+	}
+}
 
-		fileInfos, err := ioutil.ReadDir(logDir)
-		if err != nil {
-			fmt.Println(err)
+func clearOnce(config recconf.LogConfig) {
+	fileInfoList := make([]*fileInfo, 0)
+
+	fileInfos, err := ioutil.ReadDir(logDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	pointTime := time.Now().Unix() - int64(config.RetensionDays*86400)
+	totalSize := int64(0)
+	for _, file := range fileInfos {
+		// omit symlink file
+		if file.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
+		if file.ModTime().Unix() < pointTime {
+			path := filepath.Join(logDir, file.Name())
+			err := os.Remove(path)
+			if err != nil {
+				fmt.Println(err)
+			}
+			continue
+		}
+		totalSize += file.Size()
+		info := &fileInfo{
+			delete: false,
+			file:   file,
+		}
+		fileInfoList = append(fileInfoList, info)
+	}
 
-		pointTime := time.Now().Unix() - int64(config.RetensionDays*86400)
-		totalSize := int64(0)
-		for _, file := range fileInfos {
-			if file.ModTime().Unix() < pointTime {
-				path := filepath.Join(logDir, file.Name())
+	sizeThreshold := int64(float64(config.DiskSize*1024*1024*1024) * 0.8)
+	if totalSize > sizeThreshold {
+		sort.Sort(fileInfoSlice(fileInfoList))
+		for _, info := range fileInfoList {
+			info.delete = true
+			totalSize -= info.file.Size()
+
+			if totalSize < sizeThreshold {
+				break
+			}
+		}
+
+		for _, info := range fileInfoList {
+			if info.delete {
+				path := filepath.Join(logDir, info.file.Name())
 				err := os.Remove(path)
 				if err != nil {
 					fmt.Println(err)
 				}
-				continue
-			}
-			// omit symlink file
-			if file.Mode() == os.ModeSymlink {
-				continue
-			}
-			totalSize += file.Size()
-			info := &fileInfo{
-				delete: false,
-				file:   file,
-			}
-			fileInfoList = append(fileInfoList, info)
-		}
-
-		sizeThreshold := int64(float64(config.DiskSize*1024*1024*1024) * 0.8)
-		// sizeThreshold := int64(0)
-		if totalSize > sizeThreshold {
-			sort.Sort(fileInfoSlice(fileInfoList))
-			for _, info := range fileInfoList {
-				info.delete = true
-				totalSize -= info.file.Size()
-
-				if totalSize < sizeThreshold {
-					break
-				}
-			}
-
-			for _, info := range fileInfoList {
-				if info.delete {
-					path := filepath.Join(logDir, info.file.Name())
-					err := os.Remove(path)
-					if err != nil {
-						fmt.Println(err)
-					}
-				}
-
 			}
 		}
-
-		time.Sleep(10 * time.Second)
 	}
 }
