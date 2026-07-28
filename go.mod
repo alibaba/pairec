@@ -11,7 +11,7 @@ require (
 	github.com/alibabacloud-go/tea v1.5.1
 	github.com/alibabacloud-go/tea-utils v1.4.5
 	github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c
-	github.com/aliyun/aliyun-datahub-sdk-go v1.1.4
+	github.com/aliyun/aliyun-datahub-sdk-go v1.2.0
 	github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227
 	github.com/aliyun/aliyun-log-go-sdk v0.1.27
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7
