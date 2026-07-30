@@ -12,6 +12,7 @@ import (
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/service/recall"
 	"github.com/alibaba/pairec/v2/utils"
 )
@@ -56,6 +57,10 @@ func (s *RecallService) GetItems(user *module.User, context *context.RecommendCo
 
 	var recalls []recall.Recall
 	var recallNames []string
+	// metricNames keeps the original recall name aligned with recalls (index by index),
+	// so metrics labels stay correct even when some recallNames are skipped below.
+	// Use the original config name (not the AB-cloned name) to avoid label cardinality explosion.
+	var metricNames []string
 	if context.ExperimentResult != nil {
 		names := context.ExperimentResult.GetExperimentParams().Get(categoryName+".RecallNames", nil)
 		if names != nil {
@@ -121,18 +126,27 @@ func (s *RecallService) GetItems(user *module.User, context *context.RecommendCo
 		}
 
 		recalls = append(recalls, r)
+		metricNames = append(metricNames, name)
 	}
 
 	ch := make(chan []*module.Item, len(recalls))
 
+	scene, _ := sceneName.(string)
+
 	start := time.Now()
 	for i := 0; i < len(recalls); i++ {
-		go func(ch chan<- []*module.Item, recall recall.Recall) {
+		go func(ch chan<- []*module.Item, recall recall.Recall, recallName string) {
+			recallStart := time.Now()
 			// when recall is panic, can recover it
 			defer func() {
 				if err := recover(); err != nil {
 					stack := string(debug.Stack())
 					log.Error(fmt.Sprintf("error=%v, stack=%s", err, strings.ReplaceAll(stack, "\n", "\t")))
+
+					if metrics.Enabled() {
+						// treat panic as an empty result
+						metrics.RecallEmptyTotal.WithLabelValues(scene, recallName).Inc()
+					}
 
 					var tmp []*module.Item
 					ch <- tmp
@@ -140,8 +154,16 @@ func (s *RecallService) GetItems(user *module.User, context *context.RecommendCo
 			}()
 
 			items := recall.GetCandidateItems(user, context)
+
+			if metrics.Enabled() {
+				metrics.RecallDurByName.WithLabelValues(scene, recallName).Observe(time.Since(recallStart).Seconds())
+				if len(items) == 0 {
+					metrics.RecallEmptyTotal.WithLabelValues(scene, recallName).Inc()
+				}
+			}
+
 			ch <- items
-		}(ch, recalls[i])
+		}(ch, recalls[i], metricNames[i])
 	}
 	for i := 0; i < len(recalls); i++ {
 		items := <-ch

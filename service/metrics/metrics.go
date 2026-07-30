@@ -15,8 +15,10 @@ var (
 	RecTotal              *prometheus.CounterVec
 	RecallCount           *prometheus.CounterVec
 	RecallCountTotal      *prometheus.CounterVec
+	RecallEmptyTotal      *prometheus.CounterVec
 	RecallItemsPercentage *prometheus.GaugeVec
 	RecallDurSecs         *prometheus.HistogramVec
+	RecallDurByName       *prometheus.HistogramVec
 	FilterDurSecs         *prometheus.HistogramVec
 	GeneralRankDurSecs    *prometheus.HistogramVec
 	LoadFeatureDurSecs    *prometheus.HistogramVec
@@ -43,9 +45,11 @@ func Load(conf *recconf.RecommendConfig) {
 			SizeNotEnoughTotal,
 			RecallCount,
 			RecallCountTotal,
+			RecallEmptyTotal,
 			RecallItemsPercentage,
 			RecDurSecs,
 			RecallDurSecs,
+			RecallDurByName,
 			FilterDurSecs,
 			GeneralRankDurSecs,
 			LoadFeatureDurSecs,
@@ -109,6 +113,15 @@ func initMetrics(conf *recconf.RecommendConfig) {
 		"scene",
 	})
 
+	RecallEmptyTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Subsystem: subsystem,
+		Name:      "recall_empty_total",
+		Help:      "How many times a recall returns empty result, group by recall name.",
+	}, []string{
+		"scene",
+		"recall_name",
+	})
+
 	RecallItemsPercentage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: subsystem,
 		Name:      "recall_items_percentage",
@@ -130,6 +143,16 @@ func initMetrics(conf *recconf.RecommendConfig) {
 		Buckets:   buckets,
 		Help:      "The recall cost in seconds.",
 	}, commonLabels)
+
+	RecallDurByName = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Subsystem: subsystem,
+		Name:      "recall_duration_by_name_seconds",
+		Buckets:   buckets,
+		Help:      "The single recall cost in seconds, group by recall name.",
+	}, []string{
+		"scene",
+		"recall_name",
+	})
 
 	FilterDurSecs = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Subsystem: subsystem,
