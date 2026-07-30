@@ -1,6 +1,7 @@
 package pairec
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -126,6 +127,11 @@ func (a *aliyunPushGatewayCredential) GetBasicAuth() (username, password string,
 	cm, err := a.cred.GetCredential()
 	if err != nil {
 		return "", "", err
+	}
+	// A provider may return a nil model without an error, so guard it explicitly
+	// to avoid a nil pointer dereference in the push goroutine.
+	if cm == nil {
+		return "", "", errors.New("empty aliyun credential model")
 	}
 
 	username = tea.StringValue(cm.AccessKeyId)

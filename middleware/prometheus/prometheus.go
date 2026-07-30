@@ -7,7 +7,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"reflect"
+	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alibaba/pairec/v2/log"
@@ -149,9 +152,32 @@ func (p *Prometheus) SetBasicAuth(username, password string) {
 
 // SetCredential sets a dynamic basic auth credential provider used when pushing
 // to the push gateway. It takes precedence over the static basic auth and the
-// bearer token. Call it before Push to take effect.
+// bearer token. A nil provider is ignored so that the push goroutine never
+// dereferences it. Call it before Push to take effect.
 func (p *Prometheus) SetCredential(cred BasicAuthCredential) {
+	if isNilCredential(cred) {
+		log.Warning("prometheus push gateway credential is nil, ignore it")
+		return
+	}
+
 	p.Ppg.credential = cred
+}
+
+// isNilCredential reports whether cred holds no usable value. Besides a nil
+// interface value, it also detects a nil pointer wrapped in a non-nil interface
+// value, which does not equal nil in Go and would panic on a method call.
+func isNilCredential(cred BasicAuthCredential) bool {
+	if cred == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(cred)
+	switch value.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 // setAuthHeader sets the authorization for a push gateway request. The priority
@@ -230,14 +256,29 @@ func (p *Prometheus) startPushTicker() {
 	ticker := time.NewTicker(time.Second * p.Ppg.PushIntervalSeconds)
 	go func() {
 		for range ticker.C {
-			p.sendMetricsToPushGateway(p.getMetrics())
-
-			customMetrics := p.getCustomMetrics()
-			if len(customMetrics) > 0 {
-				p.sendMetricsToPushGateway(customMetrics)
-			}
+			p.pushMetricsOnce()
 		}
 	}()
+}
+
+// pushMetricsOnce pushes the metrics of a single tick to the push gateway. It
+// recovers from any panic, e.g. raised by the credential provider, so that a
+// failure of the metrics push never terminates the whole process. Recovering
+// inside the tick instead of outside the loop keeps the following ticks working.
+func (p *Prometheus) pushMetricsOnce() {
+	defer func() {
+		if err := recover(); err != nil {
+			stack := string(debug.Stack())
+			log.Error(fmt.Sprintf("push metrics to gateway error=%v, stack=%s", err, strings.ReplaceAll(stack, "\n", "\t")))
+		}
+	}()
+
+	p.sendMetricsToPushGateway(p.getMetrics())
+
+	customMetrics := p.getCustomMetrics()
+	if len(customMetrics) > 0 {
+		p.sendMetricsToPushGateway(customMetrics)
+	}
 }
 
 func (p *Prometheus) registerMetrics() {
