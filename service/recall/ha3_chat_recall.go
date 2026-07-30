@@ -85,9 +85,11 @@ func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*Se
 			"hit":    req.Limit,
 			"format": "json",
 		},
-		"analyzer": map[string]interface{}{
+	}
+	if r.conf.Analyzer != "" {
+		body["analyzer"] = map[string]interface{}{
 			r.conf.DefaultField: r.conf.Analyzer,
-		},
+		}
 	}
 	if filterExpr != "" {
 		body["filter"] = filterExpr
