@@ -1,6 +1,7 @@
 package pairec
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibabacloud-go/tea/tea"
+	"github.com/aliyun/credentials-go/credentials"
 )
 
 var (
@@ -70,6 +73,16 @@ func (app *App) Run() {
 
 				config.Job = env
 			}
+			if config.PushGatewayUseAliyunCredential {
+				if cred, err := newAliyunPushGatewayCredential(); err != nil {
+					log.Error(fmt.Sprintf("create prometheus push gateway credential error, err=%v", err))
+				} else {
+					p.SetCredential(cred)
+				}
+			}
+			if config.PushGatewayUsername != "" {
+				p.SetBasicAuth(config.PushGatewayUsername, config.PushGatewayPassword)
+			}
 			p.Push(config.PushGatewayURL, config.PushGatewayToken, config.PushIntervalSecs, config.Job)
 		}
 
@@ -99,4 +112,43 @@ func (app *App) Run() {
 
 func (app *App) Use(middleware ...MiddlewareFunc) {
 	app.Handlers.Middlewares = append(app.Handlers.Middlewares, middleware...)
+}
+
+// aliyunPushGatewayCredential adapts an Alibaba Cloud credential to the
+// prometheus.BasicAuthCredential interface. The username is the AccessKeyId and
+// the password is the AccessKeySecret. When the credential is an STS temporary
+// credential (SecurityToken is not empty), the password follows the Alibaba Cloud
+// Prometheus format: {AccessKeySecret}${SecurityToken}.
+type aliyunPushGatewayCredential struct {
+	cred credentials.Credential
+}
+
+func (a *aliyunPushGatewayCredential) GetBasicAuth() (username, password string, err error) {
+	cm, err := a.cred.GetCredential()
+	if err != nil {
+		return "", "", err
+	}
+	// A provider may return a nil model without an error, so guard it explicitly
+	// to avoid a nil pointer dereference in the push goroutine.
+	if cm == nil {
+		return "", "", errors.New("empty aliyun credential model")
+	}
+
+	username = tea.StringValue(cm.AccessKeyId)
+	password = tea.StringValue(cm.AccessKeySecret)
+	if securityToken := tea.StringValue(cm.SecurityToken); securityToken != "" {
+		password = password + "$" + securityToken
+	}
+	return username, password, nil
+}
+
+// newAliyunPushGatewayCredential builds a push gateway credential provider backed
+// by the Alibaba Cloud default credential chain (env / ECS RAM role / OIDC, etc.),
+// which supports STS temporary credentials with automatic refresh.
+func newAliyunPushGatewayCredential() (prometheus.BasicAuthCredential, error) {
+	cred, err := credentials.NewCredential(nil)
+	if err != nil {
+		return nil, err
+	}
+	return &aliyunPushGatewayCredential{cred: cred}, nil
 }

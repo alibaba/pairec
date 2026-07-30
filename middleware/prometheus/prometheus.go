@@ -7,7 +7,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"reflect"
+	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alibaba/pairec/v2/log"
@@ -77,8 +80,27 @@ type PushGateway struct {
 
 	PushGatewayToken string
 
+	// Basic auth credentials for the push gateway (optional).
+	// When PushGatewayUsername is not empty, basic auth is used and takes
+	// precedence over PushGatewayToken.
+	PushGatewayUsername string
+	PushGatewayPassword string
+
+	// credential is a dynamic basic auth credential provider (optional).
+	// When set, it takes precedence over the static PushGatewayUsername/Password
+	// and PushGatewayToken. It is typically backed by the Alibaba Cloud credential
+	// chain and supports STS temporary credentials refreshed on each call.
+	credential BasicAuthCredential
+
 	// pushgateway job name, defaults to "recommend"
 	Job string
+}
+
+// BasicAuthCredential provides dynamic username/password for push gateway basic auth.
+// Implementations may be backed by Alibaba Cloud credentials (AK/SK, possibly STS),
+// and are expected to return freshly-refreshed credentials on each call.
+type BasicAuthCredential interface {
+	GetBasicAuth() (username, password string, err error)
 }
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
@@ -120,6 +142,64 @@ func (p *Prometheus) Push(pushGatewayURL, PushGatewayToken string, pushIntervalS
 	}
 }
 
+// SetBasicAuth sets the basic auth credentials used when pushing to the push
+// gateway. When username is not empty, basic auth takes precedence over the
+// bearer token. Call it before Push to take effect.
+func (p *Prometheus) SetBasicAuth(username, password string) {
+	p.Ppg.PushGatewayUsername = username
+	p.Ppg.PushGatewayPassword = password
+}
+
+// SetCredential sets a dynamic basic auth credential provider used when pushing
+// to the push gateway. It takes precedence over the static basic auth and the
+// bearer token. A nil provider is ignored so that the push goroutine never
+// dereferences it. Call it before Push to take effect.
+func (p *Prometheus) SetCredential(cred BasicAuthCredential) {
+	if isNilCredential(cred) {
+		log.Warning("prometheus push gateway credential is nil, ignore it")
+		return
+	}
+
+	p.Ppg.credential = cred
+}
+
+// isNilCredential reports whether cred holds no usable value. Besides a nil
+// interface value, it also detects a nil pointer wrapped in a non-nil interface
+// value, which does not equal nil in Go and would panic on a method call.
+func isNilCredential(cred BasicAuthCredential) bool {
+	if cred == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(cred)
+	switch value.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+// setAuthHeader sets the authorization for a push gateway request. The priority
+// is: dynamic credential provider > static basic auth > bearer token.
+func (p *Prometheus) setAuthHeader(req *http.Request) {
+	if p.Ppg.credential != nil {
+		username, password, err := p.Ppg.credential.GetBasicAuth()
+		if err != nil {
+			log.Error(fmt.Sprintf("Error get push gateway credential: %v", err))
+		} else if username != "" {
+			req.SetBasicAuth(username, password)
+			return
+		}
+	}
+
+	if p.Ppg.PushGatewayUsername != "" {
+		req.SetBasicAuth(p.Ppg.PushGatewayUsername, p.Ppg.PushGatewayPassword)
+	} else if p.Ppg.PushGatewayToken != "" {
+		req.Header.Add("Authorization", "Bearer "+p.Ppg.PushGatewayToken)
+	}
+}
+
 func (p *Prometheus) getMetrics() []byte {
 	out := &bytes.Buffer{}
 	metricFamilies, _ := prometheus.DefaultGatherer.Gather()
@@ -150,13 +230,11 @@ func (p *Prometheus) getPushGatewayURL() string {
 
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
-	if p.Ppg.PushGatewayToken != "" {
-		req.Header.Add("Authorization", "Bearer "+p.Ppg.PushGatewayToken)
-	}
 	if err != nil {
 		//log.Errorf("failed to create push gateway request: %v", err)
 		return
 	}
+	p.setAuthHeader(req)
 
 	if resp, err := client.Do(req); err != nil {
 		log.Error(fmt.Sprintf("Error sending to push gateway: %v", err))
@@ -178,14 +256,29 @@ func (p *Prometheus) startPushTicker() {
 	ticker := time.NewTicker(time.Second * p.Ppg.PushIntervalSeconds)
 	go func() {
 		for range ticker.C {
-			p.sendMetricsToPushGateway(p.getMetrics())
-
-			customMetrics := p.getCustomMetrics()
-			if len(customMetrics) > 0 {
-				p.sendMetricsToPushGateway(customMetrics)
-			}
+			p.pushMetricsOnce()
 		}
 	}()
+}
+
+// pushMetricsOnce pushes the metrics of a single tick to the push gateway. It
+// recovers from any panic, e.g. raised by the credential provider, so that a
+// failure of the metrics push never terminates the whole process. Recovering
+// inside the tick instead of outside the loop keeps the following ticks working.
+func (p *Prometheus) pushMetricsOnce() {
+	defer func() {
+		if err := recover(); err != nil {
+			stack := string(debug.Stack())
+			log.Error(fmt.Sprintf("push metrics to gateway error=%v, stack=%s", err, strings.ReplaceAll(stack, "\n", "\t")))
+		}
+	}()
+
+	p.sendMetricsToPushGateway(p.getMetrics())
+
+	customMetrics := p.getCustomMetrics()
+	if len(customMetrics) > 0 {
+		p.sendMetricsToPushGateway(customMetrics)
+	}
 }
 
 func (p *Prometheus) registerMetrics() {
