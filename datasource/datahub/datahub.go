@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -23,12 +24,15 @@ type Datahub struct {
 	topicName    string
 	schemas      []recconf.DatahubTopicSchema
 	datahubApi   alidatahub.DataHubApi
-	producer     alidatahub.Producer
+	shards       []alidatahub.ShardEntry
+	index        uint64
 	recordSchema *alidatahub.RecordSchema
 
 	name           string
 	syncLog        *synclog.SyncLog
 	compressorType string
+
+	active bool
 }
 
 var (
@@ -70,6 +74,7 @@ func NewDatahub(accessId, accessKey, endpoint, project, topic, compressorType st
 		endpoint:       endpoint,
 		projectName:    project,
 		topicName:      topic,
+		index:          0,
 		schemas:        schemas,
 		compressorType: compressorType,
 	}
@@ -110,28 +115,15 @@ func (d *Datahub) Init() error {
 				return err
 			}
 		}
-	}
+	} else {
+		topic, err := dh.GetTopic(d.projectName, d.topicName)
+		if err != nil {
+			return err
+		}
 
-	// use producer api to send records, shard list, retry and
-	// compress type negotiation are managed by producer internally
-	producerConfig := alidatahub.NewProducerConfig()
-	producerConfig.Account = account
-	producerConfig.Endpoint = d.endpoint
-	producerConfig.Project = d.projectName
-	producerConfig.Topic = d.topicName
-	producer := alidatahub.NewProducer(producerConfig)
-	if err = producer.Init(); err != nil {
-		return err
+		d.recordSchema = topic.RecordSchema
 	}
-	d.producer = producer
-
-	// cache the server side schema as fallback when GetSchema failed at runtime
-	schema, err := producer.GetSchema()
-	if err != nil {
-		return err
-	}
-	d.recordSchema = schema
-
+	d.active = true
 	dir := fmt.Sprintf("./tmp/%s/%s", d.projectName, d.topicName)
 	synclog := synclog.NewSyncLog(dir, d.consumeSyncLog)
 	if err := synclog.Init(); err != nil {
@@ -140,6 +132,8 @@ func (d *Datahub) Init() error {
 	}
 
 	d.syncLog = synclog
+
+	go d.loopListShards()
 
 	return nil
 }
@@ -177,10 +171,39 @@ func (d *Datahub) DataHubApi() alidatahub.DataHubApi {
 }
 
 func (d *Datahub) Shards() (ret []string) {
-	if d.producer != nil {
-		ret = d.producer.GetActiveShards()
+	for _, shard := range d.shards {
+		ret = append(ret, shard.ShardId)
 	}
 	return
+}
+
+func (d *Datahub) loopListShards() error {
+	i := 0
+	for d.active {
+		ls, err := d.datahubApi.ListShard(d.projectName, d.topicName)
+		if err != nil {
+			log.Error(fmt.Sprintf("project=%s\ttopic=%s\terror=get shard list failed(%v)", d.projectName, d.topicName, err))
+			i++
+			time.Sleep(time.Second * 10)
+			if i >= 10 {
+				d.Stop()
+			}
+			continue
+		}
+		var shards []alidatahub.ShardEntry
+		for _, shard := range ls.Shards {
+			if shard.State == alidatahub.ACTIVE {
+				shards = append(shards, shard)
+			}
+		}
+		if len(shards) > 0 {
+			d.shards = shards
+		}
+		i = 0
+		time.Sleep(time.Minute)
+	}
+
+	return nil
 }
 
 func (d *Datahub) Stop() {
@@ -188,40 +211,38 @@ func (d *Datahub) Stop() {
 	RemoveDatahub(d.name)
 }
 
-// StopLoopListShards is kept for compatibility, shard list is managed by producer now
 func (d *Datahub) StopLoopListShards() {
-	if d.producer != nil {
-		d.producer.Close()
-	}
-}
-
-// getRecordSchema returns the latest topic schema, fall back to the schema cached at Init when fetch failed
-func (d *Datahub) getRecordSchema() *alidatahub.RecordSchema {
-	if schema, err := d.producer.GetSchema(); err == nil {
-		return schema
-	} else {
-		log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=get schema failed(%v)", d.projectName, d.topicName, err))
-	}
-	return d.recordSchema
+	d.active = false
 }
 
 func (d *Datahub) SendMessage(messages []map[string]interface{}) {
-	if len(messages) == 0 {
+	records := make([]alidatahub.IRecord, 0, len(messages))
+	shards := d.shards
+	for i := 0; i < 3; i++ {
+		if len(shards) > 0 {
+			break
+		}
+		shards = d.shards
+		time.Sleep(time.Second)
+	}
+	if len(shards) == 0 {
+		log.Error("topic shards empty")
 		return
 	}
-	records := make([]alidatahub.IRecord, 0, len(messages))
-	schema := d.getRecordSchema()
+	i := atomic.AddUint64(&d.index, 1)
+	shard := shards[(i)%uint64(len(shards))]
 	for _, messsage := range messages {
-		record := alidatahub.NewTupleRecord(schema)
+		record := alidatahub.NewTupleRecord(d.recordSchema)
+		//record.ShardId = shard.ShardId
 		for k, v := range messsage {
-			if err := record.SetValueByName(k, v); err != nil {
-				log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tfield=%s\tmsg=set record value failed(%v)", d.projectName, d.topicName, k, err))
-			}
+			record.SetValueByName(k, v)
 		}
 
 		records = append(records, record)
 	}
 
+	maxReTry := 3
+	retryNum := 0
 	retrySendMessage := func() {
 		for _, msg := range messages {
 			if err := d.syncLog.Write(NewSyncLogDatahubItem(msg)); err != nil {
@@ -229,12 +250,27 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 			}
 		}
 	}
+	for retryNum < maxReTry {
+		_, err := d.datahubApi.PutRecordsByShard(d.projectName, d.topicName, shard.ShardId, records)
+		if err != nil {
+			if _, ok := err.(*alidatahub.LimitExceededError); ok {
+				retryNum++
+				time.Sleep(2 * time.Second)
+				continue
+			} else {
+				log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed(%v)", d.projectName, d.topicName, err))
+				retrySendMessage()
+				return
+			}
+		}
+		break
+	}
 
-	// producer picks an active shard and retries retryable errors(network/limit exceeded) internally
-	if _, err := d.producer.Send(records); err != nil {
-		log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed(%v)", d.projectName, d.topicName, err))
+	if retryNum >= maxReTry {
+		log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed", d.projectName, d.topicName))
 		retrySendMessage()
 	}
+
 }
 func (d *Datahub) consumeSyncLog(data []byte) error {
 	datahubItem := NewSyncLogDatahubItem(nil)
@@ -252,15 +288,51 @@ func (d *Datahub) consumeSyncLog(data []byte) error {
 }
 
 func (d *Datahub) doSendSingleMessage(message map[string]interface{}) error {
-	record := alidatahub.NewTupleRecord(d.getRecordSchema())
-	for k, v := range message {
-		if err := record.SetValueByName(k, v); err != nil {
-			log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tfield=%s\tmsg=set record value failed(%v)", d.projectName, d.topicName, k, err))
+	records := make([]alidatahub.IRecord, 0, 1)
+	shards := d.shards
+	for i := 0; i < 3; i++ {
+		if len(shards) > 0 {
+			break
 		}
+		shards = d.shards
+		time.Sleep(time.Second)
+	}
+	if len(shards) == 0 {
+		return fmt.Errorf("topic shards empty")
+	}
+	i := atomic.AddUint64(&d.index, 1)
+
+	shard := shards[(i)%uint64(len(shards))]
+	record := alidatahub.NewTupleRecord(d.recordSchema)
+	//record.ShardId = shard.ShardId
+	for k, v := range message {
+		record.SetValueByName(k, v)
 	}
 
-	_, err := d.producer.Send([]alidatahub.IRecord{record})
-	return err
+	records = append(records, record)
+
+	maxReTry := 2
+	retryNum := 0
+	for retryNum < maxReTry {
+		_, err := d.datahubApi.PutRecordsByShard(d.projectName, d.topicName, shard.ShardId, records)
+		if err != nil {
+			if _, ok := err.(*alidatahub.LimitExceededError); ok {
+				log.Error("maybe qps exceed limit,retry")
+				retryNum++
+				time.Sleep(2 * time.Second)
+				continue
+			} else {
+				return err
+			}
+		}
+		break
+	}
+
+	if retryNum >= maxReTry {
+		return fmt.Errorf("put record failed")
+	}
+
+	return nil
 }
 
 func Load(config *recconf.RecommendConfig) {
