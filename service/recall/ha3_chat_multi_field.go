@@ -171,7 +171,7 @@ func normalizeFieldAwareRequest(req SearchGoodsRequest) (SearchGoodsRequest, err
 }
 
 // NormalizeFieldAwareSearchGoodsRequest validates and canonicalizes the
-// extended English Planner contract before any search is executed.
+// field-aware Planner contract before any search is executed.
 func NormalizeFieldAwareSearchGoodsRequest(req SearchGoodsRequest) (SearchGoodsRequest, error) {
 	return normalizeFieldAwareRequest(req)
 }

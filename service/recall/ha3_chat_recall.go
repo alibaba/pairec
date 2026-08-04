@@ -347,8 +347,12 @@ func decodeHa3ChatResponse(resp *ha3client.SearchResponseModel) (int, []interfac
 		return 0, nil, nil, err
 	}
 	resultMap := body
+	responseErrors := body["errors"]
 	if v, ok := body["result"].(map[string]interface{}); ok {
 		resultMap = v
+		if responseErrors == nil {
+			responseErrors = v["errors"]
+		}
 	}
 	items, _ := resultMap["items"].([]interface{})
 	if len(items) == 0 {
@@ -363,10 +367,6 @@ func decodeHa3ChatResponse(resp *ha3client.SearchResponseModel) (int, []interfac
 	}
 	if total == 0 {
 		total = len(items)
-	}
-	responseErrors := body["errors"]
-	if responseErrors == nil {
-		responseErrors = resultMap["errors"]
 	}
 	return total, items, responseErrors, nil
 }

@@ -44,7 +44,7 @@ func FieldAwareSearchGoodsTool() Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "search_goods",
-			Description: "Parse one product-shopping query and search real products from the catalog.",
+			Description: "Parse one product-shopping query in any language and search real products from the English-language catalog.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -53,7 +53,7 @@ func FieldAwareSearchGoodsTool() Tool {
 						"items":       map[string]interface{}{"type": "string"},
 						"minItems":    1,
 						"maxItems":    1,
-						"description": "The PAI-Rec-compatible positive search phrase. Preserve the full raw Query unless explicit price or exclusion syntax must be removed.",
+						"description": "One complete positive English catalog search phrase. For English input, preserve the full positive phrase; for non-English input, translate the whole positive intent into one English catalog phrase. Remove explicit price and exclusion syntax, and never split the phrase across array items.",
 					},
 					"operator": map[string]interface{}{
 						"type":        "string",
@@ -65,19 +65,19 @@ func FieldAwareSearchGoodsTool() Tool {
 						"items":       map[string]interface{}{"type": "string"},
 						"minItems":    1,
 						"maxItems":    4,
-						"description": "Exact product-type noun plus equivalent singular/plural/common catalog forms; never adjacent product types.",
+						"description": "English catalog terms for the exact requested product type: the noun plus equivalent singular, plural, or common catalog forms; never adjacent product types.",
 					},
 					"attribute_keywords": map[string]interface{}{
 						"type":        "array",
 						"items":       map[string]interface{}{"type": "string"},
 						"maxItems":    5,
-						"description": "Positive color, material, style, occasion, gender, age, size, or feature descriptors; exclude product type, price, and negated values.",
+						"description": "Positive English catalog descriptors for color, material, style, occasion, gender, age, size, or features; exclude product type, price, and negated values.",
 					},
 					"exclude_keywords": map[string]interface{}{
 						"type":        "array",
 						"items":       map[string]interface{}{"type": "string"},
 						"maxItems":    5,
-						"description": "Only attributes explicitly rejected by the Query.",
+						"description": "English catalog attributes explicitly rejected by the Query; translate them to English and never infer exclusions.",
 					},
 					"min_price": map[string]interface{}{
 						"type":             "number",
