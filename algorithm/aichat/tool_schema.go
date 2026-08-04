@@ -38,3 +38,66 @@ func SearchGoodsTool() Tool {
 		},
 	}
 }
+
+func FieldAwareSearchGoodsTool() Tool {
+	return Tool{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "search_goods",
+			Description: "Parse one product-shopping query and search real products from the catalog.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"keywords": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"minItems":    1,
+						"maxItems":    1,
+						"description": "The PAI-Rec-compatible positive search phrase. Preserve the full raw Query unless explicit price or exclusion syntax must be removed.",
+					},
+					"operator": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"AND"},
+						"description": "Always AND, matching the current PAI-Rec Planner contract.",
+					},
+					"product_type_keywords": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"minItems":    1,
+						"maxItems":    4,
+						"description": "Exact product-type noun plus equivalent singular/plural/common catalog forms; never adjacent product types.",
+					},
+					"attribute_keywords": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"maxItems":    5,
+						"description": "Positive color, material, style, occasion, gender, age, size, or feature descriptors; exclude product type, price, and negated values.",
+					},
+					"exclude_keywords": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"maxItems":    5,
+						"description": "Only attributes explicitly rejected by the Query.",
+					},
+					"min_price": map[string]interface{}{
+						"type":             "number",
+						"exclusiveMinimum": 0,
+						"description":      "Inclusive positive CNY minimum, emitted only when explicit.",
+					},
+					"max_price": map[string]interface{}{
+						"type":             "number",
+						"exclusiveMinimum": 0,
+						"description":      "Inclusive positive CNY maximum, emitted only when explicit.",
+					},
+				},
+				"required": []string{
+					"keywords",
+					"operator",
+					"product_type_keywords",
+					"attribute_keywords",
+				},
+				"additionalProperties": false,
+			},
+		},
+	}
+}

@@ -28,4 +28,5 @@ type chatConfig struct {
 	language      string
 	plannerPrompt string
 	replyPrompt   string
+	fieldAware    bool
 }

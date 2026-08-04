@@ -383,11 +383,17 @@ type RecallConfig struct {
 }
 
 type Ha3ChatRecallConfig struct {
-	EngineName   string
-	IndexName    string
-	DefaultField string
-	Analyzer     string
-	PriceField   string
+	EngineName      string
+	IndexName       string
+	ItemIdField     string
+	DefaultField    string
+	TitleField      string
+	CategoryField   string
+	CategoriesField string
+	ContentField    string
+	TagsField       string
+	Analyzer        string
+	PriceField      string
 }
 
 type GraphConf struct {

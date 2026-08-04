@@ -36,7 +36,23 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 	if _, ok := cfg.FallbackTemplates[language]; !ok {
 		return nil, fmt.Errorf("fallback_missing:%s", language)
 	}
-	return &chatConfig{raw: cfg, language: language, plannerPrompt: plannerPrompt, replyPrompt: replyPrompt}, nil
+	return &chatConfig{
+		raw:           cfg,
+		language:      language,
+		plannerPrompt: plannerPrompt,
+		replyPrompt:   replyPrompt,
+		fieldAware:    isFieldAwareRecall(config.RecallConfs, cfg.RecallName),
+	}, nil
+}
+
+func isFieldAwareRecall(recallConfs []recconf.RecallConfig, recallName string) bool {
+	for _, recallConf := range recallConfs {
+		if recallConf.Name == recallName {
+			conf := recallConf.Ha3ChatRecallConf
+			return conf.TitleField != "" && conf.CategoryField != ""
+		}
+	}
+	return false
 }
 
 func normalizeConfig(cfg *recconf.AIChatConfig) *recconf.AIChatConfig {
