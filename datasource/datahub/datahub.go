@@ -197,6 +197,9 @@ func (d *Datahub) StopLoopListShards() {
 
 // getRecordSchema returns the latest topic schema, fall back to the schema cached at Init when fetch failed
 func (d *Datahub) getRecordSchema() *alidatahub.RecordSchema {
+	if d.producer == nil {
+		return d.recordSchema
+	}
 	if schema, err := d.producer.GetSchema(); err == nil {
 		return schema
 	} else {
@@ -205,8 +208,26 @@ func (d *Datahub) getRecordSchema() *alidatahub.RecordSchema {
 	return d.recordSchema
 }
 
+// writeSyncLog persists messages to the local sync log for later replay
+func (d *Datahub) writeSyncLog(messages []map[string]interface{}) {
+	if d.syncLog == nil {
+		log.Error(fmt.Sprintf("project=%s\ttopic=%s\tmsg=sync log not initialized, drop %d messages", d.projectName, d.topicName, len(messages)))
+		return
+	}
+	for _, msg := range messages {
+		if err := d.syncLog.Write(NewSyncLogDatahubItem(msg)); err != nil {
+			log.Error(fmt.Sprintf("project=%s\ttopic=%s\tmsg=write sync log failed(%v)", d.projectName, d.topicName, err))
+		}
+	}
+}
+
 func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 	if len(messages) == 0 {
+		return
+	}
+	// Init may have failed and left the instance half initialized, degrade instead of panic
+	if d.producer == nil {
+		log.Error(fmt.Sprintf("project=%s\ttopic=%s\tmsg=producer not initialized, drop %d messages", d.projectName, d.topicName, len(messages)))
 		return
 	}
 	records := make([]alidatahub.IRecord, 0, len(messages))
@@ -222,18 +243,10 @@ func (d *Datahub) SendMessage(messages []map[string]interface{}) {
 		records = append(records, record)
 	}
 
-	retrySendMessage := func() {
-		for _, msg := range messages {
-			if err := d.syncLog.Write(NewSyncLogDatahubItem(msg)); err != nil {
-				log.Error(fmt.Sprintf("project=%s\ttopic=%s\tmsg=write sync log failed(%v)", d.projectName, d.topicName, err))
-			}
-		}
-	}
-
 	// producer picks an active shard and retries retryable errors(network/limit exceeded) internally
 	if _, err := d.producer.Send(records); err != nil {
 		log.Warning(fmt.Sprintf("project=%s\ttopic=%s\tmsg=put record failed(%v)", d.projectName, d.topicName, err))
-		retrySendMessage()
+		d.writeSyncLog(messages)
 	}
 }
 func (d *Datahub) consumeSyncLog(data []byte) error {
@@ -252,6 +265,9 @@ func (d *Datahub) consumeSyncLog(data []byte) error {
 }
 
 func (d *Datahub) doSendSingleMessage(message map[string]interface{}) error {
+	if d.producer == nil {
+		return fmt.Errorf("producer not initialized")
+	}
 	record := alidatahub.NewTupleRecord(d.getRecordSchema())
 	for k, v := range message {
 		if err := record.SetValueByName(k, v); err != nil {

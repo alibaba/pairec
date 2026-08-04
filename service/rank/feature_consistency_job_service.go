@@ -307,8 +307,12 @@ func (r *FeatureConsistencyJobService) logRecallResultToDatahub(user *module.Use
 		if err != nil {
 			dh = datahub.NewDatahub(job.FeatureBackflowQueueDatahubAccessId, job.FeatureBackflowQueueDatahubAccessKey, job.FeatureBackflowQueueDatahubEndpoint,
 				job.FeatureBackflowQueueDatahubProject, job.FeatureBackflowQueueDatahubTopic, "lz4", nil)
-			err = dh.Init()
-			datahub.RegisterDatahub(name, dh)
+			// do not register a half initialized instance, it can not send message
+			if err = dh.Init(); err != nil {
+				dh = nil
+			} else {
+				datahub.RegisterDatahub(name, dh)
+			}
 		}
 		r.mutex.Unlock()
 	}
