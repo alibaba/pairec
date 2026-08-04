@@ -2,14 +2,20 @@ package recall
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
+	"math/rand"
+	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibabacloud-go/tea/tea"
 )
 
 const (
@@ -146,6 +152,12 @@ func normalizeFieldAwareRequest(req SearchGoodsRequest) (SearchGoodsRequest, err
 	if req.ExcludeKeywords, err = trimUniqueNonEmpty("exclude_keywords", req.ExcludeKeywords); err != nil {
 		return req, err
 	}
+	if req.MinPrice != nil && !isFinitePrice(*req.MinPrice) {
+		return req, fmt.Errorf("min_price must be finite")
+	}
+	if req.MaxPrice != nil && !isFinitePrice(*req.MaxPrice) {
+		return req, fmt.Errorf("max_price must be finite")
+	}
 	if req.MinPrice != nil && req.MaxPrice != nil && *req.MinPrice > *req.MaxPrice {
 		return req, fmt.Errorf("min_price exceeds max_price")
 	}
@@ -194,6 +206,9 @@ func (r *Ha3ChatRecall) searchMultiFieldFallback(ctx context.Context, req Search
 		}(index, route)
 	}
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	successCount := 0
 	errors := make([]string, 0, len(results))
@@ -215,17 +230,26 @@ func (r *Ha3ChatRecall) searchMultiFieldFallback(ctx context.Context, req Search
 }
 
 func (r *Ha3ChatRecall) searchFieldWithRetry(ctx context.Context, field string, keywords []string, operator string, req SearchGoodsRequest, hit int) (*SearchGoodsResult, error) {
+	if hit <= 0 {
+		return nil, fmt.Errorf("search hit must be positive")
+	}
+	if _, err := r.buildFieldQueryExpr(field, keywords, operator, req.ExcludeKeywords); err != nil {
+		return nil, err
+	}
 	var lastErr error
 	for attempt := 1; attempt <= multiFieldSearchAttempts; attempt++ {
 		result, err := r.searchField(ctx, field, keywords, operator, req, hit)
 		if err == nil {
 			return result, nil
 		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		lastErr = err
-		if attempt == multiFieldSearchAttempts {
+		if attempt == multiFieldSearchAttempts || !retryableHa3SearchError(err) {
 			break
 		}
-		delay := time.Second << (attempt - 1)
+		delay := multiFieldRetryDelay(attempt)
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
@@ -235,6 +259,37 @@ func (r *Ha3ChatRecall) searchFieldWithRetry(ctx context.Context, field string, 
 		}
 	}
 	return nil, lastErr
+}
+
+func retryableHa3SearchError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var sdkErr *tea.SDKError
+	if errors.As(err, &sdkErr) {
+		statusCode := tea.IntValue(sdkErr.StatusCode)
+		if statusCode == 0 {
+			statusCode, _ = strconv.Atoi(tea.StringValue(sdkErr.Code))
+		}
+		return statusCode == http.StatusRequestTimeout ||
+			statusCode == http.StatusTooManyRequests ||
+			statusCode >= http.StatusInternalServerError
+	}
+	return tea.BoolValue(tea.Retryable(err))
+}
+
+func multiFieldRetryDelay(attempt int) time.Duration {
+	base := time.Second << (attempt - 1)
+	maxJitter := base / 4
+	if maxJitter > 500*time.Millisecond {
+		maxJitter = 500 * time.Millisecond
+	}
+	jitter := time.Duration(rand.Int63n(int64(maxJitter) + 1))
+	return base + jitter
+}
+
+func isFinitePrice(price float64) bool {
+	return !math.IsNaN(price) && !math.IsInf(price, 0)
 }
 
 func (r *Ha3ChatRecall) multiFieldRoutes(req SearchGoodsRequest) []ha3FieldRoute {

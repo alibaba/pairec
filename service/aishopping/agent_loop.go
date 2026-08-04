@@ -15,7 +15,10 @@ import (
 	"github.com/alibaba/pairec/v2/utils"
 )
 
-const toolArgumentsLogLimit = 2048
+const (
+	toolArgumentsLogLimit         = 2048
+	fieldAwarePlannerRetryMessage = "The previous attempt did not produce a valid tool call. Return exactly one valid search_goods tool call that follows the provided schema."
+)
 
 var optionalPriceNullLikePattern = regexp.MustCompile(
 	`("(?:min_price|max_price)"\s*:\s*)(?:None|NaN|-?Infinity)\b`,
@@ -75,7 +78,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		maxRounds++ // Reserve one final round for Reply after Planner retries.
 	}
 	plannerAttempts := 0
-	lastPlannerError := ""
+	plannerRetry := false
 	for round := 1; round <= maxRounds; round++ {
 		if readyToReply {
 			if err := writer.EmitStep("analyze_results"); err != nil {
@@ -87,10 +90,10 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			prompt = cfg.replyPrompt
 		}
 		messages := maskHistoryMessages(blob.Messages)
-		if fieldAwarePlanner && !readyToReply && lastPlannerError != "" {
+		if fieldAwarePlanner && !readyToReply && plannerRetry {
 			messages = append(messages, aichat.Message{
 				Role:    "system",
-				Content: "The prior tool call was invalid: " + lastPlannerError + ". Return one corrected search_goods call.",
+				Content: fieldAwarePlannerRetryMessage,
 			})
 		}
 		llmReq := &aichat.ChatCompletionRequest{
@@ -108,7 +111,9 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			llmReq.Temperature = &temperature
 			llmReq.ParallelToolCalls = &parallelToolCalls
 		}
-		if readyToReply || (!fieldAwarePlanner && round == cfg.raw.ToolMaxRounds) {
+		if readyToReply {
+			llmReq.Tools = nil
+		} else if !fieldAwarePlanner && round == cfg.raw.ToolMaxRounds {
 			llmReq.ToolChoice = "none"
 		}
 		streamer := newReplyStreamer(writer, state.indexMap, cfg.raw.DisplayItemCountMax)
@@ -130,10 +135,13 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		})
 		llmCost := utils.CostTime(llmStart)
 		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
+			}
 			if fieldAwarePlanner && !readyToReply && plannerAttempts < cfg.raw.ToolMaxRounds {
-				lastPlannerError = err.Error()
-				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%v",
-					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, err))
+				plannerRetry = true
+				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s",
+					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err)))
 				continue
 			}
 			if streamErr != nil {
@@ -150,11 +158,16 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		}
 		log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\ttoolCalls=%d\tfinishReason=%s\tcontentBytes=%d\tcost=%d",
 			meta.requestId, meta.uid, meta.sessionId, llmPhase, round, len(result.ToolCalls), result.FinishReason, len(result.Content), llmCost))
+		if readyToReply && len(result.ToolCalls) > 0 {
+			log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=reply_llm\tround=%d\tevent=unexpected_tool_calls_ignored\ttoolCalls=%d",
+				meta.requestId, meta.uid, meta.sessionId, round, len(result.ToolCalls)))
+			result.ToolCalls = nil
+		}
 		if fieldAwarePlanner && !readyToReply {
 			if err := normalizeFieldAwareToolCalls(result.ToolCalls); err != nil {
-				lastPlannerError = err.Error()
-				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%v\targs=%s",
-					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, err, fieldAwareToolArguments(result.ToolCalls)))
+				plannerRetry = true
+				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s\targs=%s",
+					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err), fieldAwareToolArguments(result.ToolCalls)))
 				if plannerAttempts < cfg.raw.ToolMaxRounds {
 					continue
 				}
@@ -163,7 +176,8 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 					IndexMap: state.indexMap,
 				}, nil
 			}
-			lastPlannerError = ""
+			plannerRetry = false
+			result.Content = ""
 		}
 		assistant := aichat.Message{Role: "assistant", Content: result.Content, ToolCalls: result.ToolCalls}
 		blob.Messages = append(blob.Messages, assistant)
@@ -265,6 +279,12 @@ func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall) error {
 	if len(toolCalls) != 1 || toolCalls[0].Function.Name != "search_goods" {
 		return fmt.Errorf("exactly one search_goods call is required")
 	}
+	if strings.TrimSpace(toolCalls[0].ID) == "" {
+		return fmt.Errorf("search_goods tool call id is required")
+	}
+	if toolCalls[0].Type != "function" {
+		return fmt.Errorf("search_goods tool call type must be function")
+	}
 	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, true)
 	if err != nil {
 		return err
@@ -350,6 +370,13 @@ func truncateLogValue(value string, limit int) string {
 		return value
 	}
 	return value[:limit] + "...(truncated)"
+}
+
+func compactLogError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return truncateLogValue(strings.Join(strings.Fields(err.Error()), " "), toolArgumentsLogLimit)
 }
 
 func annotateSearchResult(result *recallsvc.SearchGoodsResult, state *turnState) map[string]interface{} {

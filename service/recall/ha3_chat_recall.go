@@ -81,22 +81,27 @@ func (r *Ha3ChatRecall) GetCandidateItems(user *module.User, context *pairecctx.
 }
 
 func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*SearchGoodsResult, error) {
+	fieldAware := req.MultiFieldFallback && r.fieldAwareEnabled()
+	req.MultiFieldFallback = fieldAware
 	var err error
-	if req.MultiFieldFallback {
+	if fieldAware {
 		req, err = normalizeFieldAwareRequest(req)
 		if err != nil {
 			return nil, err
 		}
+		if req.Limit <= 0 {
+			return nil, fmt.Errorf("limit must be positive")
+		}
 	}
 	search := r.searchField
-	if req.MultiFieldFallback {
+	if fieldAware {
 		search = r.searchFieldWithRetry
 	}
 	result, err := search(ctx, r.conf.DefaultField, req.Keywords, req.Operator, req, req.Limit)
 	if err != nil {
 		return nil, err
 	}
-	if len(result.Hits) > 0 || !req.MultiFieldFallback || !r.fieldAwareEnabled() {
+	if len(result.Hits) > 0 || !fieldAware {
 		return result, nil
 	}
 	return r.searchMultiFieldFallback(ctx, req)
@@ -136,6 +141,9 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 		(&ha3client.SearchRequestModel{}).SetHeaders(map[string]*string{}).SetBody(string(bodyBytes)),
 		r.client.Runtime(),
 	)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +158,9 @@ func (r *Ha3ChatRecall) buildQueryExpr(req SearchGoodsRequest) (string, error) {
 }
 
 func (r *Ha3ChatRecall) buildFieldQueryExpr(field string, keywords []string, operator string, excludeKeywords []string) (string, error) {
+	if field == "" {
+		return "", fmt.Errorf("search field is empty")
+	}
 	keywords = normalizeKeywords(keywords)
 	if len(keywords) == 0 {
 		return "", fmt.Errorf("keywords is empty")
@@ -278,6 +289,9 @@ func parseHa3ChatResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResu
 }
 
 func (r *Ha3ChatRecall) parseConfiguredResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResult, error) {
+	if resp == nil || resp.Body == nil {
+		return nil, fmt.Errorf("ha3 search response body is empty")
+	}
 	total, items, responseErrors, err := decodeHa3ChatResponse(resp)
 	if err != nil {
 		return nil, err
@@ -285,6 +299,9 @@ func (r *Ha3ChatRecall) parseConfiguredResponse(resp *ha3client.SearchResponseMo
 	if hasHa3ResponseErrors(responseErrors) {
 		payload, _ := json.Marshal(responseErrors)
 		return nil, fmt.Errorf("ha3 search errors: %s", payload)
+	}
+	if total > 0 && len(items) == 0 {
+		return nil, fmt.Errorf("ha3 search response has total=%d but no items", total)
 	}
 	hits := make([]GoodsHit, 0, len(items))
 	for index, item := range items {
@@ -315,6 +332,9 @@ func (r *Ha3ChatRecall) parseConfiguredResponse(resp *ha3client.SearchResponseMo
 			Properties: properties,
 		})
 	}
+	if len(items) > 0 && len(hits) == 0 {
+		return nil, fmt.Errorf("ha3 search response contains %d items but none has configured item id field %q", len(items), r.conf.ItemIdField)
+	}
 	return &SearchGoodsResult{Total: total, Hits: hits}, nil
 }
 
@@ -344,7 +364,11 @@ func decodeHa3ChatResponse(resp *ha3client.SearchResponseModel) (int, []interfac
 	if total == 0 {
 		total = len(items)
 	}
-	return total, items, body["errors"], nil
+	responseErrors := body["errors"]
+	if responseErrors == nil {
+		responseErrors = resultMap["errors"]
+	}
+	return total, items, responseErrors, nil
 }
 
 func hasHa3ResponseErrors(value interface{}) bool {
@@ -357,6 +381,10 @@ func hasHa3ResponseErrors(value interface{}) bool {
 		return len(value) > 0
 	case map[string]interface{}:
 		return len(value) > 0
+	case bool:
+		return value
+	case float64:
+		return value != 0
 	default:
 		return true
 	}
