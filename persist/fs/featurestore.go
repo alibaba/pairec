@@ -2,6 +2,7 @@ package fs
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -9,9 +10,14 @@ import (
 	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/featurestore"
 )
 
-var fsInstances = make(map[string]*FSClient)
+var (
+	fsInstancesMu sync.RWMutex
+	fsInstances   = make(map[string]*FSClient)
+)
 
 func GetFeatureStoreClient(name string) (*FSClient, error) {
+	fsInstancesMu.RLock()
+	defer fsInstancesMu.RUnlock()
 	if client, ok := fsInstances[name]; ok {
 		return client, nil
 	}
@@ -55,7 +61,10 @@ func (fs *FSClient) ReloadProject() {
 
 func Load(config *recconf.RecommendConfig) {
 	for name, conf := range config.FeatureStoreConfs {
-		if fs, ok := fsInstances[name]; ok {
+		fsInstancesMu.RLock()
+		fs, ok := fsInstances[name]
+		fsInstancesMu.RUnlock()
+		if ok {
 			fs.ReloadProject()
 			continue
 		}
@@ -107,6 +116,8 @@ func Load(config *recconf.RecommendConfig) {
 			project:     p,
 			projectName: conf.ProjectName,
 		}
+		fsInstancesMu.Lock()
 		fsInstances[name] = m
+		fsInstancesMu.Unlock()
 	}
 }
