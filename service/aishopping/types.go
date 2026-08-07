@@ -24,9 +24,10 @@ type SessionBlob struct {
 }
 
 type chatConfig struct {
-	raw           *recconf.AIChatConfig
-	language      string
-	plannerPrompt string
-	replyPrompt   string
-	fieldAware    bool
+	raw                 *recconf.AIChatConfig
+	language            string
+	plannerPrompt       string
+	replyPrompt         string
+	fieldAware          bool
+	knowledgeConfigured bool
 }

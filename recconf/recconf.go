@@ -378,8 +378,9 @@ type RecallConfig struct {
 	// recall engine config
 	RecallEngineConf RecallEngineConfig
 
-	Ha3ChatRecallConf Ha3ChatRecallConfig
-	FilterParams      []FilterParamConfig
+	Ha3ChatRecallConf      Ha3ChatRecallConfig
+	Ha3KnowledgeVectorConf *Ha3KnowledgeVectorConfig
+	FilterParams           []FilterParamConfig
 }
 
 type Ha3ChatRecallConfig struct {
@@ -394,6 +395,22 @@ type Ha3ChatRecallConfig struct {
 	TagsField       string
 	Analyzer        string
 	PriceField      string
+}
+
+type Ha3KnowledgeVectorConfig struct {
+	FeatureStoreName   string
+	LLMConfigName      string
+	IndexName          string
+	VectorIndexName    string
+	EmbeddingDelimiter string
+	KnowledgeIDField   string
+	KnowledgeTypeField string
+	KnowledgeTypes     []string
+	ValueField         string
+	CategoryField      string
+	TopK               int
+	SearchTimeout      int
+	QueryTemplate      string
 }
 
 type GraphConf struct {
@@ -783,19 +800,20 @@ type CategoryConfig struct {
 }
 
 type AIChatConfig struct {
-	DefaultLanguage         string
-	OutputLanguages         []string
-	PlannerPromptTemplates  map[string]string
-	ReplyPromptTemplates    map[string]string
-	FallbackTemplates       map[string]map[string]string
-	ToolMaxRounds           int
-	DisplayItemCountMax     int
-	LLMAlgoName             string
-	RecallName              string
-	SessionFeatureStoreName string
-	SessionFeatureView      string
-	SessionMaxTurns         int
-	SessionMaxTokens        int
+	DefaultLanguage             string
+	OutputLanguages             []string
+	PlannerPromptTemplates      map[string]string
+	ReplyPromptTemplates        map[string]string
+	FallbackTemplates           map[string]map[string]string
+	ToolMaxRounds               int
+	DisplayItemCountMax         int
+	LLMAlgoName                 string
+	RecallName                  string
+	KnowledgePlannerInstruction string
+	SessionFeatureStoreName     string
+	SessionFeatureView          string
+	SessionMaxTurns             int
+	SessionMaxTokens            int
 }
 
 type FallbackConfig struct {

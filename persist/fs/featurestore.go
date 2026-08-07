@@ -2,6 +2,7 @@ package fs
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -9,14 +10,31 @@ import (
 	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/featurestore"
 )
 
-var fsInstances = make(map[string]*FSClient)
+var (
+	fsInstancesMu sync.RWMutex
+	fsInstances   = make(map[string]*FSClient)
+)
 
 func GetFeatureStoreClient(name string) (*FSClient, error) {
-	if _, ok := fsInstances[name]; !ok {
-		return nil, fmt.Errorf("feature store client not found, name:%s", name)
+	fsInstancesMu.RLock()
+	defer fsInstancesMu.RUnlock()
+	if client, ok := fsInstances[name]; ok {
+		return client, nil
 	}
-
-	return fsInstances[name], nil
+	var matched *FSClient
+	for _, client := range fsInstances {
+		if client.projectName != name {
+			continue
+		}
+		if matched != nil {
+			return nil, fmt.Errorf("multiple feature store clients found for project:%s", name)
+		}
+		matched = client
+	}
+	if matched == nil {
+		return nil, fmt.Errorf("feature store client not found, name or project:%s", name)
+	}
+	return matched, nil
 }
 
 type FSClient struct {
@@ -29,6 +47,10 @@ func (fs *FSClient) GetProject() *domain.Project {
 	return fs.project
 }
 
+func (fs *FSClient) GetLLMConfig(name string) (*domain.LLMConfig, error) {
+	return fs.client.GetLLMConfig(name)
+}
+
 func (fs *FSClient) ReloadProject() {
 	if p, err := fs.client.GetProject(fs.projectName); err == nil {
 		fs.project = p
@@ -39,7 +61,10 @@ func (fs *FSClient) ReloadProject() {
 
 func Load(config *recconf.RecommendConfig) {
 	for name, conf := range config.FeatureStoreConfs {
-		if fs, ok := fsInstances[name]; ok {
+		fsInstancesMu.RLock()
+		fs, ok := fsInstances[name]
+		fsInstancesMu.RUnlock()
+		if ok {
 			fs.ReloadProject()
 			continue
 		}
@@ -91,6 +116,8 @@ func Load(config *recconf.RecommendConfig) {
 			project:     p,
 			projectName: conf.ProjectName,
 		}
+		fsInstancesMu.Lock()
 		fsInstances[name] = m
+		fsInstancesMu.Unlock()
 	}
 }

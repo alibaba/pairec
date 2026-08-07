@@ -57,7 +57,38 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		sceneId:   req.SceneId,
 		language:  cfg.language,
 	}
-	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob, cfg, writer, meta)
+	var knowledge *knowledgeEvidence
+	if cfg.knowledgeConfigured {
+		knowledgeRecall, ok := chatRecall.(interface {
+			SearchKnowledge(context.Context, string) (*recallsvc.KnowledgeSearchResult, error)
+		})
+		if !ok {
+			return fmt.Errorf("recall %s does not support configured knowledge vector search", cfg.raw.RecallName)
+		}
+		knowledgeStart := time.Now()
+		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, req.UserText)
+		knowledgeCost := utils.CostTime(knowledgeStart)
+		if knowledgeErr != nil {
+			log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=knowledge_recall\tstatus=degraded\tcost=%d\terr=%s",
+				meta.requestId, meta.uid, meta.sessionId, knowledgeCost, compactLogError(knowledgeErr)))
+		} else {
+			if knowledgeResult == nil {
+				knowledgeResult = &recallsvc.KnowledgeSearchResult{}
+			}
+			knowledge = newKnowledgeEvidence(knowledgeResult)
+			candidateCount := 0
+			candidateSummary := "[]"
+			if knowledge != nil {
+				candidateCount = len(knowledge.candidates)
+				candidateSummary = compactJSON(knowledge.logSummary())
+			}
+			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=knowledge_recall\tstatus=ok\ttotal=%d\thits=%d\tcandidates=%d\tembeddingDimension=%d\tembeddingAttempts=%d\tembeddingCost=%d\tsearchCost=%d\tcost=%d\tcandidateSummary=%s",
+				meta.requestId, meta.uid, meta.sessionId, knowledgeResult.Total, len(knowledgeResult.Hits), candidateCount,
+				knowledgeResult.EmbeddingDimension, knowledgeResult.EmbeddingAttempts, knowledgeResult.EmbeddingCostMs,
+				knowledgeResult.SearchCostMs, knowledgeCost, compactJSONString(candidateSummary, toolArgumentsLogLimit)))
+		}
+	}
+	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob, cfg, knowledge, writer, meta)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=upstream\terr=%v",
 			req.RequestId, req.Uid, req.SessionId, err))
