@@ -12,6 +12,7 @@ import (
 
 var (
 	fsInstancesMu sync.RWMutex
+	fsLoadMu      sync.Mutex
 	fsInstances   = make(map[string]*FSClient)
 )
 
@@ -60,6 +61,9 @@ func (fs *FSClient) ReloadProject() {
 }
 
 func Load(config *recconf.RecommendConfig) {
+	fsLoadMu.Lock()
+	defer fsLoadMu.Unlock()
+
 	for name, conf := range config.FeatureStoreConfs {
 		fsInstancesMu.RLock()
 		fs, ok := fsInstances[name]
