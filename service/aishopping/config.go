@@ -2,6 +2,7 @@ package aishopping
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/alibaba/pairec/v2/recconf"
 )
@@ -36,12 +37,21 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 	if _, ok := cfg.FallbackTemplates[language]; !ok {
 		return nil, fmt.Errorf("fallback_missing:%s", language)
 	}
+	fieldAware := isFieldAwareRecall(config.RecallConfs, cfg.RecallName)
+	knowledgeConfigured := isKnowledgeRecall(config.RecallConfs, cfg.RecallName)
+	if knowledgeConfigured && strings.TrimSpace(cfg.KnowledgePlannerInstruction) == "" {
+		return nil, fmt.Errorf("KnowledgePlannerInstruction is required when Ha3KnowledgeVectorConf is configured")
+	}
+	if knowledgeConfigured && !fieldAware {
+		return nil, fmt.Errorf("Ha3KnowledgeVectorConf requires field-aware Ha3ChatRecallConf")
+	}
 	return &chatConfig{
-		raw:           cfg,
-		language:      language,
-		plannerPrompt: plannerPrompt,
-		replyPrompt:   replyPrompt,
-		fieldAware:    isFieldAwareRecall(config.RecallConfs, cfg.RecallName),
+		raw:                 cfg,
+		language:            language,
+		plannerPrompt:       plannerPrompt,
+		replyPrompt:         replyPrompt,
+		fieldAware:          fieldAware,
+		knowledgeConfigured: knowledgeConfigured,
 	}, nil
 }
 
@@ -50,6 +60,15 @@ func isFieldAwareRecall(recallConfs []recconf.RecallConfig, recallName string) b
 		if recallConf.Name == recallName {
 			conf := recallConf.Ha3ChatRecallConf
 			return conf.TitleField != "" && conf.CategoryField != ""
+		}
+	}
+	return false
+}
+
+func isKnowledgeRecall(recallConfs []recconf.RecallConfig, recallName string) bool {
+	for _, recallConf := range recallConfs {
+		if recallConf.Name == recallName {
+			return recallConf.Ha3KnowledgeVectorConf != nil
 		}
 	}
 	return false

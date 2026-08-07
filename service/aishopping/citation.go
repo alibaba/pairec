@@ -101,3 +101,21 @@ func messagesWithPrompt(messages []aichat.Message, prompt string) []aichat.Messa
 	copied[0] = aichat.Message{Role: "system", Content: prompt}
 	return copied
 }
+
+func messagesWithKnowledge(messages []aichat.Message, instruction string, evidence *knowledgeEvidence) []aichat.Message {
+	if evidence == nil {
+		return messages
+	}
+	knowledgeMessages := []aichat.Message{
+		{Role: "system", Content: instruction},
+		{Role: "system", Content: "KNOWLEDGE_CANDIDATES_JSON:\n" + evidence.promptJSON},
+	}
+	if len(messages) == 0 {
+		return knowledgeMessages
+	}
+	result := make([]aichat.Message, 0, len(messages)+len(knowledgeMessages))
+	result = append(result, messages[0])
+	result = append(result, knowledgeMessages...)
+	result = append(result, messages[1:]...)
+	return result
+}

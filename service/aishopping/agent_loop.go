@@ -61,7 +61,7 @@ func (r toolDispatchResult) shouldRetryWithFallback(tried bool) bool {
 	return r.isSearch && !r.hasError && r.operator == "AND" && r.total == 0 && r.keywordCount > 1 && !tried
 }
 
-func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, blob *SessionBlob, cfg *chatConfig, writer *StreamWriter, meta timingMeta) (*agentLoopResult, error) {
+func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, blob *SessionBlob, cfg *chatConfig, knowledge *knowledgeEvidence, writer *StreamWriter, meta timingMeta) (*agentLoopResult, error) {
 	state := &turnState{
 		indexMap:    make(map[int]string),
 		itemToIndex: make(map[string]int),
@@ -96,9 +96,13 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 				Content: fieldAwareSearchRetryMessage,
 			})
 		}
+		plannerMessages := messagesWithPrompt(messages, prompt)
+		if !readyToReply {
+			plannerMessages = messagesWithKnowledge(plannerMessages, cfg.raw.KnowledgePlannerInstruction, knowledge)
+		}
 		llmReq := &aichat.ChatCompletionRequest{
 			Model:          "",
-			Messages:       messagesWithPrompt(messages, prompt),
+			Messages:       plannerMessages,
 			Tools:          []aichat.Tool{aichat.SearchGoodsTool()},
 			Stream:         true,
 			EnableThinking: false,
@@ -107,7 +111,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			plannerAttempts++
 			temperature := 0.0
 			parallelToolCalls := false
-			llmReq.Tools = []aichat.Tool{aichat.FieldAwareSearchGoodsTool()}
+			llmReq.Tools = []aichat.Tool{aichat.FieldAwareSearchGoodsTool(knowledge.candidateIDs())}
 			llmReq.Temperature = &temperature
 			llmReq.ParallelToolCalls = &parallelToolCalls
 		}
@@ -164,7 +168,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			result.ToolCalls = nil
 		}
 		if fieldAwareSearch && !readyToReply {
-			if err := normalizeFieldAwareToolCalls(result.ToolCalls); err != nil {
+			if err := normalizeFieldAwareToolCalls(result.ToolCalls, knowledge); err != nil {
 				plannerRetry = true
 				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s\targs=%s",
 					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err), fieldAwareToolArguments(result.ToolCalls)))
@@ -210,7 +214,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		for i, toolCall := range result.ToolCalls {
 			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
 				meta.requestId, meta.uid, meta.sessionId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
-			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg.raw.DisplayItemCountMax, fieldAwareSearch, meta, round)
+			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg.raw.DisplayItemCountMax, fieldAwareSearch, knowledge, meta, round)
 			blob.Messages = append(blob.Messages, aichat.Message{
 				Role:       "tool",
 				ToolCallId: toolCall.ID,
@@ -231,11 +235,11 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 	}, nil
 }
 
-func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCall, state *turnState, limit int, fieldAware bool, meta timingMeta, round int) toolDispatchResult {
+func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCall, state *turnState, limit int, fieldAware bool, knowledge *knowledgeEvidence, meta timingMeta, round int) toolDispatchResult {
 	if toolCall.Function.Name != "search_goods" {
 		return toolDispatchResult{content: `{"error":"unsupported tool"}`, hasError: true}
 	}
-	req, err := parseSearchGoodsRequest(toolCall.Function.Arguments, fieldAware)
+	req, err := parseSearchGoodsRequest(toolCall.Function.Arguments, fieldAware, knowledge)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_parse\tround=%d\terr=%v\targs=%s",
 			meta.requestId, meta.uid, meta.sessionId, round, err, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
@@ -275,7 +279,7 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	return dispatchResult
 }
 
-func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall) error {
+func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, knowledge *knowledgeEvidence) error {
 	if len(toolCalls) != 1 || toolCalls[0].Function.Name != "search_goods" {
 		return fmt.Errorf("exactly one search_goods call is required")
 	}
@@ -285,16 +289,29 @@ func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall) error {
 	if toolCalls[0].Type != "function" {
 		return fmt.Errorf("search_goods tool call type must be function")
 	}
-	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, true)
+	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, true, knowledge)
 	if err != nil {
 		return err
 	}
-	arguments, err := json.Marshal(req)
+	arguments, err := marshalSearchGoodsRequest(req, knowledge)
 	if err != nil {
 		return err
 	}
 	toolCalls[0].Function.Arguments = string(arguments)
 	return nil
+}
+
+func marshalSearchGoodsRequest(req recallsvc.SearchGoodsRequest, knowledge *knowledgeEvidence) ([]byte, error) {
+	payload, err := json.Marshal(req)
+	if err != nil || knowledge == nil || len(req.KnowledgeCandidateIDs) > 0 {
+		return payload, err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		return nil, err
+	}
+	fields["knowledge_candidate_ids"] = json.RawMessage(`[]`)
+	return json.Marshal(fields)
 }
 
 func fieldAwareToolArguments(toolCalls []aichat.ToolCall) string {
@@ -304,7 +321,7 @@ func fieldAwareToolArguments(toolCalls []aichat.ToolCall) string {
 	return compactJSONString(toolCalls[0].Function.Arguments, toolArgumentsLogLimit)
 }
 
-func parseSearchGoodsRequest(arguments string, fieldAware bool) (recallsvc.SearchGoodsRequest, error) {
+func parseSearchGoodsRequest(arguments string, fieldAware bool, knowledge *knowledgeEvidence) (recallsvc.SearchGoodsRequest, error) {
 	var req recallsvc.SearchGoodsRequest
 	if !fieldAware {
 		return req, json.Unmarshal([]byte(arguments), &req)
@@ -338,6 +355,9 @@ func parseSearchGoodsRequest(arguments string, fieldAware bool) (recallsvc.Searc
 		if err == nil {
 			err = fmt.Errorf("multiple JSON values are not allowed")
 		}
+		return req, err
+	}
+	if err := knowledge.apply(&req); err != nil {
 		return req, err
 	}
 	return recallsvc.NormalizeFieldAwareSearchGoodsRequest(req)

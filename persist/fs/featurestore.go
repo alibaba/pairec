@@ -12,11 +12,23 @@ import (
 var fsInstances = make(map[string]*FSClient)
 
 func GetFeatureStoreClient(name string) (*FSClient, error) {
-	if _, ok := fsInstances[name]; !ok {
-		return nil, fmt.Errorf("feature store client not found, name:%s", name)
+	if client, ok := fsInstances[name]; ok {
+		return client, nil
 	}
-
-	return fsInstances[name], nil
+	var matched *FSClient
+	for _, client := range fsInstances {
+		if client.projectName != name {
+			continue
+		}
+		if matched != nil {
+			return nil, fmt.Errorf("multiple feature store clients found for project:%s", name)
+		}
+		matched = client
+	}
+	if matched == nil {
+		return nil, fmt.Errorf("feature store client not found, name or project:%s", name)
+	}
+	return matched, nil
 }
 
 type FSClient struct {
@@ -27,6 +39,10 @@ type FSClient struct {
 
 func (fs *FSClient) GetProject() *domain.Project {
 	return fs.project
+}
+
+func (fs *FSClient) GetLLMConfig(name string) (*domain.LLMConfig, error) {
+	return fs.client.GetLLMConfig(name)
 }
 
 func (fs *FSClient) ReloadProject() {
