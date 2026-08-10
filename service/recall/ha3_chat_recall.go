@@ -74,6 +74,7 @@ func NewHa3ChatRecall(config recconf.RecallConfig) *Ha3ChatRecall {
 		}
 	}
 	validateHa3ChatFieldConfig(conf)
+	conf.DistinctConf = normalizeHa3ChatDistinctConfig(conf.DistinctConf)
 	if config.Ha3KnowledgeVectorConf != nil && !ha3ChatFieldAwareConfigured(conf) {
 		panic("Ha3KnowledgeVectorConf requires field-aware Ha3ChatRecallConf")
 	}
@@ -159,6 +160,9 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 	}
 	if filterExpr != "" {
 		body["filter"] = filterExpr
+	}
+	if r.conf.DistinctConf != nil {
+		body["distinct"] = buildHa3ChatDistinctClause(r.conf.DistinctConf)
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
@@ -280,9 +284,13 @@ func sanitizeSearchKeyword(keyword string) string {
 }
 
 func parseHa3ChatResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResult, error) {
-	total, items, _, err := decodeHa3ChatResponse(resp)
+	total, items, responseErrors, err := decodeHa3ChatResponse(resp)
 	if err != nil {
 		return nil, err
+	}
+	if hasHa3ResponseErrors(responseErrors) {
+		payload, _ := json.Marshal(responseErrors)
+		return nil, fmt.Errorf("ha3 search errors: %s", payload)
 	}
 	hits := make([]GoodsHit, 0, len(items))
 	for index, item := range items {

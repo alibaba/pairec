@@ -395,6 +395,19 @@ type Ha3ChatRecallConfig struct {
 	TagsField       string
 	Analyzer        string
 	PriceField      string
+	DistinctConf    *Ha3ChatDistinctConfig
+}
+
+type Ha3ChatDistinctConfig struct {
+	Default *Ha3ChatDistinctRuleConfig
+}
+
+type Ha3ChatDistinctRuleConfig struct {
+	DistKey      string
+	DistCount    int
+	DistTimes    int
+	Reserved     *bool
+	MaxItemCount int
 }
 
 type Ha3KnowledgeVectorConfig struct {
