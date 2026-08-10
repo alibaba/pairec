@@ -40,11 +40,14 @@ func GetFeatureStoreClient(name string) (*FSClient, error) {
 
 type FSClient struct {
 	client      *featurestore.FeatureStoreClient
+	projectMu   sync.RWMutex
 	project     *domain.Project
 	projectName string
 }
 
 func (fs *FSClient) GetProject() *domain.Project {
+	fs.projectMu.RLock()
+	defer fs.projectMu.RUnlock()
 	return fs.project
 }
 
@@ -54,10 +57,16 @@ func (fs *FSClient) GetLLMConfig(name string) (*domain.LLMConfig, error) {
 
 func (fs *FSClient) ReloadProject() {
 	if p, err := fs.client.GetProject(fs.projectName); err == nil {
-		fs.project = p
+		fs.setProject(p)
 	} else {
 		log.Error(fmt.Sprintf("get project failed, projectName:%s, err:%v", fs.projectName, err))
 	}
+}
+
+func (fs *FSClient) setProject(project *domain.Project) {
+	fs.projectMu.Lock()
+	defer fs.projectMu.Unlock()
+	fs.project = project
 }
 
 func Load(config *recconf.RecommendConfig) {
