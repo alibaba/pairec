@@ -411,6 +411,7 @@ type Ha3ChatDistinctRuleConfig struct {
 }
 
 type Ha3KnowledgeVectorConfig struct {
+	EngineName         string
 	FeatureStoreName   string
 	LLMConfigName      string
 	IndexName          string
@@ -805,6 +806,7 @@ type CategoryConfig struct {
 	RecallNames            []string
 	FallbackConfig         *FallbackConfig
 	AIChatConfig           *AIChatConfig
+	SuggestionConfig       *SuggestionConfig
 	AutoInvokeCallBack     bool
 	AutoInvokeCallBackRate int
 	OutputFields           []string
@@ -827,6 +829,12 @@ type AIChatConfig struct {
 	SessionFeatureView          string
 	SessionMaxTurns             int
 	SessionMaxTokens            int
+}
+
+type SuggestionConfig struct {
+	RecallName      string
+	LLMAlgoName     string
+	PromptTemplates map[string]string
 }
 
 type FallbackConfig struct {

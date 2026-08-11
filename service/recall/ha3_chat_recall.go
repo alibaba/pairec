@@ -12,10 +12,8 @@ import (
 	"github.com/alibaba/pairec/v2/datasource/ha3engine/ha3client"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
-	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibabacloud-go/tea/tea"
-	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 )
 
 const (
@@ -25,10 +23,9 @@ const (
 
 type Ha3ChatRecall struct {
 	*BaseRecall
-	client        *ha3engine.Ha3EngineClient
-	conf          recconf.Ha3ChatRecallConfig
-	knowledgeConf *recconf.Ha3KnowledgeVectorConfig
-	knowledgeLLM  *domain.LLMConfig
+	client    *ha3engine.Ha3EngineClient
+	conf      recconf.Ha3ChatRecallConfig
+	knowledge *ha3KnowledgeSearcher
 }
 
 type SearchGoodsRequest struct {
@@ -84,23 +81,7 @@ func NewHa3ChatRecall(config recconf.RecallConfig) *Ha3ChatRecall {
 		conf:       conf,
 	}
 	if config.Ha3KnowledgeVectorConf != nil {
-		knowledgeConf := normalizeHa3KnowledgeVectorConfig(*config.Ha3KnowledgeVectorConf)
-		validateHa3KnowledgeVectorConfig(knowledgeConf)
-		fsClient, err := fs.GetFeatureStoreClient(knowledgeConf.FeatureStoreName)
-		if err != nil {
-			panic(err)
-		}
-		llmConfig, err := fsClient.GetLLMConfig(knowledgeConf.LLMConfigName)
-		if err != nil {
-			panic(err)
-		}
-		if llmConfig.ModelType != domain.LLMModelTypeMultiModalEmbedding {
-			panic(fmt.Sprintf("Ha3KnowledgeVectorConf.LLMConfigName %q must be a multi-modal embedding config", knowledgeConf.LLMConfigName))
-		}
-		log.Info(fmt.Sprintf("module=Ha3ChatRecall\tevent=knowledge_llm_config_loaded\tfeatureStore=%s\tllmConfig=%s\tmodel=%s\tmodelType=%s",
-			knowledgeConf.FeatureStoreName, knowledgeConf.LLMConfigName, llmConfig.Model, llmConfig.ModelType))
-		recall.knowledgeConf = &knowledgeConf
-		recall.knowledgeLLM = llmConfig
+		recall.knowledge = newHa3KnowledgeSearcher(client, *config.Ha3KnowledgeVectorConf)
 	}
 	return recall
 }

@@ -96,6 +96,8 @@ func Load(config *recconf.RecommendConfig) {
 			recall = NewRecallEngineRecall(conf)
 		} else if conf.RecallType == "HA3_CHAT_RECALL" {
 			recall = NewHa3ChatRecall(conf)
+		} else if conf.RecallType == "HA3_KNOWLEDGE_RECALL" {
+			recall = NewHa3KnowledgeRecall(conf)
 		}
 
 		if recall == nil {

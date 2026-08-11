@@ -38,6 +38,7 @@ type ChatCompletionRequest struct {
 	EnableThinking    bool        `json:"enable_thinking"`
 	Temperature       *float64    `json:"temperature,omitempty"`
 	ParallelToolCalls *bool       `json:"parallel_tool_calls,omitempty"`
+	MaxTokens         int         `json:"max_tokens,omitempty"`
 }
 
 type StreamResult struct {

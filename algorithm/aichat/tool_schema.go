@@ -108,3 +108,30 @@ func FieldAwareSearchGoodsTool(knowledgeCandidateIDs []string) Tool {
 		},
 	}
 }
+
+func SuggestionTool(count int) Tool {
+	return Tool{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "emit_suggestions",
+			Description: "Return the required number of executable product-search queries that change search conditions and recommend more products.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"suggestions": map[string]interface{}{
+						"type":     "array",
+						"minItems": count,
+						"maxItems": count,
+						"items": map[string]interface{}{
+							"type":      "string",
+							"minLength": 1,
+							"maxLength": 160,
+						},
+					},
+				},
+				"required":             []string{"suggestions"},
+				"additionalProperties": false,
+			},
+		},
+	}
+}

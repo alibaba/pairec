@@ -2,6 +2,7 @@ package aishopping
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	"github.com/alibaba/pairec/v2/log"
 	recallsvc "github.com/alibaba/pairec/v2/service/recall"
+	"github.com/alibaba/pairec/v2/service/searchsuggestion"
 	"github.com/alibaba/pairec/v2/utils"
 )
 
@@ -38,6 +40,25 @@ type agentLoopResult struct {
 	Reply               string
 	IndexMap            map[int]string
 	ReplyAlreadyEmitted bool
+	MainReplyFallback   bool
+	FinalSearchStatus   finalSearchStatus
+}
+
+type finalSearchStatus string
+
+const (
+	finalSearchNotAttempted finalSearchStatus = "not_attempted"
+	finalSearchReady        finalSearchStatus = "ready"
+	finalSearchFailed       finalSearchStatus = "failed"
+	finalSearchInvalid      finalSearchStatus = "invalid"
+)
+
+type finalSearchSnapshot struct {
+	Request          searchsuggestion.SearchIntent
+	ReplyToolPayload string
+	Total            int
+	ProductIndexes   []int
+	ProductSetHash   string
 }
 
 type timingMeta struct {
@@ -55,17 +76,28 @@ type toolDispatchResult struct {
 	keywordCount int
 	total        int
 	hasError     bool
+	search       *finalSearchSnapshot
 }
 
 func (r toolDispatchResult) shouldRetryWithFallback(tried bool) bool {
 	return r.isSearch && !r.hasError && r.operator == "AND" && r.total == 0 && r.keywordCount > 1 && !tried
 }
 
-func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, blob *SessionBlob, cfg *chatConfig, knowledge *knowledgeEvidence, writer *StreamWriter, meta timingMeta) (*agentLoopResult, error) {
+func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, blob *SessionBlob, cfg *chatConfig, knowledge *knowledgeEvidence, writer *StreamWriter, meta timingMeta, onFinalSearch func(context.Context, *finalSearchSnapshot)) (*agentLoopResult, error) {
 	state := &turnState{
 		indexMap:    make(map[int]string),
 		itemToIndex: make(map[string]int),
 		nextIndex:   1,
+	}
+	finalStatus := finalSearchNotAttempted
+	loopResult := func(reply string, emitted, fallback bool) *agentLoopResult {
+		return &agentLoopResult{
+			Reply:               reply,
+			IndexMap:            state.indexMap,
+			ReplyAlreadyEmitted: emitted,
+			MainReplyFallback:   fallback,
+			FinalSearchStatus:   finalStatus,
+		}
 	}
 	if err := writer.EmitStep("analyze_requirement"); err != nil {
 		return nil, err
@@ -111,7 +143,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			plannerAttempts++
 			temperature := 0.0
 			parallelToolCalls := false
-			llmReq.Tools = []aichat.Tool{aichat.FieldAwareSearchGoodsTool(knowledge.candidateIDs())}
+			llmReq.Tools = []aichat.Tool{aichat.FieldAwareSearchGoodsTool(knowledge.CandidateIDs())}
 			llmReq.Temperature = &temperature
 			llmReq.ParallelToolCalls = &parallelToolCalls
 		}
@@ -155,10 +187,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			}
 			log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\tevent=model_stream_error\tcost=%d\terr=%+v",
 				meta.requestId, meta.uid, meta.sessionId, llmPhase, round, llmCost, err))
-			return &agentLoopResult{
-				Reply:    fallbackText(cfg.raw, cfg.language, "generic"),
-				IndexMap: state.indexMap,
-			}, nil
+			return loopResult(fallbackText(cfg.raw, cfg.language, "generic"), false, true), nil
 		}
 		log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\ttoolCalls=%d\tfinishReason=%s\tcontentBytes=%d\tcost=%d",
 			meta.requestId, meta.uid, meta.sessionId, llmPhase, round, len(result.ToolCalls), result.FinishReason, len(result.Content), llmCost))
@@ -175,10 +204,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 				if plannerAttempts < cfg.raw.ToolMaxRounds {
 					continue
 				}
-				return &agentLoopResult{
-					Reply:    fallbackText(cfg.raw, cfg.language, "generic"),
-					IndexMap: state.indexMap,
-				}, nil
+				return loopResult(fallbackText(cfg.raw, cfg.language, "generic"), false, true), nil
 			}
 			plannerRetry = false
 			result.Content = ""
@@ -187,34 +213,26 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		blob.Messages = append(blob.Messages, assistant)
 		if len(result.ToolCalls) == 0 {
 			if result.Content == "" {
-				return &agentLoopResult{
-					Reply:    fallbackText(cfg.raw, cfg.language, "empty_after_tools"),
-					IndexMap: state.indexMap,
-				}, nil
+				return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, true), nil
 			}
 			if !readyToReply {
-				return &agentLoopResult{
-					Reply:    result.Content,
-					IndexMap: state.indexMap,
-				}, nil
+				return loopResult(result.Content, false, false), nil
 			}
 			if err := streamer.Finish(); err != nil {
 				return nil, err
 			}
-			return &agentLoopResult{
-				Reply:               result.Content,
-				IndexMap:            state.indexMap,
-				ReplyAlreadyEmitted: true,
-			}, nil
+			return loopResult(result.Content, true, false), nil
 		}
 		if err := writer.EmitStep("tool_call"); err != nil {
 			return nil, err
 		}
 		readyToReply = true
+		roundSearches := make([]*finalSearchSnapshot, 0, 1)
+		roundSearchFailed := false
 		for i, toolCall := range result.ToolCalls {
 			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
 				meta.requestId, meta.uid, meta.sessionId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
-			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg.raw.DisplayItemCountMax, fieldAwareSearch, knowledge, meta, round)
+			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg.raw.DisplayItemCountMax, fieldAwareSearch, knowledge, onFinalSearch != nil, meta, round)
 			blob.Messages = append(blob.Messages, aichat.Message{
 				Role:       "tool",
 				ToolCallId: toolCall.ID,
@@ -224,18 +242,39 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 				fallbackSearchTried = true
 				readyToReply = false
 			}
+			if toolResult.isSearch {
+				if toolResult.hasError {
+					roundSearchFailed = true
+				} else if toolResult.search != nil {
+					roundSearches = append(roundSearches, toolResult.search)
+				}
+			}
 		}
 		if err := writer.EmitStep("get_results"); err != nil {
 			return nil, err
 		}
+		if readyToReply && onFinalSearch != nil {
+			switch {
+			case roundSearchFailed:
+				finalStatus = finalSearchFailed
+			case len(roundSearches) == 1 && len(result.ToolCalls) == 1:
+				finalStatus = finalSearchReady
+				log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=suggestion_snapshot\ttotal=%d\thits=%d\tproductSetHash=%s",
+					meta.requestId, meta.uid, meta.sessionId, roundSearches[0].Total, len(roundSearches[0].ProductIndexes), roundSearches[0].ProductSetHash))
+				if onFinalSearch != nil {
+					onFinalSearch(ctx, roundSearches[0])
+				}
+			case len(roundSearches) == 0:
+				finalStatus = finalSearchInvalid
+			default:
+				finalStatus = finalSearchInvalid
+			}
+		}
 	}
-	return &agentLoopResult{
-		Reply:    fallbackText(cfg.raw, cfg.language, "empty_after_tools"),
-		IndexMap: state.indexMap,
-	}, nil
+	return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, true), nil
 }
 
-func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCall, state *turnState, limit int, fieldAware bool, knowledge *knowledgeEvidence, meta timingMeta, round int) toolDispatchResult {
+func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCall, state *turnState, limit int, fieldAware bool, knowledge *knowledgeEvidence, captureFinalSearch bool, meta timingMeta, round int) toolDispatchResult {
 	if toolCall.Function.Name != "search_goods" {
 		return toolDispatchResult{content: `{"error":"unsupported tool"}`, hasError: true}
 	}
@@ -276,7 +315,57 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 		return dispatchResult
 	}
 	dispatchResult.content = string(payload)
+	if !captureFinalSearch {
+		return dispatchResult
+	}
+	dispatchResult.search = &finalSearchSnapshot{
+		Request:          sanitizeSearchIntent(req),
+		ReplyToolPayload: dispatchResult.content,
+		Total:            result.Total,
+		ProductIndexes:   indexesFromAnnotatedHits(modelResult),
+		ProductSetHash:   hashOrderedItemIDs(result),
+	}
 	return dispatchResult
+}
+
+func sanitizeSearchIntent(req recallsvc.SearchGoodsRequest) searchsuggestion.SearchIntent {
+	return searchsuggestion.SearchIntent{
+		Keywords:                      append([]string(nil), req.Keywords...),
+		ProductTypeKeywords:           append([]string(nil), req.ProductTypeKeywords...),
+		AttributeKeywords:             append([]string(nil), req.AttributeKeywords...),
+		Operator:                      req.Operator,
+		ExcludeKeywords:               append([]string(nil), req.ExcludeKeywords...),
+		MinPrice:                      cloneFloat(req.MinPrice),
+		MaxPrice:                      cloneFloat(req.MaxPrice),
+		SelectedKnowledgeCandidateIDs: append([]string(nil), req.KnowledgeCandidateIDs...),
+	}
+}
+
+func cloneFloat(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func indexesFromAnnotatedHits(result map[string]interface{}) []int {
+	hits, _ := result["hits"].([]map[string]interface{})
+	indexes := make([]int, 0, len(hits))
+	for _, hit := range hits {
+		index, _ := hit["index"].(int)
+		indexes = append(indexes, index)
+	}
+	return indexes
+}
+
+func hashOrderedItemIDs(result *recallsvc.SearchGoodsResult) string {
+	hash := sha256.New()
+	for _, hit := range result.Hits {
+		_, _ = hash.Write([]byte(hit.ItemId))
+		_, _ = hash.Write([]byte{0})
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
 func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, knowledge *knowledgeEvidence) error {
@@ -357,7 +446,7 @@ func parseSearchGoodsRequest(arguments string, fieldAware bool, knowledge *knowl
 		}
 		return req, err
 	}
-	if err := knowledge.apply(&req); err != nil {
+	if err := knowledge.Apply(&req); err != nil {
 		return req, err
 	}
 	return recallsvc.NormalizeFieldAwareSearchGoodsRequest(req)
