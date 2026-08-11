@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -125,7 +126,10 @@ func decodeSuggestionParam(body []byte, param *SearchSuggestionParam) error {
 	if len(body) == 0 {
 		return fmt.Errorf("request body is empty")
 	}
-	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	if !utf8.Valid(body) {
+		return fmt.Errorf("request body is not valid UTF-8")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(param); err != nil {
 		return err
