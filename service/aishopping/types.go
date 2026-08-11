@@ -6,13 +6,14 @@ import (
 )
 
 type Request struct {
-	RequestId string
-	SceneId   string
-	SessionId string
-	Uid       string
-	Language  string
-	UserText  string
-	Config    *recconf.RecommendConfig
+	RequestId        string
+	SceneId          string
+	SessionId        string
+	Uid              string
+	Language         string
+	UserText         string
+	EnableSuggestion bool
+	Config           *recconf.RecommendConfig
 }
 
 type SessionBlob struct {

@@ -108,7 +108,7 @@ func messagesWithKnowledge(messages []aichat.Message, instruction string, eviden
 	}
 	knowledgeMessages := []aichat.Message{
 		{Role: "system", Content: instruction},
-		{Role: "system", Content: "KNOWLEDGE_CANDIDATES_JSON:\n" + evidence.promptJSON},
+		{Role: "system", Content: "KNOWLEDGE_CANDIDATES_JSON:\n" + evidence.PromptJSON()},
 	}
 	if len(messages) == 0 {
 		return knowledgeMessages

@@ -9,7 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alibaba/pairec/v2/datasource/ha3engine"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine/ha3client"
+	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
@@ -48,7 +51,33 @@ type KnowledgeSearchResult struct {
 	SearchCostMs       int64          `json:"search_cost_ms"`
 }
 
+type ha3KnowledgeSearcher struct {
+	client *ha3engine.Ha3EngineClient
+	conf   recconf.Ha3KnowledgeVectorConfig
+	llm    *domain.LLMConfig
+}
+
+func newHa3KnowledgeSearcher(client *ha3engine.Ha3EngineClient, config recconf.Ha3KnowledgeVectorConfig) *ha3KnowledgeSearcher {
+	conf := normalizeHa3KnowledgeVectorConfig(config)
+	validateHa3KnowledgeVectorConfig(conf)
+	fsClient, err := fs.GetFeatureStoreClient(conf.FeatureStoreName)
+	if err != nil {
+		panic(err)
+	}
+	llmConfig, err := fsClient.GetLLMConfig(conf.LLMConfigName)
+	if err != nil {
+		panic(err)
+	}
+	if llmConfig.ModelType != domain.LLMModelTypeMultiModalEmbedding {
+		panic(fmt.Sprintf("Ha3KnowledgeVectorConf.LLMConfigName %q must be a multi-modal embedding config", conf.LLMConfigName))
+	}
+	log.Info(fmt.Sprintf("module=Ha3KnowledgeSearcher\tevent=knowledge_llm_config_loaded\tfeatureStore=%s\tllmConfig=%s\tmodel=%s\tmodelType=%s",
+		conf.FeatureStoreName, conf.LLMConfigName, llmConfig.Model, llmConfig.ModelType))
+	return &ha3KnowledgeSearcher{client: client, conf: conf, llm: llmConfig}
+}
+
 func normalizeHa3KnowledgeVectorConfig(conf recconf.Ha3KnowledgeVectorConfig) recconf.Ha3KnowledgeVectorConfig {
+	conf.EngineName = strings.TrimSpace(conf.EngineName)
 	conf.FeatureStoreName = strings.TrimSpace(conf.FeatureStoreName)
 	conf.LLMConfigName = strings.TrimSpace(conf.LLMConfigName)
 	conf.IndexName = strings.TrimSpace(conf.IndexName)
@@ -125,18 +154,22 @@ func validateHa3KnowledgeVectorConfig(conf recconf.Ha3KnowledgeVectorConfig) {
 }
 
 func (r *Ha3ChatRecall) KnowledgeEnabled() bool {
-	return r.knowledgeConf != nil && r.knowledgeLLM != nil
+	return r.knowledge != nil
 }
 
 func (r *Ha3ChatRecall) SearchKnowledge(ctx context.Context, query string) (*KnowledgeSearchResult, error) {
-	if !r.KnowledgeEnabled() {
+	if r.knowledge == nil {
 		return nil, nil
 	}
+	return r.knowledge.SearchKnowledge(ctx, query)
+}
+
+func (s *ha3KnowledgeSearcher) SearchKnowledge(ctx context.Context, query string) (*KnowledgeSearchResult, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, fmt.Errorf("knowledge query is empty")
 	}
-	conf := r.knowledgeConf
+	conf := &s.conf
 	embeddingInput := strings.Replace(conf.QueryTemplate, "{query}", query, 1)
 	embeddingCtx, cancel := context.WithTimeout(ctx, knowledgeEmbeddingTimeout)
 	defer cancel()
@@ -147,7 +180,7 @@ func (r *Ha3ChatRecall) SearchKnowledge(ctx context.Context, query string) (*Kno
 		attempts int
 	)
 	for attempts = 1; attempts <= knowledgeEmbeddingAttempts; attempts++ {
-		vectors, err = r.knowledgeLLM.CreateMultiModalEmbeddings(embeddingCtx, []domain.MultiModalContent{{Text: embeddingInput}})
+		vectors, err = s.llm.CreateMultiModalEmbeddings(embeddingCtx, []domain.MultiModalContent{{Text: embeddingInput}})
 		if err == nil {
 			break
 		}
@@ -171,7 +204,7 @@ func (r *Ha3ChatRecall) SearchKnowledge(ctx context.Context, query string) (*Kno
 		EmbeddingCostMs:    time.Since(embeddingStart).Milliseconds(),
 	}
 	searchStart := time.Now()
-	searchResult, err := r.searchKnowledgeVector(ctx, vectorText)
+	searchResult, err := s.searchKnowledgeVector(ctx, vectorText)
 	result.SearchCostMs = time.Since(searchStart).Milliseconds()
 	if err != nil {
 		return nil, err
@@ -200,11 +233,11 @@ func encodeKnowledgeVector(vector []float32, delimiter string) (string, error) {
 	return strings.Join(parts, delimiter), nil
 }
 
-func (r *Ha3ChatRecall) searchKnowledgeVector(ctx context.Context, vectorText string) (*KnowledgeSearchResult, error) {
+func (s *ha3KnowledgeSearcher) searchKnowledgeVector(ctx context.Context, vectorText string) (*KnowledgeSearchResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	conf := r.knowledgeConf
+	conf := &s.conf
 	filters := make([]string, 0, len(conf.KnowledgeTypes))
 	for _, knowledgeType := range conf.KnowledgeTypes {
 		filters = append(filters, fmt.Sprintf(`%s=%q`, conf.KnowledgeTypeField, knowledgeType))
@@ -223,10 +256,10 @@ func (r *Ha3ChatRecall) searchKnowledgeVector(ctx context.Context, vectorText st
 	if err != nil {
 		return nil, err
 	}
-	resp, err := r.client.Ha3Client.SearchRestWithOptions(
+	resp, err := s.client.Ha3Client.SearchRestWithOptions(
 		tea.String(conf.IndexName),
 		(&ha3client.SearchRequestModel{}).SetHeaders(map[string]*string{}).SetBody(string(payload)),
-		r.client.Runtime(),
+		s.client.Runtime(),
 	)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, ctxErr
@@ -234,10 +267,10 @@ func (r *Ha3ChatRecall) searchKnowledgeVector(ctx context.Context, vectorText st
 	if err != nil {
 		return nil, err
 	}
-	return r.parseKnowledgeResponse(resp)
+	return s.parseKnowledgeResponse(resp)
 }
 
-func (r *Ha3ChatRecall) parseKnowledgeResponse(resp *ha3client.SearchResponseModel) (*KnowledgeSearchResult, error) {
+func (s *ha3KnowledgeSearcher) parseKnowledgeResponse(resp *ha3client.SearchResponseModel) (*KnowledgeSearchResult, error) {
 	total, items, responseErrors, err := decodeHa3ChatResponse(resp)
 	if err != nil {
 		return nil, err
@@ -257,10 +290,10 @@ func (r *Ha3ChatRecall) parseKnowledgeResponse(resp *ha3client.SearchResponseMod
 			fields = itemMap
 		}
 		hit := KnowledgeHit{
-			KnowledgeID:   strings.TrimSpace(stringFromAny(fields[r.knowledgeConf.KnowledgeIDField])),
-			KnowledgeType: strings.TrimSpace(stringFromAny(fields[r.knowledgeConf.KnowledgeTypeField])),
-			Value:         strings.TrimSpace(stringFromAny(fields[r.knowledgeConf.ValueField])),
-			Category:      strings.TrimSpace(stringFromAny(fields[r.knowledgeConf.CategoryField])),
+			KnowledgeID:   strings.TrimSpace(stringFromAny(fields[s.conf.KnowledgeIDField])),
+			KnowledgeType: strings.TrimSpace(stringFromAny(fields[s.conf.KnowledgeTypeField])),
+			Value:         strings.TrimSpace(stringFromAny(fields[s.conf.ValueField])),
+			Category:      strings.TrimSpace(stringFromAny(fields[s.conf.CategoryField])),
 			Score:         firstAny(itemMap["sortExprValues"], itemMap["score"]),
 		}
 		if hit.KnowledgeID == "" || hit.KnowledgeType == "" || hit.Value == "" || hit.Category == "" {
