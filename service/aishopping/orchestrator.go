@@ -74,7 +74,11 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			SearchKnowledge(context.Context, string) (*recallsvc.KnowledgeSearchResult, error)
 		})
 		if !ok {
-			return fmt.Errorf("recall %s does not support configured knowledge vector search", cfg.raw.RecallName)
+			err := fmt.Errorf("recall %s does not support configured knowledge vector search", cfg.raw.RecallName)
+			log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=knowledge_recall\terr=%v",
+				meta.requestId, meta.uid, meta.sessionId, err))
+			_ = writer.EmitStop("error", "knowledge_recall_unsupported")
+			return err
 		}
 		knowledgeStart := time.Now()
 		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, req.UserText)

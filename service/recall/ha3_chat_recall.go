@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	pairecctx "github.com/alibaba/pairec/v2/context"
@@ -17,8 +18,9 @@ import (
 )
 
 const (
-	maxSearchKeywordCount = 8
-	maxSearchKeywordRunes = 64
+	maxSearchKeywordCount   = 8
+	maxSearchKeywordRunes   = 64
+	fieldAwareSearchTimeout = 2 * time.Second
 )
 
 type Ha3ChatRecall struct {
@@ -102,6 +104,9 @@ func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*Se
 		if req.Limit <= 0 {
 			return nil, fmt.Errorf("limit must be positive")
 		}
+		searchCtx, cancel := context.WithTimeout(ctx, fieldAwareSearchTimeout)
+		defer cancel()
+		ctx = searchCtx
 	}
 	search := r.searchField
 	if fieldAware {
