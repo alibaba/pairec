@@ -1094,6 +1094,17 @@ type FeatureLogConfig struct {
 	UserFeatures string
 	ItemFeatures string
 
+	// FeatureStoreName is required when OutputType=featurestore,
+	// it is the name of FeatureStoreConfs
+	FeatureStoreName string
+	// FeatureStoreViewName is required when OutputType=featurestore,
+	// feature logs are written to this feature view of FeatureDB via fs sdk direct write
+	FeatureStoreViewName string
+	// LogItems is only used when OutputType=featurestore,
+	// when enabled, all item infos are merged into one record in the single feature log,
+	// default is false which means item infos are not logged
+	LogItems bool
+
 	SplitUserItemLogs bool
 }
 
