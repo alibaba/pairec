@@ -163,7 +163,7 @@ func getFeatureData(user *module.User, userFields string, items []*module.Item, 
 // per request. When logItems is enabled, all item infos are merged into one
 // record in the "items" field, otherwise item infos are not logged.
 func getFeatureStoreLogData(user *module.User, userFields string, items []*module.Item, itemFields string, logItems bool, context *context.RecommendContext) []map[string]interface{} {
-	requestTime := time.Now().Unix()
+	requestTime := time.Now().UnixMilli()
 
 	logMap := map[string]interface{}{
 		"request_id":   context.RecommendId,
