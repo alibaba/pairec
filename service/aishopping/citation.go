@@ -24,16 +24,19 @@ func resolveReplyEvents(reply string, indexMap map[int]string, maxItems int) (st
 	canonical := ""
 	pos := 0
 	used := 0
+	seenItemIDs := make(map[string]struct{})
+	var textState markerTextState
 	refIDs := orderedItemIDs(indexMap, maxItems)
 	refPos := 0
 	matches := replyRefRegexp.FindAllStringSubmatchIndex(reply, -1)
 	for _, match := range matches {
-		text := reply[pos:match[0]]
+		text := textState.consume(reply[pos:match[0]])
 		if text != "" {
 			events = append(events, ReplyEvent{Content: text})
 			canonical += text
 		}
 		pos = match[1]
+		textState.mark()
 		itemID := ""
 		if match[2] >= 0 {
 			n, err := strconv.Atoi(reply[match[2]:match[3]])
@@ -48,14 +51,20 @@ func resolveReplyEvents(reply string, indexMap map[int]string, maxItems int) (st
 		if itemID == "" || used >= maxItems {
 			continue
 		}
+		if _, exists := seenItemIDs[itemID]; exists {
+			continue
+		}
+		seenItemIDs[itemID] = struct{}{}
 		used++
 		canonical += "[[item_id:" + itemID + "]]"
 		events = append(events, ReplyEvent{ItemId: itemID})
 	}
 	if pos < len(reply) {
-		text := reply[pos:]
-		events = append(events, ReplyEvent{Content: text})
-		canonical += text
+		text := textState.consume(reply[pos:])
+		if text != "" {
+			events = append(events, ReplyEvent{Content: text})
+			canonical += text
+		}
 	}
 	return canonical, events
 }

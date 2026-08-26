@@ -6,21 +6,29 @@ import (
 )
 
 type replyStreamer struct {
-	writer   *StreamWriter
-	indexMap map[int]string
-	refIDs   []string
-	refPos   int
-	maxItems int
-	used     int
-	buffer   string
+	writer      *StreamWriter
+	indexMap    map[int]string
+	refIDs      []string
+	refPos      int
+	maxItems    int
+	used        int
+	buffer      string
+	seenItemIDs map[string]struct{}
+	textState   markerTextState
+}
+
+type markerTextState struct {
+	afterMarker       bool
+	pendingHorizontal string
 }
 
 func newReplyStreamer(writer *StreamWriter, indexMap map[int]string, maxItems int) *replyStreamer {
 	return &replyStreamer{
-		writer:   writer,
-		indexMap: indexMap,
-		refIDs:   orderedItemIDs(indexMap, maxItems),
-		maxItems: maxItems,
+		writer:      writer,
+		indexMap:    indexMap,
+		refIDs:      orderedItemIDs(indexMap, maxItems),
+		maxItems:    maxItems,
+		seenItemIDs: make(map[string]struct{}),
 	}
 }
 
@@ -47,34 +55,35 @@ func (s *replyStreamer) flush(final bool) error {
 			if emitLen <= 0 {
 				return nil
 			}
-			if err := s.writer.EmitContent(s.buffer[:emitLen]); err != nil {
+			if err := s.emitContent(s.buffer[:emitLen]); err != nil {
 				return err
 			}
 			s.buffer = s.buffer[emitLen:]
 			continue
 		}
 		if markerStart > 0 {
-			if err := s.writer.EmitContent(s.buffer[:markerStart]); err != nil {
+			if err := s.emitContent(s.buffer[:markerStart]); err != nil {
 				return err
 			}
 			s.buffer = s.buffer[markerStart:]
 			continue
 		}
 		if strings.HasPrefix(s.buffer, "[ref]") {
+			itemID := ""
 			if s.refPos < len(s.refIDs) && s.used < s.maxItems {
-				if err := s.writer.EmitCitation(s.refIDs[s.refPos]); err != nil {
-					return err
-				}
-				s.used++
+				itemID = s.refIDs[s.refPos]
 			}
 			s.refPos++
+			if err := s.emitMarker(itemID); err != nil {
+				return err
+			}
 			s.buffer = s.buffer[len("[ref]"):]
 			continue
 		}
 		markerEnd := strings.Index(s.buffer[2:], "]]")
 		if markerEnd < 0 {
 			if final {
-				if err := s.writer.EmitContent(s.buffer); err != nil {
+				if err := s.emitContent(s.buffer); err != nil {
 					return err
 				}
 				s.buffer = ""
@@ -86,19 +95,70 @@ func (s *replyStreamer) flush(final bool) error {
 		inner := s.buffer[2:markerEnd]
 		if isIndexMarker(inner) {
 			index, err := strconv.Atoi(inner)
-			if err == nil && s.indexMap[index] != "" && s.used < s.maxItems {
-				itemID := s.indexMap[index]
-				if err := s.writer.EmitCitation(itemID); err != nil {
+			if err == nil {
+				if err := s.emitMarker(s.indexMap[index]); err != nil {
 					return err
 				}
-				s.used++
 			}
-		} else if err := s.writer.EmitContent(marker); err != nil {
+		} else if err := s.emitContent(marker); err != nil {
 			return err
 		}
 		s.buffer = s.buffer[markerEnd+2:]
 	}
 	return nil
+}
+
+func (s *replyStreamer) emitContent(content string) error {
+	return s.writer.EmitContent(s.textState.consume(content))
+}
+
+func (s *replyStreamer) emitMarker(itemID string) error {
+	s.textState.mark()
+	if itemID == "" || s.used >= s.maxItems {
+		return nil
+	}
+	if _, exists := s.seenItemIDs[itemID]; exists {
+		return nil
+	}
+	if err := s.writer.EmitCitation(itemID); err != nil {
+		return err
+	}
+	s.seenItemIDs[itemID] = struct{}{}
+	s.used++
+	return nil
+}
+
+func (s *markerTextState) mark() {
+	s.afterMarker = true
+	s.pendingHorizontal = ""
+}
+
+func (s *markerTextState) consume(content string) string {
+	if content == "" || !s.afterMarker {
+		return content
+	}
+	leading := 0
+	for leading < len(content) && isHorizontalWhitespace(content[leading]) {
+		leading++
+	}
+	s.pendingHorizontal += content[:leading]
+	if leading == len(content) {
+		return ""
+	}
+
+	rest := content[leading:]
+	s.afterMarker = false
+	if rest[0] == '\n' {
+		s.pendingHorizontal = ""
+		return rest
+	}
+	result := s.pendingHorizontal + rest
+	s.pendingHorizontal = ""
+	return result
+}
+
+func isHorizontalWhitespace(value byte) bool {
+	return value == ' ' || value == '\t' || value == '\r'
 }
 
 func firstMarkerStart(value string) int {
