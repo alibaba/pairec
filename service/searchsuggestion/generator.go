@@ -7,12 +7,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/alibaba/pairec/v2/algorithm/aichat"
 )
-
-const modelTimeout = 3 * time.Second
 
 type toolArguments struct {
 	Suggestions []string `json:"suggestions"`
@@ -26,8 +23,6 @@ func Generate(ctx context.Context, runtimeConfig *RuntimeConfig, input *Generati
 	if inputErr != nil {
 		return Outcome{Err: inputErr}
 	}
-	taskCtx, cancel := context.WithTimeout(ctx, modelTimeout)
-	defer cancel()
 	temperature := 0.2
 	parallelToolCalls := false
 	request := &aichat.ChatCompletionRequest{
@@ -46,10 +41,10 @@ func Generate(ctx context.Context, runtimeConfig *RuntimeConfig, input *Generati
 		ParallelToolCalls: &parallelToolCalls,
 		MaxTokens:         384,
 	}
-	result, err := runtimeConfig.Model.Stream(taskCtx, request, nil)
+	result, err := runtimeConfig.Model.Stream(ctx, request, nil)
 	if err != nil {
-		if taskCtx.Err() != nil {
-			return Outcome{Err: NewError(CodeTimeout, true, taskCtx.Err())}
+		if ctx.Err() != nil {
+			return Outcome{Err: NewError(CodeTimeout, true, ctx.Err())}
 		}
 		return Outcome{Err: NewError(CodeModelError, true, err)}
 	}
