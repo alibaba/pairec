@@ -26,7 +26,7 @@ import (
 const (
 	searchSuggestionBodyLimit = 16 << 10
 	searchSuggestionQueryMax  = 512
-	searchSuggestionTimeout   = 5 * time.Second
+	searchSuggestionTimeout   = 10 * time.Second
 )
 
 type SearchSuggestionParam struct {
