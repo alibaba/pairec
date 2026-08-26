@@ -22,12 +22,14 @@ type RecallEngineVectorRecall struct {
 	scorerClause string
 	//itemIdName      string
 	//recallTableName string
-	diversityParam string
-	timeout        int
-	triggerKey     TriggerKey
-	client         *recallengine.RecallEngineClient
-	mu             sync.RWMutex
-	cloneInstances map[string]*RecallEngineVectorRecall
+	diversityParam         string
+	versionId              string
+	userEmbeddingVersionId string
+	timeout                int
+	triggerKey             TriggerKey
+	client                 *recallengine.RecallEngineClient
+	mu                     sync.RWMutex
+	cloneInstances         map[string]*RecallEngineVectorRecall
 }
 
 func NewRecallEngineVectorRecall(client *recallengine.RecallEngineClient, conf recconf.RecallEngineConfig) *RecallEngineVectorRecall {
@@ -41,11 +43,13 @@ func NewRecallEngineVectorRecall(client *recallengine.RecallEngineClient, conf r
 		scorerClause: conf.RecallEngineParams[0].ScorerClause,
 		recallName:   conf.RecallEngineParams[0].RecallName,
 		//recallTableName: conf.RecallEngineParams[0].RecallTableName,
-		diversityParam: conf.RecallEngineParams[0].DiversityParam,
-		timeout:        conf.RecallEngineParams[0].Timeout,
-		triggerKey:     NewTriggerKey(&conf.RecallEngineParams[0], nil),
-		client:         client,
-		cloneInstances: make(map[string]*RecallEngineVectorRecall),
+		diversityParam:         conf.RecallEngineParams[0].DiversityParam,
+		versionId:              conf.RecallEngineParams[0].VersionId,
+		userEmbeddingVersionId: conf.RecallEngineParams[0].UserEmbeddingVersionId,
+		timeout:                conf.RecallEngineParams[0].Timeout,
+		triggerKey:             NewTriggerKey(&conf.RecallEngineParams[0], nil),
+		client:                 client,
+		cloneInstances:         make(map[string]*RecallEngineVectorRecall),
 	}
 
 	return &r
@@ -66,11 +70,15 @@ func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *
 	}
 	ret.Trigger = triggerResult.TriggerItem
 	ret.Count = r.returnCount
+	ret.VersionId = r.versionId
+	ret.UserEmbeddingVersionId = r.userEmbeddingVersionId
+	if triggerResult.Version != "" {
+		ret.VersionId = triggerResult.Version
+	}
 	if r.timeout > 0 {
 		ret.Options = &re.RecallOptions{Timeout: r.timeout}
 	}
 	return
-
 }
 func (r *RecallEngineVectorRecall) CloneWithConfig(params map[string]interface{}) RecallEngineBaseRecall {
 	j, err := json.Marshal(params)
@@ -103,14 +111,16 @@ func (r *RecallEngineVectorRecall) CloneWithConfig(params map[string]interface{}
 	}
 
 	recall = &RecallEngineVectorRecall{
-		serviceName:    r.serviceName,
-		client:         r.client,
-		returnCount:    recallParams.Count,
-		recallName:     r.recallName,
-		diversityParam: recallParams.DiversityParam,
-		timeout:        recallParams.Timeout,
-		triggerKey:     NewTriggerKey(&recallParams, r.client),
-		cloneInstances: make(map[string]*RecallEngineVectorRecall),
+		serviceName:            r.serviceName,
+		client:                 r.client,
+		returnCount:            recallParams.Count,
+		recallName:             r.recallName,
+		diversityParam:         recallParams.DiversityParam,
+		versionId:              recallParams.VersionId,
+		userEmbeddingVersionId: recallParams.UserEmbeddingVersionId,
+		timeout:                recallParams.Timeout,
+		triggerKey:             NewTriggerKey(&recallParams, r.client),
+		cloneInstances:         make(map[string]*RecallEngineVectorRecall),
 	}
 
 	r.cloneInstances[md5] = recall
