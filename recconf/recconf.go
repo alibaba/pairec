@@ -833,6 +833,12 @@ type AIChatConfig struct {
 	SessionFeatureView          string
 	SessionMaxTurns             int
 	SessionMaxTokens            int
+	FineRankConfig              *AIShoppingFineRankConfig
+}
+
+type AIShoppingFineRankConfig struct {
+	CandidateCount int
+	RankConf       RankConfig
 }
 
 type SuggestionConfig struct {

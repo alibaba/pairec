@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils/ast"
 )
 
 func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*chatConfig, error) {
@@ -20,6 +21,9 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 		return nil, fmt.Errorf("AIChatConfig not found for scene:%s", sceneId)
 	}
 	cfg := normalizeConfig(cloneAIChatConfig(category.AIChatConfig))
+	if err := validateFineRankConfig(config.AlgoConfs, cfg); err != nil {
+		return nil, err
+	}
 	if language == "" {
 		language = cfg.DefaultLanguage
 	}
@@ -105,7 +109,52 @@ func cloneAIChatConfig(cfg *recconf.AIChatConfig) *recconf.AIChatConfig {
 	cloned.PlannerPromptTemplates = cloneStringMap(cfg.PlannerPromptTemplates)
 	cloned.ReplyPromptTemplates = cloneStringMap(cfg.ReplyPromptTemplates)
 	cloned.FallbackTemplates = cloneNestedStringMap(cfg.FallbackTemplates)
+	if cfg.FineRankConfig != nil {
+		fineRank := *cfg.FineRankConfig
+		fineRank.RankConf.RankAlgoList = append([]string(nil), cfg.FineRankConfig.RankConf.RankAlgoList...)
+		fineRank.RankConf.ContextFeatures = append([]string(nil), cfg.FineRankConfig.RankConf.ContextFeatures...)
+		fineRank.RankConf.ItemFeatures = append([]string(nil), cfg.FineRankConfig.RankConf.ItemFeatures...)
+		cloned.FineRankConfig = &fineRank
+	}
 	return &cloned
+}
+
+func validateFineRankConfig(algoConfs []recconf.AlgoConfig, cfg *recconf.AIChatConfig) error {
+	fineRank := cfg.FineRankConfig
+	if fineRank == nil {
+		return nil
+	}
+	if fineRank.CandidateCount < cfg.DisplayItemCountMax {
+		return fmt.Errorf("FineRankConfig.CandidateCount must be >= DisplayItemCountMax")
+	}
+	rankConf := fineRank.RankConf
+	if len(rankConf.RankAlgoList) != 1 {
+		return fmt.Errorf("FineRankConfig.RankConf.RankAlgoList must contain exactly one algorithm")
+	}
+	algoName := strings.TrimSpace(rankConf.RankAlgoList[0])
+	if algoName == "" || !containsAlgo(algoConfs, algoName) {
+		return fmt.Errorf("FineRankConfig algorithm not found:%s", algoName)
+	}
+	fineRank.RankConf.RankAlgoList[0] = algoName
+	if strings.TrimSpace(rankConf.RankScore) == "" {
+		return fmt.Errorf("FineRankConfig.RankConf.RankScore is required")
+	}
+	if rankConf.BatchCount != 0 || len(rankConf.ScoreRewrite) != 0 {
+		return fmt.Errorf("FineRankConfig does not support BatchCount or ScoreRewrite")
+	}
+	if _, err := ast.GetExpASTWithType(rankConf.RankScore, rankConf.ASTType); err != nil {
+		return fmt.Errorf("invalid FineRankConfig.RankConf.RankScore: %w", err)
+	}
+	return nil
+}
+
+func containsAlgo(algoConfs []recconf.AlgoConfig, name string) bool {
+	for _, algoConf := range algoConfs {
+		if algoConf.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneStringMap(values map[string]string) map[string]string {
