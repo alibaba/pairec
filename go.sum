@@ -81,8 +81,8 @@ github.com/aliyun/alibabacloud-lindorm-go-sql-driver/v5 v5.0.1 h1:9IbLal5XJrZ5f4
 github.com/aliyun/alibabacloud-lindorm-go-sql-driver/v5 v5.0.1/go.mod h1:eCk9u8X533+Sd9CTfI2Mn59ok6Ck/9t7jXHz+FO601g=
 github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c h1:5YWOrdiCtaOjh/IJvn+Aht6vtUeJtBxWLqe5sewcbjg=
 github.com/aliyun/aliyun-be-go-sdk v1.0.1-0.20230607022243-19a50c32ec4c/go.mod h1:wj5PXdQyCNS9n4Og3CH03MAxhuNJM9OrD8o5hoCMXEM=
-github.com/aliyun/aliyun-datahub-sdk-go v1.1.4 h1:0jjT+nddwHxWT979vZwfCh7xqktOiRJjkKc76Csp/Nk=
-github.com/aliyun/aliyun-datahub-sdk-go v1.1.4/go.mod h1:IGmdWriyt86EHENmRuqwAQIEje0wU7EeVXiDREktcj8=
+github.com/aliyun/aliyun-datahub-sdk-go v1.2.0 h1:KqTQUWu/YW4Vto/KWTkczwa04NN2r7PEEzvvZupLZyo=
+github.com/aliyun/aliyun-datahub-sdk-go v1.2.0/go.mod h1:IGmdWriyt86EHENmRuqwAQIEje0wU7EeVXiDREktcj8=
 github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227 h1:NBHpE+HPsmtvHTFCzt5hUsaj+xBt+t5cgUrbqZ4KH+k=
 github.com/aliyun/aliyun-igraph-go-sdk v0.0.0-20221208132745-defc68e1b227/go.mod h1:k+nixj5x99h1pIn/7RyAxeMtig9PvnCFdDNzHduLqWU=
 github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8Ahwq4o+y5g=

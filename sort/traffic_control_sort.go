@@ -42,6 +42,21 @@ var tanhTable []float64
 var sigmoidTable []float64
 var experimentClient *experiments.ExperimentClient
 
+// TrafficControlHitsProperty is the item property holding the traffic control tasks
+// and targets that actually adjusted the position of the item, rendered as
+// "taskId1:targetId1,targetId2|taskId2:targetId3". It is always set (an empty string
+// when no task took effect), so it can be exposed as a required output field through
+// SceneConfs.OutputFields with "item:traffic_control_hits".
+const TrafficControlHitsProperty = "traffic_control_hits"
+
+// macroControl and microControl traverse the same items concurrently, so each writes
+// the tasks and targets it hits to its own property key, as a map of task id to target
+// ids. Sort merges them once both finish.
+const (
+	macroTrafficControlHitsProperty = "__macro_traffic_control_hits__"
+	microTrafficControlHitsProperty = "__micro_traffic_control_hits__"
+)
+
 func init() {
 	positionWeight = make([]float64, 500)
 	for i := 0; i < 500; i++ {
@@ -115,6 +130,8 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 	for i, item := range items {
 		item.AddProperty("__traffic_control_id__", i+1)
 		item.AddProperty("_ORIGIN_POSITION_", i+1)
+		// default to an empty string so items hit by no task still return the field
+		item.AddProperty(TrafficControlHitsProperty, "")
 	}
 
 	// 如果服务启动时，没有加载成功，这里再次尝试
@@ -158,6 +175,7 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 	//	candidateCount = 0
 	//}
 	for i, item := range items {
+		mergeTrafficControlHits(item)
 		finalDeltaRank := item.GetAlgoScore("__delta_rank__")
 		if finalDeltaRank != 0.0 {
 			rank := float64(i+1) - finalDeltaRank
@@ -332,6 +350,7 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 			for idx, item := range items {
 				i := b + idx
 				finalDeltaRank := 0.0
+				var hitTargets map[string][]string
 				for targetId, controller := range controllerMap {
 					if !isControlledItem(controller, item) {
 						if ctx.Debug {
@@ -344,6 +363,13 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 					if alpha, ok := targetAlphaMap[targetId]; ok && alpha != 0 {
 						deltaRank := computeDeltaRank(controller, item, i, alpha, ctrlParams, ctx)
 						finalDeltaRank += deltaRank // 形成合力
+						if deltaRank != 0.0 {
+							if hitTargets == nil {
+								hitTargets = make(map[string][]string, len(controllerMap))
+							}
+							taskId := controller.task.TrafficControlTaskId
+							hitTargets[taskId] = append(hitTargets[taskId], targetId)
+						}
 					}
 				}
 
@@ -352,6 +378,10 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 					controlId, _ := item.IntProperty("__traffic_control_id__")
 					if controlId == 0 && finalDeltaRank < 1.0 {
 						item.AddProperty("__traffic_control_id__", item.GetProperty("_ORIGIN_POSITION_"))
+					}
+					// only record when the delta rank is really applied to the item
+					if len(hitTargets) > 0 {
+						item.AddProperty(macroTrafficControlHitsProperty, hitTargets)
 					}
 				}
 			}
@@ -646,6 +676,7 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 			for j, item := range items {
 				i := begin + j
 				deltaRank := 0.0
+				var hitTargets map[string][]string
 				for targetId, controller := range controllerMap {
 					if !isControlledItem(controller, item) {
 						ctx.LogDebug(fmt.Sprintf("item id:%v is not controller", item.Id))
@@ -675,6 +706,13 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 						}
 					}
 					deltaRank += delta // 多个目标调控方向不一致时，需要扳手腕看谁力气大
+					if delta != 0.0 {
+						if hitTargets == nil {
+							hitTargets = make(map[string][]string, len(controllerMap))
+						}
+						taskId := controller.task.TrafficControlTaskId
+						hitTargets[taskId] = append(hitTargets[taskId], targetId)
+					}
 					if ctx.Debug {
 						ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\t[targetId:%s/targetName:%s], itemId:%s,origiPosition=%d, aimValue=%f, alpha=%f, deltaRank=%f", targetId, controller.target.Name, item.Id, originPosition, aimValue, alpha, delta))
 					}
@@ -683,8 +721,13 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 					if ctx.Debug {
 						ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\titem:%v\tfinal delta rank:%v", item.Id, deltaRank))
 					}
+					// only record when the delta rank is really applied to the item, the uplift
+					// branch can be skipped once the limit count is reached
 					if deltaRank < 0 {
 						item.IncrAlgoScore("__delta_rank__", deltaRank)
+						if len(hitTargets) > 0 {
+							item.AddProperty(microTrafficControlHitsProperty, hitTargets)
+						}
 					} else if upliftCount < limitCount { // uplift
 						item.IncrAlgoScore("__delta_rank__", deltaRank)
 						countMu.Lock()
@@ -693,6 +736,9 @@ func microControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 						pos, _ := item.IntProperty("_ORIGIN_POSITION_")
 						if pos > ctx.Size {
 							item.AddProperty("__traffic_control_id__", 0)
+						}
+						if len(hitTargets) > 0 {
+							item.AddProperty(microTrafficControlHitsProperty, hitTargets)
 						}
 					}
 				}
@@ -913,6 +959,75 @@ func isControlledItem(controller *PIDController, item *module.Item) bool {
 	}
 
 	return ToBool(result, false)
+}
+
+// lessTrafficControlId orders ids numerically when both of them are numeric, so the
+// rendered output keeps a natural order, and falls back to a lexicographic order to
+// stay deterministic for any other id format.
+func lessTrafficControlId(a, b string) bool {
+	ai, aErr := strconv.ParseInt(a, 10, 64)
+	bi, bErr := strconv.ParseInt(b, 10, 64)
+	if aErr == nil && bErr == nil {
+		return ai < bi
+	}
+	return a < b
+}
+
+// formatTrafficControlHits renders the hit tasks and their targets as
+// "taskId1:targetId1,targetId2|taskId2:targetId3". Both task ids and target ids are
+// ordered so that the output stays stable across requests.
+func formatTrafficControlHits(hits map[string][]string) string {
+	if len(hits) == 0 {
+		return ""
+	}
+	taskIds := make([]string, 0, len(hits))
+	for taskId := range hits {
+		taskIds = append(taskIds, taskId)
+	}
+	sort.Slice(taskIds, func(i, j int) bool { return lessTrafficControlId(taskIds[i], taskIds[j]) })
+
+	var sb strings.Builder
+	for i, taskId := range taskIds {
+		if i > 0 {
+			sb.WriteByte('|')
+		}
+		sb.WriteString(taskId)
+		sb.WriteByte(':')
+		targetIds := hits[taskId]
+		sort.Slice(targetIds, func(i, j int) bool { return lessTrafficControlId(targetIds[i], targetIds[j]) })
+		for j, targetId := range targetIds {
+			if j > 0 {
+				sb.WriteByte(',')
+			}
+			sb.WriteString(targetId)
+		}
+	}
+	return sb.String()
+}
+
+// mergeTrafficControlHits merges the hits collected by macroControl and microControl
+// into the final output property. It must be called after both controls finished, so it
+// runs free of their concurrent writes.
+func mergeTrafficControlHits(item *module.Item) {
+	macroHits, _ := item.GetProperty(macroTrafficControlHitsProperty).(map[string][]string)
+	microHits, _ := item.GetProperty(microTrafficControlHitsProperty).(map[string][]string)
+	if len(macroHits) == 0 && len(microHits) == 0 {
+		return
+	}
+	item.DeleteProperty(macroTrafficControlHitsProperty)
+	item.DeleteProperty(microTrafficControlHitsProperty)
+
+	hits := make(map[string][]string, len(macroHits)+len(microHits))
+	for _, source := range []map[string][]string{macroHits, microHits} {
+		for taskId, targetIds := range source {
+			for _, targetId := range targetIds {
+				if !isItemInArray(targetId, hits[taskId]) {
+					hits[taskId] = append(hits[taskId], targetId)
+				}
+			}
+		}
+	}
+	item.AddProperty(TrafficControlHitsProperty, formatTrafficControlHits(hits))
 }
 
 type ItemRankSlice []*module.Item
