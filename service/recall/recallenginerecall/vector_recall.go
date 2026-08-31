@@ -87,7 +87,10 @@ func (r *RecallEngineVectorRecall) CloneWithConfig(params map[string]interface{}
 		return r
 	}
 
-	recallParams := recconf.RecallEngineParam{}
+	recallParams := recconf.RecallEngineParam{
+		VersionId:              r.versionId,
+		UserEmbeddingVersionId: r.userEmbeddingVersionId,
+	}
 	if err := json.Unmarshal(j, &recallParams); err != nil {
 		log.Error(fmt.Sprintf("event=CloneWithConfig\terror=%v", err))
 		return r
