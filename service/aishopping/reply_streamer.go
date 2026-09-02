@@ -7,9 +7,7 @@ import (
 
 type replyStreamer struct {
 	writer      *StreamWriter
-	indexMap    map[int]string
-	refIDs      []string
-	refPos      int
+	resolver    *replyMarkerResolver
 	maxItems    int
 	used        int
 	buffer      string
@@ -22,11 +20,10 @@ type markerTextState struct {
 	pendingHorizontal string
 }
 
-func newReplyStreamer(writer *StreamWriter, indexMap map[int]string, maxItems int) *replyStreamer {
+func newReplyStreamer(writer *StreamWriter, indexMap map[int]string, replyItemIDs []string, maxItems int, strictRankOrder bool) *replyStreamer {
 	return &replyStreamer{
 		writer:      writer,
-		indexMap:    indexMap,
-		refIDs:      orderedItemIDs(indexMap, maxItems),
+		resolver:    newReplyMarkerResolver(indexMap, replyItemIDs, maxItems, strictRankOrder),
 		maxItems:    maxItems,
 		seenItemIDs: make(map[string]struct{}),
 	}
@@ -69,12 +66,7 @@ func (s *replyStreamer) flush(final bool) error {
 			continue
 		}
 		if strings.HasPrefix(s.buffer, "[ref]") {
-			itemID := ""
-			if s.refPos < len(s.refIDs) && s.used < s.maxItems {
-				itemID = s.refIDs[s.refPos]
-			}
-			s.refPos++
-			if err := s.emitMarker(itemID); err != nil {
+			if err := s.emitMarker(s.resolver.nextRef()); err != nil {
 				return err
 			}
 			s.buffer = s.buffer[len("[ref]"):]
@@ -96,7 +88,7 @@ func (s *replyStreamer) flush(final bool) error {
 		if isIndexMarker(inner) {
 			index, err := strconv.Atoi(inner)
 			if err == nil {
-				if err := s.emitMarker(s.indexMap[index]); err != nil {
+				if err := s.emitMarker(s.resolver.resolveIndex(index)); err != nil {
 					return err
 				}
 			}

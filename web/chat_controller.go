@@ -15,12 +15,13 @@ import (
 )
 
 type ChatParam struct {
-	SceneId          string      `json:"scene_id"`
-	SessionId        string      `json:"session_id"`
-	InputMessage     ChatMessage `json:"input_message"`
-	Uid              string      `json:"uid"`
-	Language         string      `json:"language"`
-	EnableSuggestion bool        `json:"enable_suggestion"`
+	SceneId          string                 `json:"scene_id"`
+	SessionId        string                 `json:"session_id"`
+	InputMessage     ChatMessage            `json:"input_message"`
+	Uid              string                 `json:"uid"`
+	Language         string                 `json:"language"`
+	Features         map[string]interface{} `json:"features,omitempty"`
+	EnableSuggestion bool                   `json:"enable_suggestion"`
 }
 
 type ChatMessage struct {
@@ -93,6 +94,7 @@ func (c *ChatController) Process(w http.ResponseWriter, r *http.Request) {
 		Uid:              c.param.Uid,
 		Language:         c.param.Language,
 		UserText:         c.userText,
+		Features:         c.param.Features,
 		EnableSuggestion: c.param.EnableSuggestion,
 		Config:           recconf.Config,
 	}

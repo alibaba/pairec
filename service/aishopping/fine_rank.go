@@ -9,15 +9,77 @@ import (
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/algorithm/eas"
 	"github.com/alibaba/pairec/v2/algorithm/response"
+	paireccontext "github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/feature"
 	"github.com/alibaba/pairec/v2/service/rank"
 	recallsvc "github.com/alibaba/pairec/v2/service/recall"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/alibaba/pairec/v2/utils/ast"
 )
 
-func fineRankGoods(ctx context.Context, req recallsvc.SearchGoodsRequest, hits []recallsvc.GoodsHit, uid string, conf *recconf.AIShoppingFineRankConfig) ([]recallsvc.GoodsHit, error) {
+type fineRankRuntime struct {
+	prepared             bool
+	prepareErr           error
+	recommendContext     *paireccontext.RecommendContext
+	user                 *module.User
+	loadUserFeatures     bool
+	loadRankUserFeatures bool
+}
+
+func newFineRankRuntime(req *Request) *fineRankRuntime {
+	recommendContext := paireccontext.NewRecommendContext()
+	recommendContext.Param = req
+	recommendContext.Config = req.Config
+	recommendContext.RecommendId = req.RequestId
+
+	runtime := &fineRankRuntime{
+		recommendContext: recommendContext,
+		user:             module.NewUserWithContext(module.UID(req.Uid), recommendContext),
+	}
+	if req.Config == nil {
+		return runtime
+	}
+	if scene, ok := req.Config.UserFeatureConfs[req.SceneId]; ok {
+		runtime.loadUserFeatures = len(scene.FeatureLoadConfs) > 0
+	}
+	if scene, ok := req.Config.FeatureConfs[req.SceneId]; ok {
+		for _, conf := range scene.FeatureLoadConfs {
+			if conf.FeatureDaoConf.FeatureStore == module.Feature_Store_User {
+				runtime.loadRankUserFeatures = true
+				break
+			}
+		}
+	}
+	return runtime
+}
+
+func (r *fineRankRuntime) prepareUser(ctx context.Context) (*module.User, error) {
+	if r == nil || r.user == nil || r.recommendContext == nil {
+		return nil, fmt.Errorf("fine rank runtime is nil")
+	}
+	if r.prepared {
+		return r.user, r.prepareErr
+	}
+	r.prepared = true
+	if r.loadUserFeatures {
+		feature.DefaultUserFeatureService().LoadUserFeatures(r.user, r.recommendContext)
+		if r.user.FeatureAsyncLoadCount() > 0 {
+			select {
+			case <-r.user.FeatureAsyncLoadCh():
+			case <-ctx.Done():
+				r.prepareErr = ctx.Err()
+			}
+		}
+	}
+	if r.prepareErr == nil && r.loadRankUserFeatures {
+		feature.DefaultFeatureService().LoadFeatures(r.user, nil, r.recommendContext)
+	}
+	return r.user, r.prepareErr
+}
+
+func fineRankGoods(ctx context.Context, hits []recallsvc.GoodsHit, runtime *fineRankRuntime, conf *recconf.AIShoppingFineRankConfig) ([]recallsvc.GoodsHit, error) {
 	if conf == nil || len(hits) <= 1 {
 		return append([]recallsvc.GoodsHit(nil), hits...), nil
 	}
@@ -32,8 +94,10 @@ func fineRankGoods(ctx context.Context, req recallsvc.SearchGoodsRequest, hits [
 		generator.SetItemFeatures(rankConf.ItemFeatures)
 	}
 
-	user := module.NewUser(uid)
-	user.SetProperties(fineRankUserFeatures(req, uid))
+	user, err := runtime.prepareUser(ctx)
+	if err != nil {
+		return nil, err
+	}
 	userFeatures := user.MakeUserFeatures()
 	if rankConf.Processor == eas.Eas_Processor_EASYREC {
 		userFeatures = user.MakeUserFeatures2()
@@ -94,24 +158,6 @@ func fineRankGoods(ctx context.Context, req recallsvc.SearchGoodsRequest, hits [
 		ranked[i] = item.hit
 	}
 	return ranked, nil
-}
-
-func fineRankUserFeatures(req recallsvc.SearchGoodsRequest, uid string) map[string]interface{} {
-	features := map[string]interface{}{
-		"uid":                      uid,
-		"aishopping_keywords":      req.Keywords,
-		"aishopping_product_types": req.ProductTypeKeywords,
-		"aishopping_attributes":    req.AttributeKeywords,
-		"aishopping_excludes":      req.ExcludeKeywords,
-		"aishopping_operator":      req.Operator,
-	}
-	if req.MinPrice != nil {
-		features["aishopping_min_price"] = *req.MinPrice
-	}
-	if req.MaxPrice != nil {
-		features["aishopping_max_price"] = *req.MaxPrice
-	}
-	return features
 }
 
 func fineRankItem(hit recallsvc.GoodsHit, position int) *module.Item {
