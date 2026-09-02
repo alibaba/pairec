@@ -15,11 +15,13 @@ import (
 )
 
 type ChatParam struct {
-	SceneId      string      `json:"scene_id"`
-	SessionId    string      `json:"session_id"`
-	InputMessage ChatMessage `json:"input_message"`
-	Uid          string      `json:"uid"`
-	Language     string      `json:"language"`
+	SceneId          string                 `json:"scene_id"`
+	SessionId        string                 `json:"session_id"`
+	InputMessage     ChatMessage            `json:"input_message"`
+	Uid              string                 `json:"uid"`
+	Language         string                 `json:"language"`
+	Features         map[string]interface{} `json:"features,omitempty"`
+	EnableSuggestion bool                   `json:"enable_suggestion"`
 }
 
 type ChatMessage struct {
@@ -86,13 +88,15 @@ func (c *ChatController) Process(w http.ResponseWriter, r *http.Request) {
 
 	stream := aishopping.NewStreamWriter(c.RequestId, c.param.SessionId, w, flusher)
 	req := &aishopping.Request{
-		RequestId: c.RequestId,
-		SceneId:   c.param.SceneId,
-		SessionId: c.param.SessionId,
-		Uid:       c.param.Uid,
-		Language:  c.param.Language,
-		UserText:  c.userText,
-		Config:    recconf.Config,
+		RequestId:        c.RequestId,
+		SceneId:          c.param.SceneId,
+		SessionId:        c.param.SessionId,
+		Uid:              c.param.Uid,
+		Language:         c.param.Language,
+		UserText:         c.userText,
+		Features:         c.param.Features,
+		EnableSuggestion: c.param.EnableSuggestion,
+		Config:           recconf.Config,
 	}
 	_ = aishopping.NewChatSearchOrchestrator().Run(r.Context(), req, stream)
 	c.End = time.Now()

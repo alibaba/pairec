@@ -2,8 +2,10 @@ package aishopping
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils/ast"
 )
 
 func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*chatConfig, error) {
@@ -19,6 +21,9 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 		return nil, fmt.Errorf("AIChatConfig not found for scene:%s", sceneId)
 	}
 	cfg := normalizeConfig(cloneAIChatConfig(category.AIChatConfig))
+	if err := validateFineRankConfig(config.AlgoConfs, cfg); err != nil {
+		return nil, err
+	}
 	if language == "" {
 		language = cfg.DefaultLanguage
 	}
@@ -36,7 +41,41 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 	if _, ok := cfg.FallbackTemplates[language]; !ok {
 		return nil, fmt.Errorf("fallback_missing:%s", language)
 	}
-	return &chatConfig{raw: cfg, language: language, plannerPrompt: plannerPrompt, replyPrompt: replyPrompt}, nil
+	fieldAware := isFieldAwareRecall(config.RecallConfs, cfg.RecallName)
+	knowledgeConfigured := isKnowledgeRecall(config.RecallConfs, cfg.RecallName)
+	if knowledgeConfigured && strings.TrimSpace(cfg.KnowledgePlannerInstruction) == "" {
+		return nil, fmt.Errorf("KnowledgePlannerInstruction is required when Ha3KnowledgeVectorConf is configured")
+	}
+	if knowledgeConfigured && !fieldAware {
+		return nil, fmt.Errorf("Ha3KnowledgeVectorConf requires field-aware Ha3ChatRecallConf")
+	}
+	return &chatConfig{
+		raw:                 cfg,
+		language:            language,
+		plannerPrompt:       plannerPrompt,
+		replyPrompt:         replyPrompt,
+		fieldAware:          fieldAware,
+		knowledgeConfigured: knowledgeConfigured,
+	}, nil
+}
+
+func isFieldAwareRecall(recallConfs []recconf.RecallConfig, recallName string) bool {
+	for _, recallConf := range recallConfs {
+		if recallConf.Name == recallName {
+			conf := recallConf.Ha3ChatRecallConf
+			return conf.TitleField != "" && conf.CategoryField != ""
+		}
+	}
+	return false
+}
+
+func isKnowledgeRecall(recallConfs []recconf.RecallConfig, recallName string) bool {
+	for _, recallConf := range recallConfs {
+		if recallConf.Name == recallName {
+			return recallConf.Ha3KnowledgeVectorConf != nil
+		}
+	}
+	return false
 }
 
 func normalizeConfig(cfg *recconf.AIChatConfig) *recconf.AIChatConfig {
@@ -70,7 +109,52 @@ func cloneAIChatConfig(cfg *recconf.AIChatConfig) *recconf.AIChatConfig {
 	cloned.PlannerPromptTemplates = cloneStringMap(cfg.PlannerPromptTemplates)
 	cloned.ReplyPromptTemplates = cloneStringMap(cfg.ReplyPromptTemplates)
 	cloned.FallbackTemplates = cloneNestedStringMap(cfg.FallbackTemplates)
+	if cfg.FineRankConfig != nil {
+		fineRank := *cfg.FineRankConfig
+		fineRank.RankConf.RankAlgoList = append([]string(nil), cfg.FineRankConfig.RankConf.RankAlgoList...)
+		fineRank.RankConf.ContextFeatures = append([]string(nil), cfg.FineRankConfig.RankConf.ContextFeatures...)
+		fineRank.RankConf.ItemFeatures = append([]string(nil), cfg.FineRankConfig.RankConf.ItemFeatures...)
+		cloned.FineRankConfig = &fineRank
+	}
 	return &cloned
+}
+
+func validateFineRankConfig(algoConfs []recconf.AlgoConfig, cfg *recconf.AIChatConfig) error {
+	fineRank := cfg.FineRankConfig
+	if fineRank == nil {
+		return nil
+	}
+	if fineRank.CandidateCount < cfg.DisplayItemCountMax {
+		return fmt.Errorf("FineRankConfig.CandidateCount must be >= DisplayItemCountMax")
+	}
+	rankConf := fineRank.RankConf
+	if len(rankConf.RankAlgoList) != 1 {
+		return fmt.Errorf("FineRankConfig.RankConf.RankAlgoList must contain exactly one algorithm")
+	}
+	algoName := strings.TrimSpace(rankConf.RankAlgoList[0])
+	if algoName == "" || !containsAlgo(algoConfs, algoName) {
+		return fmt.Errorf("FineRankConfig algorithm not found:%s", algoName)
+	}
+	fineRank.RankConf.RankAlgoList[0] = algoName
+	if strings.TrimSpace(rankConf.RankScore) == "" {
+		return fmt.Errorf("FineRankConfig.RankConf.RankScore is required")
+	}
+	if rankConf.BatchCount != 0 || len(rankConf.ScoreRewrite) != 0 {
+		return fmt.Errorf("FineRankConfig does not support BatchCount or ScoreRewrite")
+	}
+	if _, err := ast.GetExpASTWithType(rankConf.RankScore, rankConf.ASTType); err != nil {
+		return fmt.Errorf("invalid FineRankConfig.RankConf.RankScore: %w", err)
+	}
+	return nil
+}
+
+func containsAlgo(algoConfs []recconf.AlgoConfig, name string) bool {
+	for _, algoConf := range algoConfs {
+		if algoConf.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneStringMap(values map[string]string) map[string]string {

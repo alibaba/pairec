@@ -378,16 +378,53 @@ type RecallConfig struct {
 	// recall engine config
 	RecallEngineConf RecallEngineConfig
 
-	Ha3ChatRecallConf Ha3ChatRecallConfig
-	FilterParams      []FilterParamConfig
+	Ha3ChatRecallConf      Ha3ChatRecallConfig
+	Ha3KnowledgeVectorConf *Ha3KnowledgeVectorConfig
+	FilterParams           []FilterParamConfig
 }
 
 type Ha3ChatRecallConfig struct {
-	EngineName   string
-	IndexName    string
-	DefaultField string
-	Analyzer     string
-	PriceField   string
+	EngineName      string
+	IndexName       string
+	ItemIdField     string
+	DefaultField    string
+	TitleField      string
+	CategoryField   string
+	CategoriesField string
+	ContentField    string
+	TagsField       string
+	Analyzer        string
+	PriceField      string
+	DistinctConf    *Ha3ChatDistinctConfig
+}
+
+type Ha3ChatDistinctConfig struct {
+	Default *Ha3ChatDistinctRuleConfig
+}
+
+type Ha3ChatDistinctRuleConfig struct {
+	DistKey      string
+	DistCount    int
+	DistTimes    int
+	Reserved     *bool
+	MaxItemCount int
+}
+
+type Ha3KnowledgeVectorConfig struct {
+	EngineName         string
+	FeatureStoreName   string
+	LLMConfigName      string
+	IndexName          string
+	VectorIndexName    string
+	EmbeddingDelimiter string
+	KnowledgeIDField   string
+	KnowledgeTypeField string
+	KnowledgeTypes     []string
+	ValueField         string
+	CategoryField      string
+	TopK               int
+	SearchTimeout      int
+	QueryTemplate      string
 }
 
 type GraphConf struct {
@@ -769,6 +806,7 @@ type CategoryConfig struct {
 	RecallNames            []string
 	FallbackConfig         *FallbackConfig
 	AIChatConfig           *AIChatConfig
+	SuggestionConfig       *SuggestionConfig
 	AutoInvokeCallBack     bool
 	AutoInvokeCallBackRate int
 	OutputFields           []string
@@ -781,19 +819,32 @@ type CategoryConfig struct {
 }
 
 type AIChatConfig struct {
-	DefaultLanguage         string
-	OutputLanguages         []string
-	PlannerPromptTemplates  map[string]string
-	ReplyPromptTemplates    map[string]string
-	FallbackTemplates       map[string]map[string]string
-	ToolMaxRounds           int
-	DisplayItemCountMax     int
-	LLMAlgoName             string
-	RecallName              string
-	SessionFeatureStoreName string
-	SessionFeatureView      string
-	SessionMaxTurns         int
-	SessionMaxTokens        int
+	DefaultLanguage             string
+	OutputLanguages             []string
+	PlannerPromptTemplates      map[string]string
+	ReplyPromptTemplates        map[string]string
+	FallbackTemplates           map[string]map[string]string
+	ToolMaxRounds               int
+	DisplayItemCountMax         int
+	LLMAlgoName                 string
+	RecallName                  string
+	KnowledgePlannerInstruction string
+	SessionFeatureStoreName     string
+	SessionFeatureView          string
+	SessionMaxTurns             int
+	SessionMaxTokens            int
+	FineRankConfig              *AIShoppingFineRankConfig
+}
+
+type AIShoppingFineRankConfig struct {
+	CandidateCount int
+	RankConf       RankConfig
+}
+
+type SuggestionConfig struct {
+	RecallName      string
+	LLMAlgoName     string
+	PromptTemplates map[string]string
 }
 
 type FallbackConfig struct {

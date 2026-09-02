@@ -19,43 +19,91 @@ type ReplyEvent struct {
 	ItemId  string
 }
 
-func resolveReplyEvents(reply string, indexMap map[int]string, maxItems int) (string, []ReplyEvent) {
+type replyMarkerResolver struct {
+	indexMap      map[int]string
+	sequentialIDs []string
+	nextPos       int
+	strict        bool
+}
+
+func newReplyMarkerResolver(indexMap map[int]string, replyItemIDs []string, maxItems int, strict bool) *replyMarkerResolver {
+	sequentialIDs := orderedItemIDs(indexMap, maxItems)
+	if strict {
+		count := len(replyItemIDs)
+		if maxItems <= 0 {
+			count = 0
+		} else if count > maxItems {
+			count = maxItems
+		}
+		sequentialIDs = append([]string(nil), replyItemIDs[:count]...)
+	}
+	return &replyMarkerResolver{
+		indexMap:      indexMap,
+		sequentialIDs: sequentialIDs,
+		strict:        strict,
+	}
+}
+
+func (r *replyMarkerResolver) nextRef() string {
+	if r.nextPos >= len(r.sequentialIDs) {
+		return ""
+	}
+	itemID := r.sequentialIDs[r.nextPos]
+	r.nextPos++
+	return itemID
+}
+
+func (r *replyMarkerResolver) resolveIndex(index int) string {
+	if r.strict {
+		return r.nextRef()
+	}
+	return r.indexMap[index]
+}
+
+func resolveReplyEvents(reply string, indexMap map[int]string, replyItemIDs []string, maxItems int, strictRankOrder bool) (string, []ReplyEvent) {
 	events := make([]ReplyEvent, 0)
 	canonical := ""
 	pos := 0
 	used := 0
-	refIDs := orderedItemIDs(indexMap, maxItems)
-	refPos := 0
+	seenItemIDs := make(map[string]struct{})
+	var textState markerTextState
+	resolver := newReplyMarkerResolver(indexMap, replyItemIDs, maxItems, strictRankOrder)
 	matches := replyRefRegexp.FindAllStringSubmatchIndex(reply, -1)
 	for _, match := range matches {
-		text := reply[pos:match[0]]
+		text := textState.consume(reply[pos:match[0]])
 		if text != "" {
 			events = append(events, ReplyEvent{Content: text})
 			canonical += text
 		}
 		pos = match[1]
+		textState.mark()
 		itemID := ""
 		if match[2] >= 0 {
 			n, err := strconv.Atoi(reply[match[2]:match[3]])
 			if err != nil {
 				continue
 			}
-			itemID = indexMap[n]
-		} else if refPos < len(refIDs) {
-			itemID = refIDs[refPos]
-			refPos++
+			itemID = resolver.resolveIndex(n)
+		} else {
+			itemID = resolver.nextRef()
 		}
 		if itemID == "" || used >= maxItems {
 			continue
 		}
+		if _, exists := seenItemIDs[itemID]; exists {
+			continue
+		}
+		seenItemIDs[itemID] = struct{}{}
 		used++
 		canonical += "[[item_id:" + itemID + "]]"
 		events = append(events, ReplyEvent{ItemId: itemID})
 	}
 	if pos < len(reply) {
-		text := reply[pos:]
-		events = append(events, ReplyEvent{Content: text})
-		canonical += text
+		text := textState.consume(reply[pos:])
+		if text != "" {
+			events = append(events, ReplyEvent{Content: text})
+			canonical += text
+		}
 	}
 	return canonical, events
 }
@@ -100,4 +148,22 @@ func messagesWithPrompt(messages []aichat.Message, prompt string) []aichat.Messa
 	copy(copied, messages)
 	copied[0] = aichat.Message{Role: "system", Content: prompt}
 	return copied
+}
+
+func messagesWithKnowledge(messages []aichat.Message, instruction string, evidence *knowledgeEvidence) []aichat.Message {
+	if evidence == nil {
+		return messages
+	}
+	knowledgeMessages := []aichat.Message{
+		{Role: "system", Content: instruction},
+		{Role: "system", Content: "KNOWLEDGE_CANDIDATES_JSON:\n" + evidence.PromptJSON()},
+	}
+	if len(messages) == 0 {
+		return knowledgeMessages
+	}
+	result := make([]aichat.Message, 0, len(messages)+len(knowledgeMessages))
+	result = append(result, messages[0])
+	result = append(result, knowledgeMessages...)
+	result = append(result, messages[1:]...)
+	return result
 }
