@@ -127,6 +127,10 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		}
 		client.SetToken(conf.EasConf.Auth)
 		client.SetTimeout(conf.EasConf.Timeout)
+		dialTimeout := 100 * time.Millisecond
+		if conf.EasConf.EndpointType != eas.EndpointTypeDirect && conf.EasConf.Timeout > 100 {
+			dialTimeout = time.Duration(conf.EasConf.Timeout) * time.Millisecond
+		}
 		client.SetHttpTransport(&http.Transport{
 			MaxConnsPerHost:       2000,
 			MaxIdleConnsPerHost:   2000,
@@ -134,7 +138,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 			TLSHandshakeTimeout:   100 * time.Millisecond,
 			ExpectContinueTimeout: 200 * time.Millisecond,
 			DialContext: (&net.Dialer{
-				Timeout:   100 * time.Millisecond, // 100ms
+				Timeout:   dialTimeout,
 				KeepAlive: 10 * time.Minute,
 			}).DialContext,
 		})
