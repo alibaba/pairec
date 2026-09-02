@@ -117,7 +117,11 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			onFinalSearch = coordinator.OnFinalSearch
 		}
 	}
-	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob, cfg, knowledge, writer, meta, onFinalSearch)
+	var rankRuntime *fineRankRuntime
+	if cfg.raw.FineRankConfig != nil {
+		rankRuntime = newFineRankRuntime(req)
+	}
+	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob, cfg, rankRuntime, knowledge, writer, meta, onFinalSearch)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=upstream\terr=%v",
 			req.RequestId, req.Uid, req.SessionId, err))
@@ -125,7 +129,13 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		return err
 	}
 	reply := loopResult.Reply
-	canonical, events := resolveReplyEvents(reply, loopResult.IndexMap, cfg.raw.DisplayItemCountMax)
+	canonical, events := resolveReplyEvents(
+		reply,
+		loopResult.IndexMap,
+		loopResult.ReplyItemIDs,
+		cfg.raw.DisplayItemCountMax,
+		rankRuntime != nil,
+	)
 	if !loopResult.ReplyAlreadyEmitted {
 		if err := writer.EmitStep("reply"); err != nil {
 			return err

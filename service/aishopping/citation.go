@@ -19,15 +19,55 @@ type ReplyEvent struct {
 	ItemId  string
 }
 
-func resolveReplyEvents(reply string, indexMap map[int]string, maxItems int) (string, []ReplyEvent) {
+type replyMarkerResolver struct {
+	indexMap      map[int]string
+	sequentialIDs []string
+	nextPos       int
+	strict        bool
+}
+
+func newReplyMarkerResolver(indexMap map[int]string, replyItemIDs []string, maxItems int, strict bool) *replyMarkerResolver {
+	sequentialIDs := orderedItemIDs(indexMap, maxItems)
+	if strict {
+		count := len(replyItemIDs)
+		if maxItems <= 0 {
+			count = 0
+		} else if count > maxItems {
+			count = maxItems
+		}
+		sequentialIDs = append([]string(nil), replyItemIDs[:count]...)
+	}
+	return &replyMarkerResolver{
+		indexMap:      indexMap,
+		sequentialIDs: sequentialIDs,
+		strict:        strict,
+	}
+}
+
+func (r *replyMarkerResolver) nextRef() string {
+	if r.nextPos >= len(r.sequentialIDs) {
+		return ""
+	}
+	itemID := r.sequentialIDs[r.nextPos]
+	r.nextPos++
+	return itemID
+}
+
+func (r *replyMarkerResolver) resolveIndex(index int) string {
+	if r.strict {
+		return r.nextRef()
+	}
+	return r.indexMap[index]
+}
+
+func resolveReplyEvents(reply string, indexMap map[int]string, replyItemIDs []string, maxItems int, strictRankOrder bool) (string, []ReplyEvent) {
 	events := make([]ReplyEvent, 0)
 	canonical := ""
 	pos := 0
 	used := 0
 	seenItemIDs := make(map[string]struct{})
 	var textState markerTextState
-	refIDs := orderedItemIDs(indexMap, maxItems)
-	refPos := 0
+	resolver := newReplyMarkerResolver(indexMap, replyItemIDs, maxItems, strictRankOrder)
 	matches := replyRefRegexp.FindAllStringSubmatchIndex(reply, -1)
 	for _, match := range matches {
 		text := textState.consume(reply[pos:match[0]])
@@ -43,10 +83,9 @@ func resolveReplyEvents(reply string, indexMap map[int]string, maxItems int) (st
 			if err != nil {
 				continue
 			}
-			itemID = indexMap[n]
-		} else if refPos < len(refIDs) {
-			itemID = refIDs[refPos]
-			refPos++
+			itemID = resolver.resolveIndex(n)
+		} else {
+			itemID = resolver.nextRef()
 		}
 		if itemID == "" || used >= maxItems {
 			continue

@@ -810,8 +810,12 @@ type CategoryConfig struct {
 	AutoInvokeCallBack     bool
 	AutoInvokeCallBackRate int
 	OutputFields           []string
-	SubRank                map[string]any
-	LogResponseBody        bool
+	// DebugOutputFields is the dedicated output fields used only when the
+	// request carries debug=true. When it is not empty in debug mode, it
+	// completely replaces OutputFields; normal requests are not affected.
+	DebugOutputFields []string
+	SubRank           map[string]any
+	LogResponseBody   bool
 }
 
 type AIChatConfig struct {
@@ -829,6 +833,12 @@ type AIChatConfig struct {
 	SessionFeatureView          string
 	SessionMaxTurns             int
 	SessionMaxTokens            int
+	FineRankConfig              *AIShoppingFineRankConfig
+}
+
+type AIShoppingFineRankConfig struct {
+	CandidateCount int
+	RankConf       RankConfig
 }
 
 type SuggestionConfig struct {

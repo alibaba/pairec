@@ -12,8 +12,28 @@ type Request struct {
 	Uid              string
 	Language         string
 	UserText         string
+	Features         map[string]interface{}
 	EnableSuggestion bool
 	Config           *recconf.RecommendConfig
+}
+
+func (r *Request) GetParameter(name string) interface{} {
+	switch name {
+	case "scene", "scene_id":
+		return r.SceneId
+	case "session_id":
+		return r.SessionId
+	case "uid":
+		return r.Uid
+	case "language":
+		return r.Language
+	case "features":
+		return r.Features
+	case "category":
+		return "default"
+	default:
+		return nil
+	}
 }
 
 type SessionBlob struct {
