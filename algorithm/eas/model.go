@@ -128,8 +128,9 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		client.SetToken(conf.EasConf.Auth)
 		client.SetTimeout(conf.EasConf.Timeout)
 		dialTimeout := 100 * time.Millisecond
-		if conf.EasConf.EndpointType != eas.EndpointTypeDirect && conf.EasConf.Timeout > 100 {
-			dialTimeout = time.Duration(conf.EasConf.Timeout) * time.Millisecond
+		configuredTimeout := time.Duration(conf.EasConf.Timeout) * time.Millisecond
+		if conf.EasConf.EndpointType != eas.EndpointTypeDirect && configuredTimeout > dialTimeout {
+			dialTimeout = configuredTimeout
 		}
 		client.SetHttpTransport(&http.Transport{
 			MaxConnsPerHost:       2000,
