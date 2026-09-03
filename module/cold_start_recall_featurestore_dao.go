@@ -26,8 +26,12 @@ type ColdStartRecallFeatureStoreDao struct {
 	lastScanTime time.Time // last scan data time
 	fields       []string
 	filterParam  *FilterParam
-	cache        cache.Cache
-	itemCache    cache.Cache
+	// itemFilterParam holds item only conditions, evaluated right after item
+	// features are loaded so that items not matching never enter itemCache and
+	// the request path never spends time on them.
+	itemFilterParam *FilterParam
+	cache           cache.Cache
+	itemCache       cache.Cache
 }
 
 func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRecallFeatureStoreDao {
@@ -52,10 +56,26 @@ func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRe
 	if featureView == nil {
 		panic(fmt.Sprintf("featureView not found, table:%s", dao.table))
 	}
+	// FilterParams and ItemFilterParams may reference the same field, keep fields
+	// distinct so that GetOnlineFeatures is not asked for duplicated columns.
+	fieldSet := make(map[string]bool, 8)
+	addField := func(name string) {
+		if fieldSet[name] {
+			return
+		}
+		fieldSet[name] = true
+		dao.fields = append(dao.fields, name)
+	}
 	if len(config.FilterParams) > 0 {
 		dao.filterParam = NewFilterParamWithConfig(config.FilterParams)
 		for _, filerParam := range config.FilterParams {
-			dao.fields = append(dao.fields, filerParam.Name)
+			addField(filerParam.Name)
+		}
+	}
+	if len(config.ItemFilterParams) > 0 {
+		dao.itemFilterParam = NewFilterParamWithConfig(config.ItemFilterParams)
+		for _, filterParam := range config.ItemFilterParams {
+			addField(filterParam.Name)
 		}
 	}
 	go dao.initItemData()
@@ -243,7 +263,7 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 }
 
 func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string) {
-	if d.filterParam == nil {
+	if d.filterParam == nil && d.itemFilterParam == nil {
 		return
 	}
 
@@ -292,6 +312,15 @@ func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string) {
 			for _, featureMap := range features {
 				itemId := featureMap[featureEntity.FeatureEntityJoinid]
 				if id := utils.ToString(itemId, ""); id != "" {
+					if d.itemFilterParam != nil {
+						r, err := d.itemFilterParam.EvaluateByDomain(nil, featureMap)
+						if err != nil {
+							// Cache it anyway and let FilterParams have the final say.
+							log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=eval ItemFilterParams\titemId=%s\terror=%v", d.recallName, id, err))
+						} else if !r {
+							continue
+						}
+					}
 					d.itemCache.Put(id, featureMap)
 					size++
 				}
@@ -300,5 +329,5 @@ func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string) {
 		}(start, end)
 	}
 	wg.Wait()
-	log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\tmsg=load item cache\tsize=%d\tcachesize=%d\tcost=%d", len(itemIds), cacheSize.Load(), utils.CostTime(start)))
+	log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=load item cache\tsize=%d\tcachesize=%d\tcost=%d", d.recallName, len(itemIds), cacheSize.Load(), utils.CostTime(start)))
 }
