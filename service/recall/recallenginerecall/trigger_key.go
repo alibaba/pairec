@@ -10,6 +10,7 @@ import (
 
 type TriggerResult struct {
 	TriggerItem       string
+	Version           string
 	DistinctParam     string
 	DistinctParamName string
 }
