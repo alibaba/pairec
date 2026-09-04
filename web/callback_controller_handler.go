@@ -2,6 +2,8 @@ package web
 
 import (
 	"fmt"
+	"runtime/debug"
+	"strings"
 	"sync"
 
 	plog "github.com/alibaba/pairec/v2/log"
@@ -30,10 +32,33 @@ func (h *CallBackControllerHandler) start() {
 	for i := 0; i < h.poolSize; i++ {
 		go func() {
 			for controller := range h.controllerCh {
-				controller.doCallbackLog()
+				runCallbackSafely(controller)
 			}
 		}()
 	}
+}
+
+// runCallbackSafely invokes doCallbackLog with a top-level recover guard.
+// Without it, any panic inside doCallbackLog (nil deref on type assertions,
+// faulty user-registered CallBackProcessFunc, broken downstream service)
+// would propagate out of the worker goroutine. The Go runtime then
+// terminates the entire process AND the worker permanently exits — both
+// outcomes are unacceptable for a callback log path that must not affect
+// recommendation request handling. Logging the panic with a stack trace
+// keeps the failure visible without taking down the server.
+func runCallbackSafely(c *CallBackController) {
+	defer func() {
+		if r := recover(); r != nil {
+			requestId := ""
+			if c != nil {
+				requestId = c.RequestId
+			}
+			stack := strings.ReplaceAll(string(debug.Stack()), "\n", "\t")
+			plog.Error(fmt.Sprintf("requestId=%s\tmodule=CallBackWorker\terror=%v\tstack=%s",
+				requestId, r, stack))
+		}
+	}()
+	c.doCallbackLog()
 }
 
 func Send(controller *CallBackController) {

@@ -156,7 +156,7 @@ func (c *CallBackController) doCallbackLog() {
 		}
 	}
 	// CallBackProcessFunc process
-	if f, ok := callBackProcessFuncMap[c.param.SceneId]; ok {
+	if f, ok := lookupCallBackProcessFunc(c.param.SceneId); ok {
 		f(user, items, c.context)
 	}
 	if callbackConfig, ok := c.context.Config.CallBackConfs[c.param.SceneId]; ok {

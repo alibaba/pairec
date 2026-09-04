@@ -1,14 +1,46 @@
 package hook
 
 import (
+	"fmt"
+	"runtime/debug"
+	"strings"
 	"sync"
 
 	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
 )
 
 type RecommendCleanHookFunc func(context *context.RecommendContext, params ...interface{})
 
 var RecommendCleanHooks = make([]RecommendCleanHookFunc, 0)
+
+// SafeRun invokes a RecommendCleanHookFunc with a top-level recover guard.
+//
+// RecommendCleanHooks are dispatched in their own goroutines from the
+// recommend main path (service/user_recommend.go,
+// service/user_recall_service.go). A goroutine that panics without a
+// deferred recover terminates the entire process — that would let any
+// downstream bug in a clean hook (nil deref, type assertion, user-registered
+// CallBackProcessFunc, etc.) crash the recommendation server. SafeRun
+// localizes the failure: the panic is captured, logged with stack and
+// requestId, and the request goroutine continues.
+//
+// All hook dispatch sites should call SafeRun instead of invoking the hook
+// directly.
+func SafeRun(hf RecommendCleanHookFunc, ctx *context.RecommendContext, params ...any) {
+	defer func() {
+		if r := recover(); r != nil {
+			requestId := ""
+			if ctx != nil {
+				requestId = ctx.RecommendId
+			}
+			stack := strings.ReplaceAll(string(debug.Stack()), "\n", "\t")
+			log.Error(fmt.Sprintf("requestId=%s\tmodule=RecommendCleanHook\terror=%v\tstack=%s",
+				requestId, r, stack))
+		}
+	}()
+	hf(ctx, params...)
+}
 
 func AddRecommendCleanHook(hf ...RecommendCleanHookFunc) {
 	RecommendCleanHooks = append(RecommendCleanHooks, hf...)
