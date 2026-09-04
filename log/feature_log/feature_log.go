@@ -13,6 +13,8 @@ import (
 	"github.com/alibaba/pairec/v2/datasource/datahub"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/persist/fs"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -38,7 +40,14 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 		return
 	}
 
-	messages := getFeatureData(user, config.UserFeatures, items, config.ItemFeatures, config.SplitUserItemLogs, context)
+	var messages []map[string]interface{}
+	if config.OutputType == "featurestore" {
+		// for featurestore output, only one log is written per request,
+		// item infos are merged into one record when LogItems is enabled
+		messages = getFeatureStoreLogData(user, config.UserFeatures, items, config.ItemFeatures, config.LogItems, context)
+	} else {
+		messages = getFeatureData(user, config.UserFeatures, items, config.ItemFeatures, config.SplitUserItemLogs, context)
+	}
 
 	if len(messages) == 0 {
 		return
@@ -51,6 +60,23 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 			return
 		}
 		go datahubApi.SendMessage(messages)
+	} else if config.OutputType == "featurestore" {
+		fsClient, err := fs.GetFeatureStoreClient(config.FeatureStoreName)
+		if err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
+			return
+		}
+		featureView := fsClient.GetProject().GetFeatureView(config.FeatureStoreViewName)
+		if featureView == nil {
+			log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=feature view not found, name:%s", context.RecommendId, config.FeatureStoreViewName))
+			return
+		}
+		// write feature logs to FeatureDB directly via fs sdk direct write interface
+		go func() {
+			if err := featureView.WriteFeatures(messages, domain.WithDirect()); err != nil {
+				log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
+			}
+		}()
 	}
 }
 
@@ -130,6 +156,53 @@ func getFeatureData(user *module.User, userFields string, items []*module.Item, 
 		messages = append(messages, logMap)
 	}
 	return messages
+}
+
+// getFeatureStoreLogData builds a single feature log record for featurestore output.
+// Unlike getFeatureData which logs one record per item, this returns only one log
+// per request. When logItems is enabled, all item infos are merged into one
+// record in the "items" field, otherwise item infos are not logged.
+func getFeatureStoreLogData(user *module.User, userFields string, items []*module.Item, itemFields string, logItems bool, context *context.RecommendContext) []map[string]interface{} {
+	requestTime := time.Now().UnixMilli()
+
+	logMap := map[string]interface{}{
+		"request_id":   context.RecommendId,
+		"scene_id":     context.GetParameter("scene"),
+		"user_id":      string(user.Id),
+		"request_time": requestTime,
+	}
+
+	if context.ExperimentResult != nil {
+		logMap["exp_id"] = context.ExperimentResult.GetExpId()
+	}
+
+	userFeatures := getUserFeatures(user, userFields)
+	if len(userFeatures) > 0 {
+		data, err := json.Marshal(userFeatures)
+		if err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
+		} else {
+			logMap["user_features"] = string(data)
+		}
+	}
+
+	if logItems {
+		itemRecords := make([]map[string]interface{}, 0, len(items))
+		for i, item := range items {
+			itemMap := getItemFeatures(item, itemFields)
+			itemMap["item_id"] = string(item.Id)
+			itemMap["position"] = strconv.Itoa(i + 1)
+			itemRecords = append(itemRecords, itemMap)
+		}
+		data, err := json.Marshal(itemRecords)
+		if err != nil {
+			log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
+		} else {
+			logMap["items"] = string(data)
+		}
+	}
+
+	return []map[string]interface{}{logMap}
 }
 
 func getUserFeatures(user *module.User, userFields string) (result map[string]interface{}) {
