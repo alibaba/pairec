@@ -172,7 +172,7 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 		}
 	}
 
-	if d.filterParam == nil {
+	if d.filterParam == nil && d.itemFilterParam == nil {
 		//itemIds := d.itemIds
 		itemIds := make([]string, len(d.itemIds))
 		copy(itemIds, d.itemIds)
@@ -194,18 +194,29 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
 		})
 
-		userFeatures := user.MakeUserFeatures2()
+		// Only FilterParams looks at the user, ItemFilterParams was already settled
+		// at load time.
+		var userFeatures map[string]any
+		if d.filterParam != nil {
+			userFeatures = user.MakeUserFeatures2()
+		}
 		for _, id := range itemIds {
+			// Missing from itemCache means the item never passed ItemFilterParams
+			// while loading, so it must not be recalled.
 			cacheValue, ok := d.itemCache.GetIfPresent(id)
-			if ok {
-				if r, err := d.filterParam.EvaluateByDomain(userFeatures, cacheValue.(map[string]any)); err == nil && r {
-					item := NewItem(id)
-					item.RetrieveId = d.recallName
-					ret = append(ret, item)
-					if len(ret) >= d.recallCount {
-						break
-					}
+			if !ok {
+				continue
+			}
+			if d.filterParam != nil {
+				if r, err := d.filterParam.EvaluateByDomain(userFeatures, cacheValue.(map[string]any)); err != nil || !r {
+					continue
 				}
+			}
+			item := NewItem(id)
+			item.RetrieveId = d.recallName
+			ret = append(ret, item)
+			if len(ret) >= d.recallCount {
+				break
 			}
 		}
 
