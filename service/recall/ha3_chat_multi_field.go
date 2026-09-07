@@ -206,9 +206,6 @@ func (r *Ha3ChatRecall) searchMultiFieldFallback(ctx context.Context, req Search
 		}(index, route)
 	}
 	wg.Wait()
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
 
 	successCount := 0
 	errors := make([]string, 0, len(results))
@@ -250,6 +247,9 @@ func (r *Ha3ChatRecall) searchFieldWithRetry(ctx context.Context, field string, 
 			break
 		}
 		delay := multiFieldRetryDelay(attempt)
+		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= delay {
+			break
+		}
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
@@ -279,11 +279,11 @@ func retryableHa3SearchError(err error) bool {
 }
 
 func multiFieldRetryDelay(attempt int) time.Duration {
-	base := time.Second << (attempt - 1)
-	maxJitter := base / 4
-	if maxJitter > 500*time.Millisecond {
-		maxJitter = 500 * time.Millisecond
+	base := 100 * time.Millisecond << (attempt - 1)
+	if base > 400*time.Millisecond {
+		base = 400 * time.Millisecond
 	}
+	maxJitter := base / 4
 	jitter := time.Duration(rand.Int63n(int64(maxJitter) + 1))
 	return base + jitter
 }

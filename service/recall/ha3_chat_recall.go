@@ -95,6 +95,7 @@ func (r *Ha3ChatRecall) GetCandidateItems(user *module.User, context *pairecctx.
 func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*SearchGoodsResult, error) {
 	fieldAware := req.MultiFieldFallback && r.fieldAwareEnabled()
 	req.MultiFieldFallback = fieldAware
+	searchCtx := ctx
 	var err error
 	if fieldAware {
 		req, err = normalizeFieldAwareRequest(req)
@@ -104,22 +105,26 @@ func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*Se
 		if req.Limit <= 0 {
 			return nil, fmt.Errorf("limit must be positive")
 		}
-		searchCtx, cancel := context.WithTimeout(ctx, fieldAwareSearchTimeout)
+		var cancel context.CancelFunc
+		searchCtx, cancel = context.WithTimeout(ctx, fieldAwareSearchTimeout)
 		defer cancel()
-		ctx = searchCtx
 	}
 	search := r.searchField
 	if fieldAware {
 		search = r.searchFieldWithRetry
 	}
-	result, err := search(ctx, r.conf.DefaultField, req.Keywords, req.Operator, req, req.Limit)
+	result, err := search(searchCtx, r.conf.DefaultField, req.Keywords, req.Operator, req, req.Limit)
 	if err != nil {
 		return nil, err
 	}
 	if len(result.Hits) > 0 || !fieldAware {
 		return result, nil
 	}
-	return r.searchMultiFieldFallback(ctx, req)
+	result, err = r.searchMultiFieldFallback(searchCtx, req)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	return result, err
 }
 
 func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords []string, operator string, req SearchGoodsRequest, hit int) (*SearchGoodsResult, error) {
@@ -154,10 +159,34 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 	if err != nil {
 		return nil, err
 	}
+	runtime := r.client.Runtime()
+	if req.MultiFieldFallback {
+		// Tea's HTTP timeout is connect + read. Bound both without mutating
+		// the shared runtime or changing the legacy search path.
+		if deadline, ok := ctx.Deadline(); ok {
+			remaining := int(time.Until(deadline) / time.Millisecond)
+			if remaining < 2 {
+				return nil, context.DeadlineExceeded
+			}
+			bounded := *runtime
+			connect := tea.IntValue(bounded.ConnectTimeout)
+			if connect <= 0 || connect > remaining/2 {
+				connect = remaining / 2
+			}
+			read := tea.IntValue(bounded.ReadTimeout)
+			if read <= 0 || read > remaining-connect {
+				read = remaining - connect
+			}
+			bounded.ConnectTimeout = tea.Int(connect)
+			bounded.ReadTimeout = tea.Int(read)
+			bounded.Autoretry = tea.Bool(false)
+			runtime = &bounded
+		}
+	}
 	resp, err := r.client.Ha3Client.SearchRestWithOptions(
 		tea.String(r.conf.IndexName),
 		(&ha3client.SearchRequestModel{}).SetHeaders(map[string]*string{}).SetBody(string(bodyBytes)),
-		r.client.Runtime(),
+		runtime,
 	)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, ctxErr
@@ -270,13 +299,9 @@ func sanitizeSearchKeyword(keyword string) string {
 }
 
 func parseHa3ChatResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResult, error) {
-	total, items, responseErrors, err := decodeHa3ChatResponse(resp)
+	total, items, _, err := decodeHa3ChatResponse(resp)
 	if err != nil {
 		return nil, err
-	}
-	if hasHa3ResponseErrors(responseErrors) {
-		payload, _ := json.Marshal(responseErrors)
-		return nil, fmt.Errorf("ha3 search errors: %s", payload)
 	}
 	hits := make([]GoodsHit, 0, len(items))
 	for index, item := range items {
