@@ -7,7 +7,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	"github.com/alibaba/pairec/v2/log"
 	"golang.org/x/text/unicode/norm"
 )
@@ -18,7 +17,7 @@ var (
 	markdownPattern = regexp.MustCompile("(?m)(^\\s{0,3}(#{1,6}|[-*+]\\s|>\\s)|```|`|\\[[^]]*\\]\\([^)]*\\))")
 )
 
-func Validate(suggestions []string, count int, currentQuery string) ([]string, *Error) {
+func Validate(suggestions []string, count int, currentQuery string, minLength, maxLength int) ([]string, *Error) {
 	if len(suggestions) != count {
 		return nil, NewError(CodeValidationFailed, true, fmt.Errorf("expected %d suggestions, got %d", count, len(suggestions)))
 	}
@@ -32,7 +31,7 @@ func Validate(suggestions []string, count int, currentQuery string) ([]string, *
 		_, duplicate := seen[normalized]
 		reason := ""
 		switch {
-		case length < aichat.SuggestionMinLength || length > aichat.SuggestionMaxLength:
+		case length < minLength || length > maxLength:
 			reason = "length"
 		case strings.IndexFunc(suggestion, unicode.IsControl) >= 0:
 			reason = "control"

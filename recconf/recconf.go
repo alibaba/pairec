@@ -845,6 +845,8 @@ type SuggestionConfig struct {
 	RecallName      string
 	LLMAlgoName     string
 	PromptTemplates map[string]string
+	MinLength       int // Unicode characters; zero defaults to 2.
+	MaxLength       int // Unicode characters; zero defaults to 80.
 }
 
 type FallbackConfig struct {
