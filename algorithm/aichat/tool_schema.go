@@ -109,7 +109,7 @@ func FieldAwareSearchGoodsTool(knowledgeCandidateIDs []string) Tool {
 	}
 }
 
-func SuggestionTool(count int) Tool {
+func SuggestionTool(count, minLength, maxLength int) Tool {
 	return Tool{
 		Type: "function",
 		Function: ToolFunction{
@@ -124,8 +124,8 @@ func SuggestionTool(count int) Tool {
 						"maxItems": count,
 						"items": map[string]interface{}{
 							"type":      "string",
-							"minLength": 1,
-							"maxLength": 160,
+							"minLength": minLength,
+							"maxLength": maxLength,
 						},
 					},
 				},
