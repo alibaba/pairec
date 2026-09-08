@@ -40,7 +40,6 @@ type SearchGoodsRequest struct {
 	MaxPrice              *float64 `json:"max_price,omitempty"`
 	Limit                 int      `json:"-"`
 	MultiFieldFallback    bool     `json:"-"`
-	KnowledgeCandidateIDs []string `json:"knowledge_candidate_ids,omitempty"`
 }
 
 type GoodsHit struct {

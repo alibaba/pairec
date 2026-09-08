@@ -87,7 +87,7 @@ func (c *SearchSuggestionController) Process(w http.ResponseWriter, r *http.Requ
 		c.writeSuggestionError(w, searchsuggestion.NewError(searchsuggestion.CodeKnowledgeEmpty, false, nil))
 		return
 	}
-	input, inputErr := searchsuggestion.BuildStandaloneInput(c.param.Language, c.param.Query, evidence.SuggestionKnowledge(nil))
+	input, inputErr := searchsuggestion.BuildStandaloneInput(c.param.Language, c.param.Query, evidence.SuggestionKnowledge())
 	if inputErr != nil {
 		c.writeSuggestionError(w, inputErr)
 		return

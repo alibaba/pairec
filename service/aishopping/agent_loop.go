@@ -1,12 +1,12 @@
 package aishopping
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 	"time"
 
@@ -20,10 +20,6 @@ import (
 const (
 	toolArgumentsLogLimit        = 2048
 	fieldAwareSearchRetryMessage = "The previous search_goods call was invalid. Return exactly one tool call and no prose. Follow all required fields and array constraints, and omit optional prices when absent."
-)
-
-var optionalPriceNullLikePattern = regexp.MustCompile(
-	`("(?:min_price|max_price)"\s*:\s*)(?:None|NaN|-?Infinity)\b`,
 )
 
 type turnState struct {
@@ -146,7 +142,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			plannerAttempts++
 			temperature := 0.0
 			parallelToolCalls := false
-			llmReq.Tools = []aichat.Tool{aichat.FieldAwareSearchGoodsTool(knowledge.CandidateIDs())}
+			llmReq.Tools = []aichat.Tool{aichat.FieldAwareSearchGoodsTool()}
 			llmReq.Temperature = &temperature
 			llmReq.ParallelToolCalls = &parallelToolCalls
 		}
@@ -206,7 +202,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			result.ToolCalls = nil
 		}
 		if fieldAwareSearch && !readyToReply {
-			if err := normalizeFieldAwareToolCalls(result.ToolCalls, knowledge); err != nil {
+			if err := normalizeFieldAwareToolCalls(result.ToolCalls); err != nil {
 				plannerRetry = true
 				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s\targs=%s",
 					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err), fieldAwareToolArguments(result.ToolCalls)))
@@ -241,7 +237,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		for i, toolCall := range result.ToolCalls {
 			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
 				meta.requestId, meta.uid, meta.sessionId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
-			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg, rankRuntime, fieldAwareSearch, knowledge, onFinalSearch != nil, meta, round)
+			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg, rankRuntime, fieldAwareSearch, onFinalSearch != nil, meta, round)
 			if rankRuntime != nil {
 				if err := ctx.Err(); err != nil {
 					return nil, err
@@ -288,11 +284,11 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 	return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, true), nil
 }
 
-func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCall, state *turnState, cfg *chatConfig, rankRuntime *fineRankRuntime, fieldAware bool, knowledge *knowledgeEvidence, captureFinalSearch bool, meta timingMeta, round int) toolDispatchResult {
+func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCall, state *turnState, cfg *chatConfig, rankRuntime *fineRankRuntime, fieldAware bool, captureFinalSearch bool, meta timingMeta, round int) toolDispatchResult {
 	if toolCall.Function.Name != "search_goods" {
 		return toolDispatchResult{content: `{"error":"unsupported tool"}`, hasError: true}
 	}
-	req, err := parseSearchGoodsRequest(toolCall.Function.Arguments, fieldAware, knowledge)
+	req, err := parseSearchGoodsRequest(toolCall.Function.Arguments, fieldAware)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_parse\tround=%d\terr=%v\targs=%s",
 			meta.requestId, meta.uid, meta.sessionId, round, err, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
@@ -366,14 +362,13 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 
 func sanitizeSearchIntent(req recallsvc.SearchGoodsRequest) searchsuggestion.SearchIntent {
 	return searchsuggestion.SearchIntent{
-		Keywords:                      append([]string(nil), req.Keywords...),
-		ProductTypeKeywords:           append([]string(nil), req.ProductTypeKeywords...),
-		AttributeKeywords:             append([]string(nil), req.AttributeKeywords...),
-		Operator:                      req.Operator,
-		ExcludeKeywords:               append([]string(nil), req.ExcludeKeywords...),
-		MinPrice:                      cloneFloat(req.MinPrice),
-		MaxPrice:                      cloneFloat(req.MaxPrice),
-		SelectedKnowledgeCandidateIDs: append([]string(nil), req.KnowledgeCandidateIDs...),
+		Keywords:            append([]string(nil), req.Keywords...),
+		ProductTypeKeywords: append([]string(nil), req.ProductTypeKeywords...),
+		AttributeKeywords:   append([]string(nil), req.AttributeKeywords...),
+		Operator:            req.Operator,
+		ExcludeKeywords:     append([]string(nil), req.ExcludeKeywords...),
+		MinPrice:            cloneFloat(req.MinPrice),
+		MaxPrice:            cloneFloat(req.MaxPrice),
 	}
 }
 
@@ -404,7 +399,7 @@ func hashOrderedItemIDs(result *recallsvc.SearchGoodsResult) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, knowledge *knowledgeEvidence) error {
+func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall) error {
 	if len(toolCalls) != 1 || toolCalls[0].Function.Name != "search_goods" {
 		return fmt.Errorf("exactly one search_goods call is required")
 	}
@@ -414,11 +409,11 @@ func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, knowledge *knowle
 	if toolCalls[0].Type != "function" {
 		return fmt.Errorf("search_goods tool call type must be function")
 	}
-	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, true, knowledge)
+	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, true)
 	if err != nil {
 		return err
 	}
-	arguments, err := marshalSearchGoodsRequest(req, knowledge)
+	arguments, err := marshalSearchGoodsRequest(req)
 	if err != nil {
 		return err
 	}
@@ -426,17 +421,8 @@ func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, knowledge *knowle
 	return nil
 }
 
-func marshalSearchGoodsRequest(req recallsvc.SearchGoodsRequest, knowledge *knowledgeEvidence) ([]byte, error) {
-	payload, err := json.Marshal(req)
-	if err != nil || knowledge == nil || len(req.KnowledgeCandidateIDs) > 0 {
-		return payload, err
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(payload, &fields); err != nil {
-		return nil, err
-	}
-	fields["knowledge_candidate_ids"] = json.RawMessage(`[]`)
-	return json.Marshal(fields)
+func marshalSearchGoodsRequest(req recallsvc.SearchGoodsRequest) ([]byte, error) {
+	return json.Marshal(req)
 }
 
 func fieldAwareToolArguments(toolCalls []aichat.ToolCall) string {
@@ -446,15 +432,27 @@ func fieldAwareToolArguments(toolCalls []aichat.ToolCall) string {
 	return compactJSONString(toolCalls[0].Function.Arguments, toolArgumentsLogLimit)
 }
 
-func parseSearchGoodsRequest(arguments string, fieldAware bool, knowledge *knowledgeEvidence) (recallsvc.SearchGoodsRequest, error) {
+func parseSearchGoodsRequest(arguments string, fieldAware bool) (recallsvc.SearchGoodsRequest, error) {
 	var req recallsvc.SearchGoodsRequest
 	if !fieldAware {
 		return req, json.Unmarshal([]byte(arguments), &req)
 	}
-	arguments = optionalPriceNullLikePattern.ReplaceAllString(arguments, `${1}null`)
+	arguments = normalizeOptionalPriceLiterals(arguments)
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(arguments), &fields); err != nil {
 		return req, err
+	}
+	// Older sessions/models may still send references. They are no longer part
+	// of the search contract and must neither override types nor block search.
+	delete(fields, "knowledge_candidate_ids")
+	for _, field := range []string{"min_price", "max_price"} {
+		if raw, ok := fields[field]; ok {
+			var price *float64
+			if err := json.Unmarshal(raw, &price); err != nil {
+				fields[field] = json.RawMessage("null")
+				log.Info(fmt.Sprintf("module=AIShoppingChat\tevent=optional_price_ignored\tfield=%s\treason=invalid_value", field))
+			}
+		}
 	}
 	if raw, ok := fields["keywords"]; ok {
 		var keyword string
@@ -464,14 +462,13 @@ func parseSearchGoodsRequest(arguments string, fieldAware bool, knowledge *knowl
 				return req, err
 			}
 			fields["keywords"] = normalizedKeyword
-			payload, err := json.Marshal(fields)
-			if err != nil {
-				return req, err
-			}
-			arguments = string(payload)
 		}
 	}
-	decoder := json.NewDecoder(strings.NewReader(arguments))
+	payload, err := json.Marshal(fields)
+	if err != nil {
+		return req, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
 		return req, err
@@ -480,9 +477,6 @@ func parseSearchGoodsRequest(arguments string, fieldAware bool, knowledge *knowl
 		if err == nil {
 			err = fmt.Errorf("multiple JSON values are not allowed")
 		}
-		return req, err
-	}
-	if err := knowledge.Apply(&req); err != nil {
 		return req, err
 	}
 	return recallsvc.NormalizeFieldAwareSearchGoodsRequest(req)

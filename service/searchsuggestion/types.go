@@ -29,8 +29,6 @@ type SearchIntent struct {
 	ExcludeKeywords     []string `json:"exclude_keywords,omitempty"`
 	MinPrice            *float64 `json:"min_price,omitempty"`
 	MaxPrice            *float64 `json:"max_price,omitempty"`
-
-	SelectedKnowledgeCandidateIDs []string `json:"-"`
 }
 
 type ProductSummary struct {

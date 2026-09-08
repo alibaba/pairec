@@ -39,7 +39,7 @@ func SearchGoodsTool() Tool {
 	}
 }
 
-func FieldAwareSearchGoodsTool(knowledgeCandidateIDs []string) Tool {
+func FieldAwareSearchGoodsTool() Tool {
 	properties := map[string]interface{}{
 		"keywords": map[string]interface{}{
 			"type":        "array",
@@ -84,16 +84,6 @@ func FieldAwareSearchGoodsTool(knowledgeCandidateIDs []string) Tool {
 		},
 	}
 	required := []string{"keywords", "operator", "product_type_keywords", "attribute_keywords"}
-	if len(knowledgeCandidateIDs) > 0 {
-		properties["knowledge_candidate_ids"] = map[string]interface{}{
-			"type":        "array",
-			"items":       map[string]interface{}{"type": "string", "enum": knowledgeCandidateIDs},
-			"maxItems":    4,
-			"uniqueItems": true,
-			"description": "Select only candidate IDs that exactly match the requested product type. Return an empty array when none matches. Never invent an ID.",
-		}
-		required = append(required, "knowledge_candidate_ids")
-	}
 	return Tool{
 		Type: "function",
 		Function: ToolFunction{

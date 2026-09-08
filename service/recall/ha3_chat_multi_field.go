@@ -152,20 +152,17 @@ func normalizeFieldAwareRequest(req SearchGoodsRequest) (SearchGoodsRequest, err
 	if req.ExcludeKeywords, err = trimUniqueNonEmpty("exclude_keywords", req.ExcludeKeywords); err != nil {
 		return req, err
 	}
-	if req.MinPrice != nil && !isFinitePrice(*req.MinPrice) {
-		return req, fmt.Errorf("min_price must be finite")
+	if req.MinPrice != nil && (!isFinitePrice(*req.MinPrice) || *req.MinPrice <= 0) {
+		req.MinPrice = nil
+		log.Info("module=Ha3ChatRecall\tevent=optional_price_ignored\tfield=min_price\treason=nonpositive_or_nonfinite")
 	}
-	if req.MaxPrice != nil && !isFinitePrice(*req.MaxPrice) {
-		return req, fmt.Errorf("max_price must be finite")
+	if req.MaxPrice != nil && (!isFinitePrice(*req.MaxPrice) || *req.MaxPrice <= 0) {
+		req.MaxPrice = nil
+		log.Info("module=Ha3ChatRecall\tevent=optional_price_ignored\tfield=max_price\treason=nonpositive_or_nonfinite")
 	}
 	if req.MinPrice != nil && req.MaxPrice != nil && *req.MinPrice > *req.MaxPrice {
-		return req, fmt.Errorf("min_price exceeds max_price")
-	}
-	if req.MinPrice != nil && *req.MinPrice <= 0 {
-		return req, fmt.Errorf("min_price must be positive")
-	}
-	if req.MaxPrice != nil && *req.MaxPrice <= 0 {
-		return req, fmt.Errorf("max_price must be positive")
+		req.MinPrice, req.MaxPrice = nil, nil
+		log.Info("module=Ha3ChatRecall\tevent=optional_price_ignored\tfield=min_price,max_price\treason=conflicting_bounds")
 	}
 	return req, nil
 }
