@@ -40,6 +40,7 @@ type agentLoopResult struct {
 	ReplyAlreadyEmitted bool
 	MainReplyFallback   bool
 	FinalSearchStatus   finalSearchStatus
+	LastSearch          *searchsuggestion.SearchIntent
 }
 
 type finalSearchStatus string
@@ -75,19 +76,21 @@ type toolDispatchResult struct {
 	total        int
 	hasError     bool
 	search       *finalSearchSnapshot
+	intent       *searchsuggestion.SearchIntent
 }
 
 func (r toolDispatchResult) shouldRetryWithFallback(tried bool) bool {
 	return r.isSearch && !r.hasError && r.operator == "AND" && r.total == 0 && r.keywordCount > 1 && !tried
 }
 
-func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, blob *SessionBlob, cfg *chatConfig, rankRuntime *fineRankRuntime, knowledge *knowledgeEvidence, writer *StreamWriter, meta timingMeta, onFinalSearch func(context.Context, *finalSearchSnapshot)) (*agentLoopResult, error) {
+func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, messages []aichat.Message, cfg *chatConfig, rankRuntime *fineRankRuntime, knowledge *knowledgeEvidence, writer *StreamWriter, meta timingMeta, onFinalSearch func(context.Context, *finalSearchSnapshot)) (*agentLoopResult, error) {
 	state := &turnState{
 		indexMap:    make(map[int]string),
 		itemToIndex: make(map[string]int),
 		nextIndex:   1,
 	}
 	finalStatus := finalSearchNotAttempted
+	var lastSearch *searchsuggestion.SearchIntent
 	loopResult := func(reply string, emitted, fallback bool) *agentLoopResult {
 		return &agentLoopResult{
 			Reply:               reply,
@@ -96,6 +99,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			ReplyAlreadyEmitted: emitted,
 			MainReplyFallback:   fallback,
 			FinalSearchStatus:   finalStatus,
+			LastSearch:          lastSearch,
 		}
 	}
 	if err := writer.EmitStep("analyze_requirement"); err != nil {
@@ -120,14 +124,13 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		if readyToReply {
 			prompt = cfg.replyPrompt
 		}
-		messages := maskHistoryMessages(blob.Messages)
+		plannerMessages := messagesWithPrompt(messages, prompt)
 		if fieldAwareSearch && !readyToReply && plannerRetry {
-			messages = append(messages, aichat.Message{
+			plannerMessages = append(plannerMessages, aichat.Message{
 				Role:    "system",
 				Content: fieldAwareSearchRetryMessage,
 			})
 		}
-		plannerMessages := messagesWithPrompt(messages, prompt)
 		if !readyToReply {
 			plannerMessages = messagesWithKnowledge(plannerMessages, cfg.raw.KnowledgePlannerInstruction, knowledge)
 		}
@@ -215,7 +218,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 			result.Content = ""
 		}
 		assistant := aichat.Message{Role: "assistant", Content: result.Content, ToolCalls: result.ToolCalls}
-		blob.Messages = append(blob.Messages, assistant)
+		messages = append(messages, assistant)
 		if len(result.ToolCalls) == 0 {
 			if result.Content == "" {
 				return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, true), nil
@@ -234,16 +237,20 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, b
 		readyToReply = true
 		roundSearches := make([]*finalSearchSnapshot, 0, 1)
 		roundSearchFailed := false
+		lastSearch = nil
 		for i, toolCall := range result.ToolCalls {
 			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
 				meta.requestId, meta.uid, meta.sessionId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
 			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg, rankRuntime, fieldAwareSearch, onFinalSearch != nil, meta, round)
+			if len(result.ToolCalls) == 1 {
+				lastSearch = toolResult.intent
+			}
 			if rankRuntime != nil {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
 			}
-			blob.Messages = append(blob.Messages, aichat.Message{
+			messages = append(messages, aichat.Message{
 				Role:       "tool",
 				ToolCallId: toolCall.ID,
 				Content:    toolResult.content,
@@ -301,10 +308,12 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 		req.Limit = fineRank.CandidateCount
 	}
 	req.MultiFieldFallback = fieldAware
+	intent := sanitizeSearchIntent(req)
 	dispatchResult := toolDispatchResult{
 		isSearch:     true,
 		operator:     effectiveOperator(req.Operator),
 		keywordCount: countSearchKeywords(req.Keywords),
+		intent:       &intent,
 	}
 	recallStart := time.Now()
 	result, err := recall.Search(ctx, req)

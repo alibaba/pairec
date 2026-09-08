@@ -32,16 +32,13 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		return err
 	}
 	store := NewSessionStore(cfg.raw)
-	blob, err := store.Load(req.Uid, req.SessionId, cfg.language, cfg.plannerPrompt)
+	blob, err := store.Load(req.Uid, req.SessionId, cfg.language)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=session_read\terr=%v",
 			req.RequestId, req.Uid, req.SessionId, err))
 		_ = writer.EmitStop("error", "session_read_failed")
 		return err
 	}
-	history := append([]aichat.Message(nil), blob.Messages...)
-	blob.Messages = append(blob.Messages, aichat.Message{Role: "user", Content: req.UserText})
-
 	var suggestionRuntime *searchsuggestion.RuntimeConfig
 	var suggestionPrerequisite *searchsuggestion.Error
 	if req.EnableSuggestion {
@@ -81,7 +78,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			return err
 		}
 		knowledgeStart := time.Now()
-		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, req.UserText)
+		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, blob.knowledgeQuery(req.UserText))
 		knowledgeCost := utils.CostTime(knowledgeStart)
 		if knowledgeErr != nil {
 			if req.EnableSuggestion && suggestionPrerequisite == nil {
@@ -111,7 +108,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	var coordinator *suggestionCoordinator
 	var onFinalSearch func(context.Context, *finalSearchSnapshot)
 	if req.EnableSuggestion {
-		coordinator = newSuggestionCoordinator(ctx, suggestionRuntime, cfg.language, req.UserText, history, knowledge, suggestionPrerequisite)
+		coordinator = newSuggestionCoordinator(ctx, suggestionRuntime, cfg.language, req.UserText, blob.UserQueries, knowledge, suggestionPrerequisite)
 		defer coordinator.Cancel()
 		if suggestionPrerequisite == nil {
 			onFinalSearch = coordinator.OnFinalSearch
@@ -121,7 +118,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	if cfg.raw.FineRankConfig != nil {
 		rankRuntime = newFineRankRuntime(req)
 	}
-	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob, cfg, rankRuntime, knowledge, writer, meta, onFinalSearch)
+	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob.messages(req.UserText), cfg, rankRuntime, knowledge, writer, meta, onFinalSearch)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=upstream\terr=%v",
 			req.RequestId, req.Uid, req.SessionId, err))
@@ -129,7 +126,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		return err
 	}
 	reply := loopResult.Reply
-	canonical, events := resolveReplyEvents(
+	_, events := resolveReplyEvents(
 		reply,
 		loopResult.IndexMap,
 		loopResult.ReplyItemIDs,
@@ -153,7 +150,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			}
 		}
 	}
-	recordAssistant(blob, canonical)
+	blob.recordTurn(req.UserText, loopResult.LastSearch)
 	if err := store.Save(req.Uid, req.SessionId, blob); err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=session_write\terr=%v",
 			req.RequestId, req.Uid, req.SessionId, err))
@@ -202,15 +199,4 @@ func getChatRecall(name string) (chatRecall, error) {
 		return nil, fmt.Errorf("recall %s is not chat recall", name)
 	}
 	return chatRecall, nil
-}
-
-func recordAssistant(blob *SessionBlob, content string) {
-	if len(blob.Messages) > 0 {
-		last := &blob.Messages[len(blob.Messages)-1]
-		if last.Role == "assistant" && len(last.ToolCalls) == 0 {
-			last.Content = content
-			return
-		}
-	}
-	blob.Messages = append(blob.Messages, aichat.Message{Role: "assistant", Content: content})
 }

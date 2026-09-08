@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	"github.com/alibaba/pairec/v2/service/searchsuggestion"
 )
 
@@ -23,7 +22,7 @@ type suggestionCoordinator struct {
 	started      bool
 }
 
-func newSuggestionCoordinator(parent context.Context, runtime *searchsuggestion.RuntimeConfig, language, currentQuery string, history []aichat.Message, knowledge *knowledgeEvidence, prerequisite *searchsuggestion.Error) *suggestionCoordinator {
+func newSuggestionCoordinator(parent context.Context, runtime *searchsuggestion.RuntimeConfig, language, currentQuery string, history []SessionQuery, knowledge *knowledgeEvidence, prerequisite *searchsuggestion.Error) *suggestionCoordinator {
 	return &suggestionCoordinator{
 		parent:       parent,
 		runtime:      runtime,
@@ -112,31 +111,15 @@ func freezeFinalSearchSnapshot(snapshot *finalSearchSnapshot) finalSearchSnapsho
 	return copy
 }
 
-func suggestionConversation(messages []aichat.Message) []searchsuggestion.ConversationTurn {
-	turns := 0
-	start := len(messages)
-	for index := len(messages) - 1; index >= 0; index-- {
-		if messages[index].Role == "user" {
-			turns++
-			if turns == suggestionHistoryTurns {
-				start = index
-				break
-			}
-		}
+func suggestionConversation(queries []SessionQuery) []searchsuggestion.ConversationTurn {
+	if len(queries) > suggestionHistoryTurns {
+		queries = queries[len(queries)-suggestionHistoryTurns:]
 	}
-	if turns < suggestionHistoryTurns {
-		start = 0
-	}
-	result := make([]searchsuggestion.ConversationTurn, 0, len(messages)-start)
-	for _, message := range messages[start:] {
-		if (message.Role != "user" && message.Role != "assistant") || len(message.ToolCalls) > 0 {
-			continue
+	result := make([]searchsuggestion.ConversationTurn, 0, len(queries))
+	for _, query := range queries {
+		if strings.TrimSpace(query.Query) != "" {
+			result = append(result, searchsuggestion.ConversationTurn{Role: "user", Content: query.Query})
 		}
-		content := strings.TrimSpace(itemMarkerRegexp.ReplaceAllString(message.Content, ""))
-		if content == "" {
-			continue
-		}
-		result = append(result, searchsuggestion.ConversationTurn{Role: message.Role, Content: content})
 	}
 	return result
 }
