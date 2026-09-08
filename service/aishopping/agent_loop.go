@@ -442,9 +442,6 @@ func parseSearchGoodsRequest(arguments string, fieldAware bool) (recallsvc.Searc
 	if err := json.Unmarshal([]byte(arguments), &fields); err != nil {
 		return req, err
 	}
-	// Older sessions/models may still send references. They are no longer part
-	// of the search contract and must neither override types nor block search.
-	delete(fields, "knowledge_candidate_ids")
 	for _, field := range []string{"min_price", "max_price"} {
 		if raw, ok := fields[field]; ok {
 			var price *float64

@@ -1,11 +1,9 @@
 package aishopping
 
 import (
-	"encoding/json"
 	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/alibaba/pairec/v2/algorithm/aichat"
 )
@@ -134,26 +132,6 @@ func orderedItemIDs(indexMap map[int]string, maxItems int) []string {
 func maskHistoryMessages(messages []aichat.Message) []aichat.Message {
 	copied := make([]aichat.Message, 0, len(messages))
 	for _, msg := range messages {
-		if msg.Role == "system" && strings.HasPrefix(msg.Content, "KNOWLEDGE_CANDIDATES_JSON:") {
-			continue // Per-turn knowledge must never be reused as historical evidence.
-		}
-		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
-			msg.ToolCalls = append([]aichat.ToolCall(nil), msg.ToolCalls...)
-			for i := range msg.ToolCalls {
-				call := &msg.ToolCalls[i]
-				if call.Function.Name != "search_goods" || !strings.Contains(call.Function.Arguments, "knowledge_candidate_ids") {
-					continue
-				}
-				var fields map[string]json.RawMessage
-				if json.Unmarshal([]byte(call.Function.Arguments), &fields) != nil || fields == nil {
-					call.Function.Arguments = "{}"
-					continue
-				}
-				delete(fields, "knowledge_candidate_ids")
-				payload, _ := json.Marshal(fields)
-				call.Function.Arguments = string(payload)
-			}
-		}
 		if msg.Role == "assistant" && msg.Content != "" {
 			msg.Content = itemMarkerRegexp.ReplaceAllString(msg.Content, "[ref]")
 		}
