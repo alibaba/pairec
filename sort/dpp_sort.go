@@ -57,6 +57,15 @@ func RegisterEmbeddingHook(name string, fn EmbeddingHookFunc) {
 	embeddingHooks[name] = fn
 }
 
+// cloneEmbedding 返回 embCache 中向量的副本。DPP/SSD 的打散过程会对 item.Embedding 做原地运算
+// (floats.Scale/Sub/Add), 若直接引用缓存里的 slice, 会把结果写回缓存, 污染后续其他请求。
+// cap 多预留一位, 保证 KernelMatrix 里 append(embs, 1) 不触发重新分配。
+func cloneEmbedding(emb []float64) []float64 {
+	cloned := make([]float64, len(emb), len(emb)+1)
+	copy(cloned, emb)
+	return cloned
+}
+
 func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 	hologres, err := holo.GetPostgres(config.DaoConf.HologresName)
 	if err != nil {
@@ -66,6 +75,10 @@ func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 	if config.CacheTimeInMinutes > 0 {
 		cacheTime = time.Duration(config.CacheTimeInMinutes)
 	}
+	cacheSize := 500000
+	if config.CacheSize > 0 {
+		cacheSize = config.CacheSize
+	}
 	dpp := DPPSort{
 		db:                   hologres.DB,
 		tableName:            config.TableName,
@@ -74,7 +87,7 @@ func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 		embeddingField:       config.EmbeddingColumn,
 		embSeparator:         config.EmbeddingSeparator,
 		alpha:                config.Alpha,
-		embCache:             cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(cacheTime*time.Minute)),
+		embCache:             cache.New(cache.WithMaximumSize(cacheSize), cache.WithExpireAfterAccess(cacheTime*time.Minute)),
 		lastTableSuffixParam: "",
 		embeddingHookNames:   config.EmbeddingHookNames,
 		normalizeEmb:         true,
@@ -191,7 +204,7 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			absentItemIds = append(absentItemIds, string(item.Id))
 			itemMap[string(item.Id)] = item
 		} else {
-			item.Embedding = embI.([]float64)
+			item.Embedding = cloneEmbedding(embI.([]float64))
 			if embedSize == 0 {
 				embedSize = len(item.Embedding)
 			}
@@ -237,7 +250,7 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			}
 			s.embCache.Put(itemID.String, vector)
 			if item, ok := itemMap[itemID.String]; ok {
-				item.Embedding = vector
+				item.Embedding = cloneEmbedding(vector)
 			} else {
 				return -1, errors.New("item id is not in map")
 			}

@@ -58,6 +58,10 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 	if config.CacheTimeInMinutes > 0 {
 		cacheTime = time.Duration(config.CacheTimeInMinutes)
 	}
+	cacheSize := 500000
+	if config.CacheSize > 0 {
+		cacheSize = config.CacheSize
+	}
 	ssd := SSDSort{
 		db:                   hologres.DB,
 		tableName:            config.TableName,
@@ -67,7 +71,7 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 		embSeparator:         config.EmbeddingSeparator,
 		gamma:                0.25,
 		useSSDStar:           config.UseSSDStar,
-		embCache:             cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(cacheTime*time.Minute)),
+		embCache:             cache.New(cache.WithMaximumSize(cacheSize), cache.WithExpireAfterAccess(cacheTime*time.Minute)),
 		lastTableSuffixParam: "",
 		normalizeEmb:         true,
 		windowSize:           config.WindowSize,
@@ -202,7 +206,7 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			absentItemIds = append(absentItemIds, string(item.Id))
 			itemMap[string(item.Id)] = item
 		} else {
-			item.Embedding = embI.([]float64)
+			item.Embedding = cloneEmbedding(embI.([]float64))
 			if embedSize == 0 {
 				embedSize = len(item.Embedding)
 			} else if embedSize != len(item.Embedding) {
@@ -261,7 +265,7 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			}
 			s.embCache.Put(itemID.String, vector)
 			if item, ok := itemMap[itemID.String]; ok {
-				item.Embedding = vector
+				item.Embedding = cloneEmbedding(vector)
 			} else {
 				return errors.New("item id is not in map")
 			}
