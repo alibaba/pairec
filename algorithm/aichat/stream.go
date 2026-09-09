@@ -3,6 +3,7 @@ package aichat
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -10,6 +11,8 @@ import (
 )
 
 const maxToolCallIndex = 64
+
+var errInvalidStream = errors.New("invalid aichat stream")
 
 type streamChunk struct {
 	Choices []struct {
@@ -42,6 +45,7 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 	scanner := bufio.NewScanner(reader)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
+	finished := false
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, ":") {
@@ -52,11 +56,12 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 		}
 		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 		if data == "[DONE]" {
+			finished = true
 			break
 		}
 		var chunk streamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %v", errInvalidStream, err)
 		}
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
@@ -69,10 +74,11 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 			}
 			if choice.FinishReason != "" {
 				result.FinishReason = choice.FinishReason
+				finished = true
 			}
 			for _, tc := range choice.Delta.ToolCalls {
 				if tc.Index < 0 || tc.Index >= maxToolCallIndex {
-					return nil, fmt.Errorf("aichat stream invalid tool call index:%d", tc.Index)
+					return nil, fmt.Errorf("%w: tool call index:%d", errInvalidStream, tc.Index)
 				}
 				slot := toolCalls[tc.Index]
 				if slot == nil {
@@ -92,6 +98,9 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
+	}
+	if !finished {
+		return nil, io.ErrUnexpectedEOF
 	}
 	result.Content = contentBuf.String()
 	indexes := make([]int, 0, len(toolCalls))

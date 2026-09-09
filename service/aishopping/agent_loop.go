@@ -179,31 +179,25 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 			readyToReply && rankRuntime != nil,
 		)
 		var streamErr error
+		replyStarted := false
 		llmPhase := "planner_llm"
 		if readyToReply {
 			llmPhase = "reply_llm"
 		}
+		var onDelta aichat.DeltaHandler
+		if readyToReply {
+			onDelta = func(text string) error {
+				replyStarted = true
+				streamErr = streamer.Feed(text)
+				return streamErr
+			}
+		}
 		llmStart := time.Now()
-		result, err := model.Stream(ctx, llmReq, func(text string) error {
-			if !readyToReply {
-				return nil
-			}
-			if err := streamer.Feed(text); err != nil {
-				streamErr = err
-				return err
-			}
-			return nil
-		})
+		result, err := model.Stream(ctx, llmReq, onDelta)
 		llmCost := utils.CostTime(llmStart)
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return nil, ctxErr
-			}
-			if fieldAwareSearch && !readyToReply && plannerAttempts < cfg.raw.ToolMaxRounds {
-				plannerRetry = "No complete model response was received."
-				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s",
-					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err)))
-				continue
 			}
 			if streamErr != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\tevent=model_stream_callback_error\tcost=%d\tstreamErr=%+v\terr=%+v",
@@ -212,6 +206,9 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 			}
 			log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\tevent=model_stream_error\tcost=%d\terr=%+v",
 				meta.requestId, meta.uid, meta.sessionId, llmPhase, round, llmCost, err))
+			if replyStarted {
+				return nil, err
+			}
 			return loopResult(fallbackText(cfg.raw, cfg.language, "generic"), false, true), nil
 		}
 		log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=%s\tround=%d\ttoolCalls=%d\tfinishReason=%s\tcontentBytes=%d\tcost=%d",
