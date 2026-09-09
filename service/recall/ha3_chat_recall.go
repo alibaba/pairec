@@ -31,30 +31,29 @@ type Ha3ChatRecall struct {
 }
 
 type SearchGoodsRequest struct {
-	Keywords              []string `json:"keywords"`
-	ProductTypeKeywords   []string `json:"product_type_keywords"`
-	AttributeKeywords     []string `json:"attribute_keywords"`
-	Operator              string   `json:"operator"`
-	ExcludeKeywords       []string `json:"exclude_keywords,omitempty"`
-	MinPrice              *float64 `json:"min_price,omitempty"`
-	MaxPrice              *float64 `json:"max_price,omitempty"`
-	Limit                 int      `json:"-"`
-	MultiFieldFallback    bool     `json:"-"`
+	Keywords          []string                   `json:"keywords"`
+	PreferredKeywords []string                   `json:"preferred_keywords,omitempty"`
+	Constraints       map[string]json.RawMessage `json:"constraints,omitempty"`
+	ExcludeKeywords   []string                   `json:"exclude_keywords,omitempty"`
+	MinPrice          *float64                   `json:"min_price,omitempty"`
+	MaxPrice          *float64                   `json:"max_price,omitempty"`
+	Limit             int                        `json:"-"`
+	FieldAware        bool                       `json:"-"`
 }
 
 type GoodsHit struct {
-	ItemId     string                 `json:"item_id"`
-	Title      string                 `json:"title,omitempty"`
-	Content    string                 `json:"content,omitempty"`
-	Score      interface{}            `json:"score,omitempty"`
-	Properties map[string]interface{} `json:"raw,omitempty"`
+	ItemId             string                 `json:"item_id"`
+	Title              string                 `json:"title,omitempty"`
+	Content            string                 `json:"content,omitempty"`
+	Score              interface{}            `json:"score,omitempty"`
+	Properties         map[string]interface{} `json:"raw,omitempty"`
+	ConstraintEvidence map[string]interface{} `json:"constraint_evidence,omitempty"`
 }
 
 type SearchGoodsResult struct {
-	Total        int        `json:"total"`
-	Hits         []GoodsHit `json:"hits"`
-	FallbackUsed bool       `json:"-"`
-	RouteErrors  []string   `json:"-"`
+	Total                    int        `json:"total"`
+	Hits                     []GoodsHit `json:"hits"`
+	DroppedPreferredKeywords []string   `json:"dropped_preferred_keywords,omitempty"`
 }
 
 func NewHa3ChatRecall(config recconf.RecallConfig) *Ha3ChatRecall {
@@ -72,6 +71,8 @@ func NewHa3ChatRecall(config recconf.RecallConfig) *Ha3ChatRecall {
 		}
 	}
 	validateHa3ChatFieldConfig(conf)
+	conf.SearchGoodsConf = cloneSearchGoodsConfig(conf.SearchGoodsConf)
+	validateSearchGoodsConfig(conf.SearchGoodsConf)
 	conf.DistinctConf = normalizeHa3ChatDistinctConfig(conf.DistinctConf)
 	if config.Ha3KnowledgeVectorConf != nil && !ha3ChatFieldAwareConfigured(conf) {
 		panic("Ha3KnowledgeVectorConf requires field-aware Ha3ChatRecallConf")
@@ -92,8 +93,8 @@ func (r *Ha3ChatRecall) GetCandidateItems(user *module.User, context *pairecctx.
 }
 
 func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*SearchGoodsResult, error) {
-	fieldAware := req.MultiFieldFallback && r.fieldAwareEnabled()
-	req.MultiFieldFallback = fieldAware
+	fieldAware := req.FieldAware && r.fieldAwareEnabled()
+	req.FieldAware = fieldAware
 	var err error
 	if fieldAware {
 		req, err = normalizeFieldAwareRequest(req)
@@ -103,22 +104,28 @@ func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*Se
 		if req.Limit <= 0 {
 			return nil, fmt.Errorf("limit must be positive")
 		}
-		searchCtx, cancel := context.WithTimeout(ctx, fieldAwareSearchTimeout)
-		defer cancel()
-		ctx = searchCtx
 	}
 	search := r.searchField
 	if fieldAware {
 		search = r.searchFieldWithRetry
 	}
-	result, err := search(ctx, r.conf.DefaultField, req.Keywords, req.Operator, req, req.Limit)
-	if err != nil {
+	if _, err := r.buildConstraintExpr(req.Constraints); err != nil {
 		return nil, err
 	}
-	if len(result.Hits) > 0 || !fieldAware {
-		return result, nil
+	keywords := append(append([]string(nil), req.Keywords...), req.PreferredKeywords...)
+	result, err := search(ctx, r.conf.DefaultField, keywords, "AND", req, req.Limit)
+	if err != nil || result == nil || result.Total != 0 || len(result.Hits) != 0 || len(req.PreferredKeywords) == 0 || r.conf.SearchGoodsConf == nil || !r.conf.SearchGoodsConf.DropPreferredOnEmpty {
+		if err == nil {
+			r.attachConstraintEvidence(result, req.Constraints)
+		}
+		return result, err
 	}
-	return r.searchMultiFieldFallback(ctx, req)
+	result, err = search(ctx, r.conf.DefaultField, req.Keywords, "AND", req, req.Limit)
+	if err == nil && result != nil {
+		result.DroppedPreferredKeywords = append([]string(nil), req.PreferredKeywords...)
+		r.attachConstraintEvidence(result, req.Constraints)
+	}
+	return result, err
 }
 
 func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords []string, operator string, req SearchGoodsRequest, hit int) (*SearchGoodsResult, error) {
@@ -130,6 +137,16 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 		return nil, err
 	}
 	filterExpr := r.buildFilterExpr(req)
+	constraintExpr, err := r.buildConstraintExpr(req.Constraints)
+	if err != nil {
+		return nil, err
+	}
+	if constraintExpr != "" {
+		if filterExpr != "" {
+			filterExpr += " AND "
+		}
+		filterExpr += constraintExpr
+	}
 	body := map[string]interface{}{
 		"query": queryExpr,
 		"config": map[string]interface{}{
@@ -164,14 +181,15 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 	if err != nil {
 		return nil, err
 	}
-	if req.MultiFieldFallback && r.fieldAwareEnabled() {
+	if req.FieldAware && r.fieldAwareEnabled() {
 		return r.parseConfiguredResponse(resp)
 	}
 	return parseHa3ChatResponse(resp)
 }
 
 func (r *Ha3ChatRecall) buildQueryExpr(req SearchGoodsRequest) (string, error) {
-	return r.buildFieldQueryExpr(r.conf.DefaultField, req.Keywords, req.Operator, req.ExcludeKeywords)
+	keywords := append(append([]string(nil), req.Keywords...), req.PreferredKeywords...)
+	return r.buildFieldQueryExpr(r.conf.DefaultField, keywords, "AND", req.ExcludeKeywords)
 }
 
 func (r *Ha3ChatRecall) buildFieldQueryExpr(field string, keywords []string, operator string, excludeKeywords []string) (string, error) {
@@ -367,12 +385,35 @@ func decodeHa3ChatResponse(resp *ha3client.SearchResponseModel) (int, []interfac
 	if err := json.Unmarshal([]byte(tea.StringValue(resp.Body)), &body); err != nil {
 		return 0, nil, nil, err
 	}
+	if status, ok := body["status"].(string); ok && status != "" && !strings.EqualFold(status, "OK") && !strings.EqualFold(status, "SUCCESS") {
+		return 0, nil, nil, fmt.Errorf("ha3 search status %q", status)
+	}
 	resultMap := body
 	responseErrors := body["errors"]
 	if v, ok := body["result"].(map[string]interface{}); ok {
 		resultMap = v
 		if responseErrors == nil {
 			responseErrors = v["errors"]
+		}
+	}
+	if hasHa3ResponseErrors(responseErrors) {
+		return 0, nil, responseErrors, nil
+	}
+	if covered, ok := resultMap["coveredPercent"].(float64); ok && covered < 100 {
+		return 0, nil, nil, fmt.Errorf("ha3 search response is incomplete: coveredPercent=%v", covered)
+	}
+	_, hasTotalHits := resultMap["totalHits"]
+	_, hasTotal := resultMap["total"]
+	_, hasNumHits := resultMap["numHits"]
+	if !hasTotalHits && !hasTotal && !hasNumHits {
+		return 0, nil, nil, fmt.Errorf("ha3 search response is missing hit count")
+	}
+	for _, field := range []string{"totalHits", "total", "numHits"} {
+		if raw, exists := resultMap[field]; exists {
+			count, ok := raw.(float64)
+			if !ok || count < 0 || count != float64(int(count)) {
+				return 0, nil, nil, fmt.Errorf("ha3 search response has invalid %s", field)
+			}
 		}
 	}
 	items, _ := resultMap["items"].([]interface{})
