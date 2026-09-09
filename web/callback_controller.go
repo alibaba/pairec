@@ -138,6 +138,9 @@ func (c *CallBackController) doCallbackLog() {
 
 	userId := module.UID(c.param.Uid)
 	user := module.NewUserWithContext(userId, c.context)
+	// expose request_id as a user property, so a feature dao can use it as the
+	// lookup key to restore the feature snapshot written by feature log
+	user.AddProperty("request_id", c.param.RequestId)
 	callBackService := service.NewCallBackService()
 	callBackService.User = user
 	callBackService.LoadUserFeatures(c.context)
@@ -180,7 +183,7 @@ func (c *CallBackController) doCallbackLog() {
 	log["request_id"] = c.param.RequestId
 	log["scene"] = c.param.SceneId
 	log["request_time"] = currTime.Unix()
-	userFeaturesData, _ := json.Marshal(callBackService.User.MakeUserFeatures())
+	userFeaturesData, _ := json.Marshal(callBackService.User.MakeUserFeatures2())
 	log["user_features"] = string(userFeaturesData)
 	log["user_id"] = string(callBackService.User.Id)
 	for k, v := range c.param.RequestInfo {

@@ -1003,6 +1003,10 @@ type CallBackConfig struct {
 	ItemSize        int
 	ItemSizeRate    int
 	UseUserFeatures bool
+	// DebugLevel is the debug_level sent to the easyrec processor, it defaults
+	// to 3 when not set. Set it to 6 to let the processor write the feature log
+	// on its own side, in that case DataSource can be left empty.
+	DebugLevel int
 }
 type EmbeddingConfig struct {
 	DataSource DataSourceConfig

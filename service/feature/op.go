@@ -1,10 +1,12 @@
 package feature
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/alibaba/pairec/v2/context"
+	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 )
 
@@ -26,6 +28,8 @@ func NewFeatureOp(t string) FeatureOp {
 		return CreateNewFeatureOp{}
 	} else if t == "context_feature" {
 		return ContextFeatureOp{}
+	} else if t == "expand_json_feature" {
+		return ExpandJsonFeatureOp{}
 	}
 
 	panic(fmt.Sprintf("not find feature type:%s", t))
@@ -134,6 +138,77 @@ func (op ComposeFeatureOp) ItemTransOp(featureName string, source string, remove
 	}
 
 	item.AddProperty(featureName, featureValue)
+}
+
+// ExpandJsonFeatureOp expands a property holding a JSON object string into
+// separate properties, one per key of that object. It is used to restore a
+// feature snapshot that is stored as a single JSON string column, such as the
+// user_features column written by feature log.
+//
+// FeatureName is not used by this op, the expanded feature names come from the
+// keys of the JSON object. Note that the JSON round trip degrades every number
+// to float64, so integer valued features are restored as float64.
+type ExpandJsonFeatureOp struct {
+	featureOp
+}
+
+func (op ExpandJsonFeatureOp) UserTransOp(featureName string, source string, remove bool, normalizer Normalizer, user *module.User, context *context.RecommendContext) {
+	comms := strings.Split(source, ":")
+	if len(comms) < 2 {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=ExpandJsonFeatureOp\terror=featureSource error(%s)", op.getRequestId(context), source))
+		return
+	}
+
+	value := user.StringProperty(comms[1])
+	if value == "" {
+		return
+	}
+
+	properties := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(value), &properties); err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=ExpandJsonFeatureOp\tsource=%s\terror=%v", op.getRequestId(context), comms[1], err))
+		return
+	}
+
+	// remove the source before expanding, so a key of the same name inside the
+	// JSON object is kept instead of being deleted right after being added
+	if remove {
+		user.DeleteProperty(comms[1])
+	}
+	user.AddProperties(properties)
+}
+
+func (op ExpandJsonFeatureOp) ItemTransOp(featureName string, source string, remove bool, normalizer Normalizer, user *module.User, item *module.Item, context *context.RecommendContext) {
+	comms := strings.Split(source, ":")
+	if len(comms) < 2 {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=ExpandJsonFeatureOp\terror=featureSource error(%s)", op.getRequestId(context), source))
+		return
+	}
+
+	var value string
+	if comms[0] == SOURCE_USER {
+		value = user.StringProperty(comms[1])
+	} else {
+		value = item.StringProperty(comms[1])
+	}
+	if value == "" {
+		return
+	}
+
+	properties := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(value), &properties); err != nil {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=ExpandJsonFeatureOp\tsource=%s\terror=%v", op.getRequestId(context), comms[1], err))
+		return
+	}
+
+	if remove {
+		if comms[0] == SOURCE_USER {
+			user.DeleteProperty(comms[1])
+		} else {
+			item.DeleteProperty(comms[1])
+		}
+	}
+	item.AddProperties(properties)
 }
 
 // ContextFeatureOp add context feature to user
