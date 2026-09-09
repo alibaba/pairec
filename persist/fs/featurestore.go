@@ -22,20 +22,7 @@ func GetFeatureStoreClient(name string) (*FSClient, error) {
 	if client, ok := fsInstances[name]; ok {
 		return client, nil
 	}
-	var matched *FSClient
-	for _, client := range fsInstances {
-		if client.projectName != name {
-			continue
-		}
-		if matched != nil {
-			return nil, fmt.Errorf("multiple feature store clients found for project:%s", name)
-		}
-		matched = client
-	}
-	if matched == nil {
-		return nil, fmt.Errorf("feature store client not found, name or project:%s", name)
-	}
-	return matched, nil
+	return nil, fmt.Errorf("feature store client not found, name:%s", name)
 }
 
 type FSClient struct {

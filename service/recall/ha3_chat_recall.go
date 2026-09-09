@@ -287,13 +287,9 @@ func sanitizeSearchKeyword(keyword string) string {
 }
 
 func parseHa3ChatResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResult, error) {
-	total, items, responseErrors, err := decodeHa3ChatResponse(resp)
+	total, items, _, err := decodeHa3ChatResponse(resp)
 	if err != nil {
 		return nil, err
-	}
-	if hasHa3ResponseErrors(responseErrors) {
-		payload, _ := json.Marshal(responseErrors)
-		return nil, fmt.Errorf("ha3 search errors: %s", payload)
 	}
 	hits := make([]GoodsHit, 0, len(items))
 	for index, item := range items {

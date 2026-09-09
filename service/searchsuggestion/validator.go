@@ -7,12 +7,13 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/alibaba/pairec/v2/log"
 	"golang.org/x/text/unicode/norm"
 )
 
 var (
 	urlPattern      = regexp.MustCompile(`(?i)(https?://|www\.|\b[a-z0-9.-]+\.(com|cn|net|org)\b)`)
-	internalPattern = regexp.MustCompile(`(?i)(item[_ -]?id|knowledge[_ -]?id|candidate[_ -]?id|search_goods|emit_suggestions|\bprompt\b|\btool\b|citation|\bK[0-9]+\b|\[[0-9]+\]|【[0-9]+】)`)
+	internalPattern = regexp.MustCompile(`(?i)(item[_ -]?id|knowledge[_ -]?id|candidate[_ -]?id|search_goods|emit_suggestions|\[\[citation:|\[[0-9]+\]|【[0-9]+】)`)
 	markdownPattern = regexp.MustCompile("(?m)(^\\s{0,3}(#{1,6}|[-*+]\\s|>\\s)|```|`|\\[[^]]*\\]\\([^)]*\\))")
 )
 
@@ -26,27 +27,34 @@ func Validate(suggestions []string, count int, currentQuery string) ([]string, *
 	for _, suggestion := range suggestions {
 		suggestion = strings.TrimSpace(norm.NFKC.String(suggestion))
 		length := utf8.RuneCountInString(suggestion)
-		if length < 4 || length > 80 {
-			return nil, NewError(CodeValidationFailed, true, fmt.Errorf("suggestion length out of range"))
-		}
-		for _, r := range suggestion {
-			if r == '\n' || r == '\r' || unicode.IsControl(r) {
-				return nil, NewError(CodeValidationFailed, true, fmt.Errorf("suggestion contains control characters"))
-			}
-		}
-		if urlPattern.MatchString(suggestion) || internalPattern.MatchString(suggestion) || markdownPattern.MatchString(suggestion) ||
-			strings.ContainsAny(suggestion, "{}<>") {
-			return nil, NewError(CodeValidationFailed, true, fmt.Errorf("suggestion contains forbidden syntax"))
-		}
 		normalized := normalizeComparable(suggestion)
-		if normalized == "" || (baseline != "" && normalized == baseline) {
-			return nil, NewError(CodeValidationFailed, true, fmt.Errorf("suggestion repeats current query"))
+		_, duplicate := seen[normalized]
+		reason := ""
+		switch {
+		case length < 4 || length > 80:
+			reason = "length"
+		case strings.IndexFunc(suggestion, unicode.IsControl) >= 0:
+			reason = "control"
+		case urlPattern.MatchString(suggestion):
+			reason = "url"
+		case internalPattern.MatchString(suggestion):
+			reason = "internal_marker"
+		case markdownPattern.MatchString(suggestion) || strings.ContainsAny(suggestion, "{}<>"):
+			reason = "markup"
+		case normalized == "" || (baseline != "" && normalized == baseline):
+			reason = "repeated_query"
+		case duplicate:
+			reason = "duplicate"
 		}
-		if _, exists := seen[normalized]; exists {
-			return nil, NewError(CodeValidationFailed, true, fmt.Errorf("duplicate suggestions"))
+		if reason != "" {
+			log.Warning(fmt.Sprintf("module=SearchSuggestion\tevent=filtered\treason=%s", reason))
+			continue
 		}
 		seen[normalized] = struct{}{}
 		validated = append(validated, suggestion)
+	}
+	if len(validated) == 0 {
+		return nil, NewError(CodeValidationFailed, true, fmt.Errorf("no valid suggestions"))
 	}
 	return validated, nil
 }
