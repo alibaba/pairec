@@ -40,6 +40,10 @@ func (c *suggestionCoordinator) OnFinalSearch(_ context.Context, snapshot *final
 		return
 	}
 	c.started = true
+	if snapshot.Total == 0 && len(snapshot.ProductIndexes) == 0 {
+		c.result <- searchsuggestion.Outcome{Suggestions: []string{}}
+		return
+	}
 	taskCtx, cancel := context.WithCancel(c.parent)
 	c.cancel = cancel
 	snapshotCopy := freezeFinalSearchSnapshot(snapshot)
@@ -103,8 +107,8 @@ func freezeFinalSearchSnapshot(snapshot *finalSearchSnapshot) finalSearchSnapsho
 	copy := *snapshot
 	copy.ProductIndexes = append([]int(nil), snapshot.ProductIndexes...)
 	copy.Request.Keywords = append([]string(nil), snapshot.Request.Keywords...)
-	copy.Request.ProductTypeKeywords = append([]string(nil), snapshot.Request.ProductTypeKeywords...)
-	copy.Request.AttributeKeywords = append([]string(nil), snapshot.Request.AttributeKeywords...)
+	copy.Request.PreferredKeywords = append([]string(nil), snapshot.Request.PreferredKeywords...)
+	copy.Request.Constraints = cloneConstraints(snapshot.Request.Constraints)
 	copy.Request.ExcludeKeywords = append([]string(nil), snapshot.Request.ExcludeKeywords...)
 	copy.Request.MinPrice = cloneFloat(snapshot.Request.MinPrice)
 	copy.Request.MaxPrice = cloneFloat(snapshot.Request.MaxPrice)

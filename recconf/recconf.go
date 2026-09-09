@@ -396,6 +396,21 @@ type Ha3ChatRecallConfig struct {
 	Analyzer        string
 	PriceField      string
 	DistinctConf    *Ha3ChatDistinctConfig
+	SearchGoodsConf *SearchGoodsConfig
+}
+
+type SearchGoodsConfig struct {
+	DropPreferredOnEmpty bool
+	ConstraintParams     []SearchConstraintConfig
+}
+
+type SearchConstraintConfig struct {
+	Name        string
+	Kind        string
+	Field       string
+	Description string
+	Values      map[string][]string
+	EqualValues map[string]map[string]string
 }
 
 type Ha3ChatDistinctConfig struct {
