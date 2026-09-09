@@ -1053,6 +1053,7 @@ type DPPSortConfig struct {
 	EmbeddingSeparator string
 	Alpha              float64
 	CacheTimeInMinutes int
+	CacheSize          int
 	EmbeddingHookNames []string
 	NormalizeEmb       string
 	WindowSize         int
@@ -1074,6 +1075,7 @@ type SSDSortConfig struct {
 	Gamma              float64
 	UseSSDStar         bool
 	CacheTimeInMinutes int
+	CacheSize          int
 	NormalizeEmb       string
 	WindowSize         int
 	AbortRunCount      int
