@@ -86,7 +86,7 @@ func normalizeConfig(cfg *recconf.AIChatConfig) *recconf.AIChatConfig {
 		cfg.OutputLanguages = []string{cfg.DefaultLanguage}
 	}
 	if cfg.ToolMaxRounds <= 0 {
-		cfg.ToolMaxRounds = 5
+		cfg.ToolMaxRounds = 3
 	}
 	if cfg.DisplayItemCountMax <= 0 {
 		cfg.DisplayItemCountMax = 12

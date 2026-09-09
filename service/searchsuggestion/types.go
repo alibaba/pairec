@@ -22,13 +22,12 @@ type ConversationTurn struct {
 }
 
 type SearchIntent struct {
-	Keywords            []string `json:"keywords"`
-	ProductTypeKeywords []string `json:"product_type_keywords"`
-	AttributeKeywords   []string `json:"attribute_keywords"`
-	Operator            string   `json:"operator"`
-	ExcludeKeywords     []string `json:"exclude_keywords,omitempty"`
-	MinPrice            *float64 `json:"min_price,omitempty"`
-	MaxPrice            *float64 `json:"max_price,omitempty"`
+	Keywords          []string                   `json:"keywords"`
+	PreferredKeywords []string                   `json:"preferred_keywords,omitempty"`
+	Constraints       map[string]json.RawMessage `json:"constraints,omitempty"`
+	ExcludeKeywords   []string                   `json:"exclude_keywords,omitempty"`
+	MinPrice          *float64                   `json:"min_price,omitempty"`
+	MaxPrice          *float64                   `json:"max_price,omitempty"`
 }
 
 type ProductSummary struct {

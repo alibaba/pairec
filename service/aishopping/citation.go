@@ -10,7 +10,6 @@ import (
 
 var (
 	indexMarkerRegexp = regexp.MustCompile(`\[\[(\d+)\]\]`)
-	itemMarkerRegexp  = regexp.MustCompile(`\[\[item_id:[^\]]+\]\]`)
 	replyRefRegexp    = regexp.MustCompile(`\[\[(\d+)\]\]|\[ref\]`)
 )
 
@@ -127,17 +126,6 @@ func orderedItemIDs(indexMap map[int]string, maxItems int) []string {
 		}
 	}
 	return itemIDs
-}
-
-func maskHistoryMessages(messages []aichat.Message) []aichat.Message {
-	copied := make([]aichat.Message, 0, len(messages))
-	for _, msg := range messages {
-		if msg.Role == "assistant" && msg.Content != "" {
-			msg.Content = itemMarkerRegexp.ReplaceAllString(msg.Content, "[ref]")
-		}
-		copied = append(copied, msg)
-	}
-	return copied
 }
 
 func messagesWithPrompt(messages []aichat.Message, prompt string) []aichat.Message {

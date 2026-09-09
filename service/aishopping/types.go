@@ -1,8 +1,8 @@
 package aishopping
 
 import (
-	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/searchsuggestion"
 )
 
 type Request struct {
@@ -37,11 +37,18 @@ func (r *Request) GetParameter(name string) interface{} {
 }
 
 type SessionBlob struct {
-	Language     string           `json:"language"`
-	CreatedAt    int64            `json:"created_at"`
-	LastActiveAt int64            `json:"last_active_at"`
-	TurnCount    int              `json:"turn_count"`
-	Messages     []aichat.Message `json:"messages"`
+	Language         string                         `json:"language"`
+	CreatedAt        int64                          `json:"created_at"`
+	LastActiveAt     int64                          `json:"last_active_at"`
+	TurnCount        int                            `json:"turn_count"`
+	UserQueries      []SessionQuery                 `json:"user_queries"`
+	LastSearch       *searchsuggestion.SearchIntent `json:"last_search,omitempty"`
+	LastSearchTurnID int                            `json:"last_search_turn_id,omitempty"`
+}
+
+type SessionQuery struct {
+	TurnID int    `json:"turn_id"`
+	Query  string `json:"query"`
 }
 
 type chatConfig struct {
