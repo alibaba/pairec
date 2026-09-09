@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	pairecctx "github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine"
 	"github.com/alibaba/pairec/v2/datasource/ha3engine/ha3client"
@@ -18,9 +19,10 @@ import (
 )
 
 const (
-	maxSearchKeywordCount   = 8
-	maxSearchKeywordRunes   = 64
-	fieldAwareSearchTimeout = 2 * time.Second
+	maxSearchKeywordCount          = aichat.SearchGoodsMaxKeywords
+	maxSearchPreferredKeywordCount = aichat.SearchGoodsMaxPreferredKeywords
+	maxSearchKeywordRunes          = 64
+	fieldAwareSearchTimeout        = 2 * time.Second
 )
 
 type Ha3ChatRecall struct {
@@ -197,7 +199,11 @@ func (r *Ha3ChatRecall) buildFieldQueryExpr(field string, keywords []string, ope
 	if field == "" {
 		return "", fmt.Errorf("search field is empty")
 	}
-	keywords = normalizeKeywords(keywords)
+	keywordLimit := maxSearchKeywordCount
+	if r.fieldAwareEnabled() {
+		keywordLimit += maxSearchPreferredKeywordCount
+	}
+	keywords = normalizeKeywords(keywords, keywordLimit)
 	if len(keywords) == 0 {
 		return "", fmt.Errorf("keywords is empty")
 	}
@@ -210,7 +216,7 @@ func (r *Ha3ChatRecall) buildFieldQueryExpr(field string, keywords []string, ope
 	for _, kw := range rest {
 		pos += sep + fmt.Sprintf("'%s'", kw)
 	}
-	excludes := normalizeKeywords(excludeKeywords)
+	excludes := normalizeKeywords(excludeKeywords, maxSearchKeywordCount)
 	if len(excludes) == 0 {
 		return pos, nil
 	}
@@ -235,13 +241,13 @@ func (r *Ha3ChatRecall) buildFilterExpr(req SearchGoodsRequest) string {
 	return strings.Join(conds, " AND ")
 }
 
-func normalizeKeywords(keywords []string) []string {
+func normalizeKeywords(keywords []string, limit int) []string {
 	out := make([]string, 0, len(keywords))
 	for _, keyword := range keywords {
 		keyword = sanitizeSearchKeyword(keyword)
 		if keyword != "" {
 			out = append(out, keyword)
-			if len(out) >= maxSearchKeywordCount {
+			if len(out) >= limit {
 				break
 			}
 		}
