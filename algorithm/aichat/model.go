@@ -9,7 +9,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -22,7 +21,6 @@ const (
 	defaultPAIModelTimeout = 60000
 	paiModelEndpointFormat = "https://%s.pai-token.aliyuncs.com/v1"
 	paiTokenChannel        = "pairec_agent"
-	maxRetryWait           = 2 * time.Second
 )
 
 type chatCompletionPayload struct {
@@ -115,32 +113,8 @@ func (m *Model) Stream(ctx context.Context, request *ChatCompletionRequest, onDe
 		if delivered || retry >= m.conf.RetryTimes {
 			return nil, err
 		}
-		delay, canWait := modelRetryDelay(err, retry)
-		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= delay {
-			return nil, err
-		}
-		if !canWait {
-			return nil, err
-		}
-		log.Warning(fmt.Sprintf("module=AIChatModel\tcallId=%016x\tevent=retry\tattempt=%d\tdelayMs=%d", callID, attempts+1, delay.Milliseconds()))
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		case <-timer.C:
-		}
+		log.Warning(fmt.Sprintf("module=AIChatModel\tcallId=%016x\tevent=retry\tattempt=%d", callID, attempts+1))
 	}
-}
-
-type modelHTTPError struct {
-	status     int
-	retryAfter string
-	detail     string
-}
-
-func (e *modelHTTPError) Error() string {
-	return fmt.Sprintf("aichat upstream status:%d %s", e.status, e.detail)
 }
 
 func (m *Model) streamOnce(ctx context.Context, body []byte, onDelta DeltaHandler) (*StreamResult, error) {
@@ -159,34 +133,15 @@ func (m *Model) streamOnce(ctx context.Context, body []byte, onDelta DeltaHandle
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		err := &modelHTTPError{status: resp.StatusCode, retryAfter: resp.Header.Get("Retry-After")}
 		if readErr != nil {
-			err.detail = fmt.Sprintf("read body error:%v", readErr)
-		} else if detail := strings.TrimSpace(string(body)); detail != "" {
-			err.detail = "body:" + detail
+			return nil, fmt.Errorf("aichat upstream status:%d read body error:%v", resp.StatusCode, readErr)
 		}
-		return nil, err
+		if detail := strings.TrimSpace(string(body)); detail != "" {
+			return nil, fmt.Errorf("aichat upstream status:%d body:%s", resp.StatusCode, detail)
+		}
+		return nil, fmt.Errorf("aichat upstream status:%d", resp.StatusCode)
 	}
 	return parseStream(resp.Body, onDelta)
-}
-
-func modelRetryDelay(err error, retry int) (time.Duration, bool) {
-	delay := min(200*time.Millisecond<<min(retry, 4), time.Second) + time.Duration(rand.Int63n(int64(100*time.Millisecond)+1))
-	var httpErr *modelHTTPError
-	if errors.As(err, &httpErr) {
-		value := strings.TrimSpace(httpErr.retryAfter)
-		if seconds, parseErr := strconv.ParseUint(value, 10, 64); parseErr == nil {
-			if seconds > uint64(maxRetryWait/time.Second) {
-				return 0, false
-			}
-			delay = max(delay, time.Duration(seconds)*time.Second)
-		} else if errors.Is(parseErr, strconv.ErrRange) {
-			return 0, false
-		} else if until, parseErr := http.ParseTime(value); parseErr == nil {
-			delay = max(delay, time.Until(until))
-		}
-	}
-	return delay, delay <= maxRetryWait
 }
 
 func newHTTPClient(timeout int) *http.Client {

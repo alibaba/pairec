@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -173,14 +171,6 @@ func (r *Ha3ChatRecall) searchFieldWithRetry(ctx context.Context, field string, 
 		if attempt == fieldAwareSearchAttempts || !retryableHa3SearchError(err) {
 			break
 		}
-		delay := fieldAwareRetryDelay(attempt)
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		case <-timer.C:
-		}
 	}
 	return nil, lastErr
 }
@@ -200,16 +190,6 @@ func retryableHa3SearchError(err error) bool {
 			statusCode >= http.StatusInternalServerError
 	}
 	return tea.BoolValue(tea.Retryable(err))
-}
-
-func fieldAwareRetryDelay(attempt int) time.Duration {
-	base := time.Second << (attempt - 1)
-	maxJitter := base / 4
-	if maxJitter > 500*time.Millisecond {
-		maxJitter = 500 * time.Millisecond
-	}
-	jitter := time.Duration(rand.Int63n(int64(maxJitter) + 1))
-	return base + jitter
 }
 
 func isFinitePrice(price float64) bool {
