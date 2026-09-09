@@ -170,7 +170,8 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 	if err != nil {
 		return nil, err
 	}
-	resp, err := r.client.Ha3Client.SearchRestWithOptions(
+	resp, err := r.client.Ha3Client.SearchRestWithContext(
+		ctx,
 		tea.String(r.conf.IndexName),
 		(&ha3client.SearchRequestModel{}).SetHeaders(map[string]*string{}).SetBody(string(bodyBytes)),
 		r.client.Runtime(),
@@ -287,7 +288,7 @@ func sanitizeSearchKeyword(keyword string) string {
 }
 
 func parseHa3ChatResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResult, error) {
-	total, items, _, err := decodeHa3ChatResponse(resp)
+	total, items, err := decodeHa3ChatResponse(resp, false)
 	if err != nil {
 		return nil, err
 	}
@@ -324,16 +325,9 @@ func parseHa3ChatResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResu
 }
 
 func (r *Ha3ChatRecall) parseConfiguredResponse(resp *ha3client.SearchResponseModel) (*SearchGoodsResult, error) {
-	if resp == nil || resp.Body == nil {
-		return nil, fmt.Errorf("ha3 search response body is empty")
-	}
-	total, items, responseErrors, err := decodeHa3ChatResponse(resp)
+	total, items, err := decodeHa3ChatResponse(resp, true)
 	if err != nil {
 		return nil, err
-	}
-	if hasHa3ResponseErrors(responseErrors) {
-		payload, _ := json.Marshal(responseErrors)
-		return nil, fmt.Errorf("ha3 search errors: %s", payload)
 	}
 	if total > 0 && len(items) == 0 {
 		return nil, fmt.Errorf("ha3 search response has total=%d but no items", total)
@@ -373,43 +367,24 @@ func (r *Ha3ChatRecall) parseConfiguredResponse(resp *ha3client.SearchResponseMo
 	return &SearchGoodsResult{Total: total, Hits: hits}, nil
 }
 
-func decodeHa3ChatResponse(resp *ha3client.SearchResponseModel) (int, []interface{}, interface{}, error) {
+func decodeHa3ChatResponse(resp *ha3client.SearchResponseModel, strict bool) (int, []interface{}, error) {
 	if resp == nil || resp.Body == nil {
-		return 0, nil, nil, nil
+		if strict {
+			return 0, nil, fmt.Errorf("ha3 search response body is empty")
+		}
+		return 0, nil, nil
 	}
 	var body map[string]interface{}
 	if err := json.Unmarshal([]byte(tea.StringValue(resp.Body)), &body); err != nil {
-		return 0, nil, nil, err
-	}
-	if status, ok := body["status"].(string); ok && status != "" && !strings.EqualFold(status, "OK") && !strings.EqualFold(status, "SUCCESS") {
-		return 0, nil, nil, fmt.Errorf("ha3 search status %q", status)
+		return 0, nil, err
 	}
 	resultMap := body
-	responseErrors := body["errors"]
 	if v, ok := body["result"].(map[string]interface{}); ok {
 		resultMap = v
-		if responseErrors == nil {
-			responseErrors = v["errors"]
-		}
 	}
-	if hasHa3ResponseErrors(responseErrors) {
-		return 0, nil, responseErrors, nil
-	}
-	if covered, ok := resultMap["coveredPercent"].(float64); ok && covered < 100 {
-		return 0, nil, nil, fmt.Errorf("ha3 search response is incomplete: coveredPercent=%v", covered)
-	}
-	_, hasTotalHits := resultMap["totalHits"]
-	_, hasTotal := resultMap["total"]
-	_, hasNumHits := resultMap["numHits"]
-	if !hasTotalHits && !hasTotal && !hasNumHits {
-		return 0, nil, nil, fmt.Errorf("ha3 search response is missing hit count")
-	}
-	for _, field := range []string{"totalHits", "total", "numHits"} {
-		if raw, exists := resultMap[field]; exists {
-			count, ok := raw.(float64)
-			if !ok || count < 0 || count != float64(int(count)) {
-				return 0, nil, nil, fmt.Errorf("ha3 search response has invalid %s", field)
-			}
+	if strict {
+		if err := validateHa3ChatResponse(body, resultMap); err != nil {
+			return 0, nil, err
 		}
 	}
 	items, _ := resultMap["items"].([]interface{})
@@ -426,7 +401,36 @@ func decodeHa3ChatResponse(resp *ha3client.SearchResponseModel) (int, []interfac
 	if total == 0 {
 		total = len(items)
 	}
-	return total, items, responseErrors, nil
+	return total, items, nil
+}
+
+func validateHa3ChatResponse(body, result map[string]interface{}) error {
+	if status, ok := body["status"].(string); ok && status != "" && !strings.EqualFold(status, "OK") && !strings.EqualFold(status, "SUCCESS") {
+		return fmt.Errorf("ha3 search status %q", status)
+	}
+	for _, responseErrors := range []interface{}{body["errors"], result["errors"]} {
+		if hasHa3ResponseErrors(responseErrors) {
+			payload, _ := json.Marshal(responseErrors)
+			return fmt.Errorf("ha3 search errors: %s", payload)
+		}
+	}
+	if covered, ok := result["coveredPercent"].(float64); ok && covered < 100 {
+		return fmt.Errorf("ha3 search response is incomplete: coveredPercent=%v", covered)
+	}
+	hasCount := false
+	for _, field := range []string{"totalHits", "total", "numHits"} {
+		if raw, exists := result[field]; exists {
+			hasCount = true
+			count, ok := raw.(float64)
+			if !ok || count < 0 || count != float64(int(count)) {
+				return fmt.Errorf("ha3 search response has invalid %s", field)
+			}
+		}
+	}
+	if !hasCount {
+		return fmt.Errorf("ha3 search response is missing hit count")
+	}
+	return nil
 }
 
 func hasHa3ResponseErrors(value interface{}) bool {
