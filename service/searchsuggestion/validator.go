@@ -17,7 +17,7 @@ var (
 	markdownPattern = regexp.MustCompile("(?m)(^\\s{0,3}(#{1,6}|[-*+]\\s|>\\s)|```|`|\\[[^]]*\\]\\([^)]*\\))")
 )
 
-func Validate(suggestions []string, count int, currentQuery string, minLength, maxLength int) ([]string, *Error) {
+func Validate(suggestions []string, count int, currentQuery string) ([]string, *Error) {
 	if len(suggestions) != count {
 		return nil, NewError(CodeValidationFailed, true, fmt.Errorf("expected %d suggestions, got %d", count, len(suggestions)))
 	}
@@ -31,7 +31,7 @@ func Validate(suggestions []string, count int, currentQuery string, minLength, m
 		_, duplicate := seen[normalized]
 		reason := ""
 		switch {
-		case length < minLength || length > maxLength:
+		case length < 4 || length > 80:
 			reason = "length"
 		case strings.IndexFunc(suggestion, unicode.IsControl) >= 0:
 			reason = "control"

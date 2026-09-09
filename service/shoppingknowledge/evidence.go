@@ -2,79 +2,50 @@ package shoppingknowledge
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	recallsvc "github.com/alibaba/pairec/v2/service/recall"
 )
 
-const (
-	promptMaxBytes          = 6000
-	candidateSelectionLimit = 4
-)
+const promptMaxBytes = 6000
 
-type Candidate struct {
-	KnowledgeID   string `json:"-"`
-	CandidateID   string `json:"candidate_id"`
-	KnowledgeType string `json:"knowledge_type"`
-	Value         string `json:"value"`
-	Category      string `json:"category"`
-	SearchTerm    string `json:"search_term"`
-}
-
+// SuggestionKnowledge is the knowledge view shared by all model inputs.
+// Retrieval metadata stays server-side and must not enter this view.
 type SuggestionKnowledge struct {
-	KnowledgeType     string `json:"knowledge_type"`
-	Value             string `json:"value"`
-	Category          string `json:"category"`
-	SearchTerm        string `json:"search_term"`
-	SelectedByPlanner bool   `json:"selected_by_planner,omitempty"`
+	Value string `json:"value"`
 }
 
 type Evidence struct {
-	candidates []Candidate
-	byID       map[string]Candidate
+	hits       []recallsvc.KnowledgeHit
+	values     []SuggestionKnowledge
 	promptJSON string
 }
 
 func NewEvidence(result *recallsvc.KnowledgeSearchResult) *Evidence {
-	if result == nil || len(result.Hits) == 0 {
+	if result == nil {
 		return nil
 	}
-	evidence := &Evidence{byID: make(map[string]Candidate)}
+	evidence := &Evidence{}
 	seen := make(map[string]struct{}, len(result.Hits))
-	seenKnowledgeIDs := make(map[string]struct{}, len(result.Hits))
 	for _, hit := range result.Hits {
-		if _, ok := seenKnowledgeIDs[hit.KnowledgeID]; ok {
+		value := strings.TrimSpace(hit.Value)
+		if value == "" {
 			continue
 		}
-		searchTerm := searchTerm(hit.KnowledgeType, hit.Value)
-		if searchTerm == "" || strings.TrimSpace(hit.Category) == "" {
+		if _, exists := seen[value]; exists {
 			continue
 		}
-		key := strings.ToLower(hit.KnowledgeType + "\x00" + searchTerm + "\x00" + hit.Category)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		candidate := Candidate{
-			KnowledgeID:   hit.KnowledgeID,
-			CandidateID:   fmt.Sprintf("K%d", len(evidence.candidates)+1),
-			KnowledgeType: strings.TrimSpace(hit.KnowledgeType),
-			Value:         strings.TrimSpace(hit.Value),
-			Category:      strings.TrimSpace(hit.Category),
-			SearchTerm:    searchTerm,
-		}
-		prospective := append(append([]Candidate(nil), evidence.candidates...), candidate)
+		prospective := append(append([]SuggestionKnowledge(nil), evidence.values...), SuggestionKnowledge{Value: value})
 		payload, err := json.Marshal(prospective)
 		if err != nil || len(payload) > promptMaxBytes {
 			break
 		}
-		seen[key] = struct{}{}
-		seenKnowledgeIDs[hit.KnowledgeID] = struct{}{}
-		evidence.candidates = prospective
-		evidence.byID[candidate.CandidateID] = candidate
+		seen[value] = struct{}{}
+		evidence.hits = append(evidence.hits, hit)
+		evidence.values = prospective
 		evidence.promptJSON = string(payload)
 	}
-	if len(evidence.candidates) == 0 {
+	if len(evidence.values) == 0 {
 		return nil
 	}
 	return evidence
@@ -84,7 +55,7 @@ func (e *Evidence) Len() int {
 	if e == nil {
 		return 0
 	}
-	return len(e.candidates)
+	return len(e.values)
 }
 
 func (e *Evidence) PromptJSON() string {
@@ -94,114 +65,25 @@ func (e *Evidence) PromptJSON() string {
 	return e.promptJSON
 }
 
-func (e *Evidence) CandidateIDs() []string {
-	if e == nil {
-		return nil
-	}
-	ids := make([]string, 0, len(e.candidates))
-	for _, candidate := range e.candidates {
-		ids = append(ids, candidate.CandidateID)
-	}
-	return ids
-}
-
 func (e *Evidence) LogSummary() []map[string]string {
 	if e == nil {
 		return nil
 	}
-	result := make([]map[string]string, 0, len(e.candidates))
-	for _, candidate := range e.candidates {
+	result := make([]map[string]string, 0, len(e.hits))
+	for _, hit := range e.hits {
 		result = append(result, map[string]string{
-			"candidate_id":   candidate.CandidateID,
-			"knowledge_id":   candidate.KnowledgeID,
-			"knowledge_type": candidate.KnowledgeType,
-			"search_term":    candidate.SearchTerm,
-			"category":       candidate.Category,
+			"knowledge_id":   hit.KnowledgeID,
+			"knowledge_type": hit.KnowledgeType,
+			"value":          hit.Value,
+			"category":       hit.Category,
 		})
 	}
 	return result
 }
 
-func (e *Evidence) SuggestionKnowledge(selectedIDs []string) []SuggestionKnowledge {
+func (e *Evidence) SuggestionKnowledge() []SuggestionKnowledge {
 	if e == nil {
 		return nil
 	}
-	selected := make(map[string]struct{}, len(selectedIDs))
-	for _, id := range selectedIDs {
-		selected[id] = struct{}{}
-	}
-	result := make([]SuggestionKnowledge, 0, len(e.candidates))
-	for _, candidate := range e.candidates {
-		_, isSelected := selected[candidate.CandidateID]
-		result = append(result, SuggestionKnowledge{
-			KnowledgeType:     candidate.KnowledgeType,
-			Value:             candidate.Value,
-			Category:          candidate.Category,
-			SearchTerm:        candidate.SearchTerm,
-			SelectedByPlanner: isSelected,
-		})
-	}
-	return result
-}
-
-func (e *Evidence) Apply(req *recallsvc.SearchGoodsRequest) error {
-	if e == nil {
-		if len(req.KnowledgeCandidateIDs) > 0 {
-			return fmt.Errorf("knowledge_candidate_ids is unavailable for this request")
-		}
-		return nil
-	}
-	if req.KnowledgeCandidateIDs == nil {
-		return fmt.Errorf("knowledge_candidate_ids is required")
-	}
-	if len(req.KnowledgeCandidateIDs) == 0 {
-		return nil
-	}
-	seenIDs := make(map[string]struct{}, len(req.KnowledgeCandidateIDs))
-	selectedIDs := make([]string, 0, candidateSelectionLimit)
-	searchTerms := make([]string, 0, candidateSelectionLimit)
-	seenTerms := make(map[string]struct{}, len(req.KnowledgeCandidateIDs))
-	for _, id := range req.KnowledgeCandidateIDs {
-		if _, exists := seenIDs[id]; exists {
-			return fmt.Errorf("knowledge_candidate_ids contains duplicate value %q", id)
-		}
-		seenIDs[id] = struct{}{}
-		candidate, exists := e.byID[id]
-		if !exists {
-			return fmt.Errorf("knowledge_candidate_ids contains unknown value %q", id)
-		}
-		key := strings.ToLower(candidate.SearchTerm)
-		if _, exists := seenTerms[key]; exists {
-			continue
-		}
-		seenTerms[key] = struct{}{}
-		if len(searchTerms) >= candidateSelectionLimit {
-			continue
-		}
-		selectedIDs = append(selectedIDs, id)
-		searchTerms = append(searchTerms, candidate.SearchTerm)
-	}
-	if len(searchTerms) == 0 {
-		return fmt.Errorf("knowledge_candidate_ids does not resolve to a search term")
-	}
-	req.KnowledgeCandidateIDs = selectedIDs
-	req.ProductTypeKeywords = searchTerms
-	return nil
-}
-
-func searchTerm(knowledgeType, value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	if knowledgeType != "categories" {
-		return value
-	}
-	parts := strings.FieldsFunc(value, func(r rune) bool { return r == '/' || r == '>' })
-	for index := len(parts) - 1; index >= 0; index-- {
-		if part := strings.TrimSpace(parts[index]); part != "" {
-			return part
-		}
-	}
-	return ""
+	return append([]SuggestionKnowledge(nil), e.values...)
 }

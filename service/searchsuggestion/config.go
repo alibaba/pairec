@@ -11,20 +11,13 @@ import (
 	recallsvc "github.com/alibaba/pairec/v2/service/recall"
 )
 
-const (
-	defaultMinLength = 2
-	defaultMaxLength = 80
-)
-
 type KnowledgeRecall interface {
 	SearchKnowledge(context.Context, string) (*recallsvc.KnowledgeSearchResult, error)
 }
 
 type RuntimeConfig struct {
-	Prompt    string
-	Model     *aichat.Model
-	MinLength int
-	MaxLength int
+	Prompt string
+	Model  *aichat.Model
 }
 
 func ResolveGenerator(config *recconf.RecommendConfig, sceneID, language string) (*RuntimeConfig, *Error) {
@@ -47,12 +40,7 @@ func ResolveGenerator(config *recconf.RecommendConfig, sceneID, language string)
 	if !ok {
 		return nil, NewError(CodeModelUnavailable, false, fmt.Errorf("algorithm %q is not PAI_CHAT", suggestionConfig.LLMAlgoName))
 	}
-	return &RuntimeConfig{
-		Prompt:    prompt,
-		Model:     model,
-		MinLength: suggestionConfig.MinLength,
-		MaxLength: suggestionConfig.MaxLength,
-	}, nil
+	return &RuntimeConfig{Prompt: prompt, Model: model}, nil
 }
 
 func ResolveStandalone(config *recconf.RecommendConfig, sceneID, language string) (*RuntimeConfig, KnowledgeRecall, *Error) {
@@ -101,15 +89,6 @@ func findConfig(config *recconf.RecommendConfig, sceneID string) (*recconf.Sugge
 	}
 	if strings.TrimSpace(cloned.LLMAlgoName) == "" {
 		return nil, fmt.Errorf("SuggestionConfig.LLMAlgoName is empty")
-	}
-	if cloned.MinLength == 0 {
-		cloned.MinLength = defaultMinLength
-	}
-	if cloned.MaxLength == 0 {
-		cloned.MaxLength = defaultMaxLength
-	}
-	if cloned.MinLength < 1 || cloned.MaxLength < cloned.MinLength {
-		return nil, fmt.Errorf("SuggestionConfig requires 1 <= MinLength <= MaxLength, got %d and %d", cloned.MinLength, cloned.MaxLength)
 	}
 	return &cloned, nil
 }

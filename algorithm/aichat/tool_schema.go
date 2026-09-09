@@ -1,99 +1,83 @@
 package aichat
 
+import (
+	"sort"
+
+	"github.com/alibaba/pairec/v2/recconf"
+)
+
 func SearchGoodsTool() Tool {
-	return Tool{
-		Type: "function",
-		Function: ToolFunction{
-			Name:        "search_goods",
-			Description: "Search real products from the catalog. Use this for product recommendation requests, including first recommendations, changed conditions, category/color/material/style/occasion changes, or requests for more options.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"keywords": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": `English catalog search keywords, 1-5 terms, e.g. ["Shirt","Blue","Long Sleeve"]. Translate product/category/color/material/style/occasion intent into English before calling.`,
-					},
-					"operator": map[string]interface{}{
-						"type":        "string",
-						"enum":        []string{"AND", "OR"},
-						"description": `Keyword boolean logic. For the first call with multiple keywords, pass "AND" for precise all-term matching. Only if that AND result returns total=0 may you call this tool again with "OR" to broaden recall. If AND returns any hits, even 1-3, do not call OR. OR is a fallback, not the default first call.`,
-					},
-					"exclude_keywords": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": `English keywords to exclude, e.g. ["Red"]. Set only when the user explicitly rejects an attribute, e.g. "不要红色", "no leather", or "不要短袖"; translate the rejected attribute to English; do not infer.`,
-					},
-					"min_price": map[string]interface{}{
-						"type":        "number",
-						"description": `Inclusive minimum price in CNY. Set only when the user explicitly states a lower bound, e.g. "100元以上" or "at least 100"; do not infer.`,
-					},
-					"max_price": map[string]interface{}{
-						"type":        "number",
-						"description": `Inclusive maximum price in CNY. Set only when the user explicitly states an upper bound, e.g. "200元以下" or "under 200"; do not infer.`,
-					},
-				},
-				"required": []string{"keywords"},
-			},
-		},
-	}
+	return FieldAwareSearchGoodsTool(nil)
 }
 
-func FieldAwareSearchGoodsTool(knowledgeCandidateIDs []string) Tool {
+func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 	properties := map[string]interface{}{
 		"keywords": map[string]interface{}{
 			"type":        "array",
 			"items":       map[string]interface{}{"type": "string"},
 			"minItems":    1,
 			"maxItems":    1,
-			"description": "One complete positive English catalog search phrase. For English input, preserve the full positive phrase; for non-English input, translate the whole positive intent into one English catalog phrase. Remove explicit price and exclusion syntax, and never split the phrase across array items.",
+			"description": "One required English catalog phrase: exact product noun and hard text conditions not represented in constraints. No singular/plural expansion, synonyms, prices, exclusions or optional preferences. Knowledge values are vocabulary references only.",
 		},
-		"operator": map[string]interface{}{
-			"type":        "string",
-			"enum":        []string{"AND"},
-			"description": "Always AND, matching the current PAI-Rec Planner contract.",
-		},
-		"product_type_keywords": map[string]interface{}{
-			"type":        "array",
-			"items":       map[string]interface{}{"type": "string"},
-			"minItems":    1,
-			"maxItems":    4,
-			"description": "English catalog terms for the exact requested product type: the noun plus equivalent singular, plural, or common catalog forms; never adjacent product types.",
-		},
-		"attribute_keywords": map[string]interface{}{
+		"preferred_keywords": map[string]interface{}{
 			"type":        "array",
 			"items":       map[string]interface{}{"type": "string"},
 			"maxItems":    5,
-			"description": "Positive English catalog descriptors for color, material, style, occasion, gender, age, size, or features; exclude product type, price, and negated values.",
+			"description": "Optional English preferences that may all be dropped after zero results, e.g. office for a general work outfit. Never put required attributes, explicit must/only conditions, exclusions or product type here.",
 		},
 		"exclude_keywords": map[string]interface{}{
 			"type":        "array",
 			"items":       map[string]interface{}{"type": "string"},
 			"maxItems":    5,
-			"description": "English catalog attributes explicitly rejected by the Query; translate them to English and never infer exclusions.",
+			"description": "Explicitly rejected English text terms without a configured attribute. Use constraints for configured attributes; do not duplicate them here or infer exclusions.",
 		},
 		"min_price": map[string]interface{}{
 			"type":             "number",
 			"exclusiveMinimum": 0,
-			"description":      "Inclusive positive CNY minimum, emitted only when explicit.",
+			"description":      "Inclusive positive minimum in catalog price units, only when explicit and supported; otherwise omit.",
 		},
 		"max_price": map[string]interface{}{
 			"type":             "number",
 			"exclusiveMinimum": 0,
-			"description":      "Inclusive positive CNY maximum, emitted only when explicit.",
+			"description":      "Inclusive positive maximum in catalog price units, only when explicit and supported; otherwise omit.",
 		},
 	}
-	required := []string{"keywords", "operator", "product_type_keywords", "attribute_keywords"}
-	if len(knowledgeCandidateIDs) > 0 {
-		properties["knowledge_candidate_ids"] = map[string]interface{}{
-			"type":        "array",
-			"items":       map[string]interface{}{"type": "string", "enum": knowledgeCandidateIDs},
-			"maxItems":    4,
-			"uniqueItems": true,
-			"description": "Select only candidate IDs that exactly match the requested product type. Return an empty array when none matches. Never invent an ID.",
+	constraints := map[string]interface{}{}
+	if conf != nil {
+		for _, param := range conf.ConstraintParams {
+			values := make([]string, 0, len(param.Values)+len(param.EqualValues))
+			for value := range param.Values {
+				values = append(values, value)
+			}
+			for value := range param.EqualValues {
+				values = append(values, value)
+			}
+			sort.Strings(values)
+			property := map[string]interface{}{"description": param.Description}
+			if param.Kind == "all_eq" {
+				property["type"] = []string{"string", "null"}
+				property["enum"] = appendNullable(values)
+			} else {
+				selection := func() map[string]interface{} {
+					return map[string]interface{}{
+						"type": []string{"array", "null"}, "items": map[string]interface{}{"type": "string", "enum": values}, "uniqueItems": true,
+					}
+				}
+				property["type"] = []string{"object", "null"}
+				property["additionalProperties"] = false
+				property["properties"] = map[string]interface{}{
+					"any": selection(), "exclude": selection(),
+					"known": map[string]interface{}{"enum": []interface{}{true, nil}},
+				}
+			}
+			constraints[param.Name] = property
 		}
-		required = append(required, "knowledge_candidate_ids")
 	}
+	properties["constraints"] = map[string]interface{}{
+		"type": []string{"object", "null"}, "properties": constraints, "additionalProperties": false,
+		"description": "Hard attributes, never relaxed. any: one allowed value; exclude: reject those values among known options; known=true: require evidence without selecting a value. any/exclude imply known. Omit unspecified fields. For option sets, the same selectable option must satisfy any and exclude.",
+	}
+	required := []string{"keywords"}
 	return Tool{
 		Type: "function",
 		Function: ToolFunction{
@@ -109,7 +93,15 @@ func FieldAwareSearchGoodsTool(knowledgeCandidateIDs []string) Tool {
 	}
 }
 
-func SuggestionTool(count, minLength, maxLength int) Tool {
+func appendNullable(values []string) []interface{} {
+	result := make([]interface{}, 0, len(values)+1)
+	for _, value := range values {
+		result = append(result, value)
+	}
+	return append(result, nil)
+}
+
+func SuggestionTool(count int) Tool {
 	return Tool{
 		Type: "function",
 		Function: ToolFunction{
@@ -124,8 +116,8 @@ func SuggestionTool(count, minLength, maxLength int) Tool {
 						"maxItems": count,
 						"items": map[string]interface{}{
 							"type":      "string",
-							"minLength": minLength,
-							"maxLength": maxLength,
+							"minLength": 1,
+							"maxLength": 160,
 						},
 					},
 				},
