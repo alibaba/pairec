@@ -7,6 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	"github.com/alibaba/pairec/v2/log"
 	"golang.org/x/text/unicode/norm"
 )
@@ -31,7 +32,7 @@ func Validate(suggestions []string, count int, currentQuery string) ([]string, *
 		_, duplicate := seen[normalized]
 		reason := ""
 		switch {
-		case length < 4 || length > 80:
+		case length < aichat.SuggestionMinLength || length > aichat.SuggestionMaxLength:
 			reason = "length"
 		case strings.IndexFunc(suggestion, unicode.IsControl) >= 0:
 			reason = "control"

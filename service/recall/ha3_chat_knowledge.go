@@ -271,13 +271,9 @@ func (s *ha3KnowledgeSearcher) searchKnowledgeVector(ctx context.Context, vector
 }
 
 func (s *ha3KnowledgeSearcher) parseKnowledgeResponse(resp *ha3client.SearchResponseModel) (*KnowledgeSearchResult, error) {
-	total, items, responseErrors, err := decodeHa3ChatResponse(resp)
+	total, items, err := decodeHa3ChatResponse(resp, true)
 	if err != nil {
 		return nil, err
-	}
-	if hasHa3ResponseErrors(responseErrors) {
-		payload, _ := json.Marshal(responseErrors)
-		return nil, fmt.Errorf("ha3 knowledge search errors: %s", payload)
 	}
 	hits := make([]KnowledgeHit, 0, len(items))
 	for _, item := range items {

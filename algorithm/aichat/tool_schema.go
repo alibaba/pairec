@@ -6,6 +6,11 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 )
 
+const (
+	SuggestionMinLength = 2
+	SuggestionMaxLength = 80
+)
+
 func SearchGoodsTool() Tool {
 	return FieldAwareSearchGoodsTool(nil)
 }
@@ -116,8 +121,8 @@ func SuggestionTool(count int) Tool {
 						"maxItems": count,
 						"items": map[string]interface{}{
 							"type":      "string",
-							"minLength": 1,
-							"maxLength": 160,
+							"minLength": SuggestionMinLength,
+							"maxLength": SuggestionMaxLength,
 						},
 					},
 				},
