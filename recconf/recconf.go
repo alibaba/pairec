@@ -284,10 +284,11 @@ type AlgoConfig struct {
 }
 
 type PAIModelConfig struct {
-	APIKey  string
-	Model   string
-	Timeout int
-	Region  string
+	APIKey     string
+	Model      string
+	Timeout    int
+	Region     string
+	RetryTimes int // Additional attempts after a failed call; zero disables retries.
 }
 
 type PIDControllerConfig struct {
