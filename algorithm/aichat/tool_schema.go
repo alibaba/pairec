@@ -7,8 +7,10 @@ import (
 )
 
 const (
-	SuggestionMinLength = 2
-	SuggestionMaxLength = 80
+	SearchGoodsMaxKeywords          = 8
+	SearchGoodsMaxPreferredKeywords = 5
+	SuggestionMinLength             = 2
+	SuggestionMaxLength             = 80
 )
 
 func SearchGoodsTool() Tool {
@@ -21,13 +23,13 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 			"type":        "array",
 			"items":       map[string]interface{}{"type": "string"},
 			"minItems":    1,
-			"maxItems":    1,
-			"description": "One required English catalog phrase: exact product noun and hard text conditions not represented in constraints. No singular/plural expansion, synonyms, prices, exclusions or optional preferences. Knowledge values are vocabulary references only.",
+			"maxItems":    SearchGoodsMaxKeywords,
+			"description": "Required English catalog terms or phrases, combined with AND: product noun and hard text conditions not represented in constraints. Use separate entries for separate terms; do not merge them into one phrase. No singular/plural expansion, synonyms, prices, exclusions or optional preferences. Knowledge values are vocabulary references only.",
 		},
 		"preferred_keywords": map[string]interface{}{
 			"type":        "array",
 			"items":       map[string]interface{}{"type": "string"},
-			"maxItems":    5,
+			"maxItems":    SearchGoodsMaxPreferredKeywords,
 			"description": "Optional English preferences that may all be dropped after zero results, e.g. office for a general work outfit. Never put required attributes, explicit must/only conditions, exclusions or product type here.",
 		},
 		"exclude_keywords": map[string]interface{}{
