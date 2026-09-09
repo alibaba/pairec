@@ -382,6 +382,11 @@ type RecallConfig struct {
 	Ha3ChatRecallConf      Ha3ChatRecallConfig
 	Ha3KnowledgeVectorConf *Ha3KnowledgeVectorConfig
 	FilterParams           []FilterParamConfig
+	// ItemFilterParams should only hold item conditions. ColdStartRecall on
+	// featurestore evaluates them while loading item features, so items not
+	// matching never enter the item cache and cost nothing per request. Written
+	// the same way as FilterParams, expressions included.
+	ItemFilterParams []FilterParamConfig
 }
 
 type Ha3ChatRecallConfig struct {
