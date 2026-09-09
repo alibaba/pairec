@@ -3,7 +3,6 @@ package aichat
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -11,8 +10,6 @@ import (
 )
 
 const maxToolCallIndex = 64
-
-var errInvalidStream = errors.New("invalid aichat stream")
 
 type streamChunk struct {
 	Choices []struct {
@@ -61,7 +58,7 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 		}
 		var chunk streamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			return nil, fmt.Errorf("%w: %v", errInvalidStream, err)
+			return nil, fmt.Errorf("invalid aichat stream: %w", err)
 		}
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
@@ -78,7 +75,7 @@ func parseStream(reader io.Reader, onDelta DeltaHandler) (*StreamResult, error) 
 			}
 			for _, tc := range choice.Delta.ToolCalls {
 				if tc.Index < 0 || tc.Index >= maxToolCallIndex {
-					return nil, fmt.Errorf("%w: tool call index:%d", errInvalidStream, tc.Index)
+					return nil, fmt.Errorf("invalid aichat stream: tool call index:%d", tc.Index)
 				}
 				slot := toolCalls[tc.Index]
 				if slot == nil {

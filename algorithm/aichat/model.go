@@ -8,11 +8,9 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/alibaba/pairec/v2/log"
@@ -117,11 +115,11 @@ func (m *Model) Stream(ctx context.Context, request *ChatCompletionRequest, onDe
 		if delivered || retry >= m.conf.RetryTimes {
 			return nil, err
 		}
-		delay, retryable := modelRetryDelay(err, retry)
+		delay, canWait := modelRetryDelay(err, retry)
 		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= delay {
 			return nil, err
 		}
-		if !retryable {
+		if !canWait {
 			return nil, err
 		}
 		log.Warning(fmt.Sprintf("module=AIChatModel\tcallId=%016x\tevent=retry\tattempt=%d\tdelayMs=%d", callID, attempts+1, delay.Milliseconds()))
@@ -176,31 +174,19 @@ func modelRetryDelay(err error, retry int) (time.Duration, bool) {
 	delay := min(200*time.Millisecond<<min(retry, 4), time.Second) + time.Duration(rand.Int63n(int64(100*time.Millisecond)+1))
 	var httpErr *modelHTTPError
 	if errors.As(err, &httpErr) {
-		switch httpErr.status {
-		case 408, 429, 500, 502, 503, 504:
-		default:
-			return 0, false
-		}
-		if httpErr.status == 429 || httpErr.status == 503 {
-			value := strings.TrimSpace(httpErr.retryAfter)
-			if seconds, parseErr := strconv.ParseUint(value, 10, 64); parseErr == nil {
-				if seconds > uint64(maxRetryWait/time.Second) {
-					return 0, false
-				}
-				delay = max(delay, time.Duration(seconds)*time.Second)
-			} else if errors.Is(parseErr, strconv.ErrRange) {
+		value := strings.TrimSpace(httpErr.retryAfter)
+		if seconds, parseErr := strconv.ParseUint(value, 10, 64); parseErr == nil {
+			if seconds > uint64(maxRetryWait/time.Second) {
 				return 0, false
-			} else if until, parseErr := http.ParseTime(value); parseErr == nil {
-				delay = max(delay, time.Until(until))
 			}
+			delay = max(delay, time.Duration(seconds)*time.Second)
+		} else if errors.Is(parseErr, strconv.ErrRange) {
+			return 0, false
+		} else if until, parseErr := http.ParseTime(value); parseErr == nil {
+			delay = max(delay, time.Until(until))
 		}
-		return delay, delay <= maxRetryWait
 	}
-	var netErr net.Error
-	retryable := errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, errInvalidStream) ||
-		errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EPIPE) ||
-		(errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()))
-	return delay, retryable
+	return delay, delay <= maxRetryWait
 }
 
 func newHTTPClient(timeout int) *http.Client {
