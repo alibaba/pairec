@@ -1012,6 +1012,10 @@ type CallBackConfig struct {
 	ItemSize        int
 	ItemSizeRate    int
 	UseUserFeatures bool
+	// DebugLevel is the debug_level sent to the easyrec processor, it defaults
+	// to 3 when not set. Set it to 6 to let the processor write the feature log
+	// on its own side, in that case DataSource can be left empty.
+	DebugLevel int
 }
 type EmbeddingConfig struct {
 	DataSource DataSourceConfig
@@ -1102,6 +1106,17 @@ type FeatureLogConfig struct {
 	KafKaName    string
 	UserFeatures string
 	ItemFeatures string
+
+	// FeatureStoreName is required when OutputType=featurestore,
+	// it is the name of FeatureStoreConfs
+	FeatureStoreName string
+	// FeatureStoreViewName is required when OutputType=featurestore,
+	// feature logs are written to this feature view of FeatureDB via fs sdk direct write
+	FeatureStoreViewName string
+	// LogItems is only used when OutputType=featurestore,
+	// when enabled, all item infos are merged into one record in the single feature log,
+	// default is false which means item infos are not logged
+	LogItems bool
 
 	SplitUserItemLogs bool
 }
