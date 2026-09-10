@@ -44,10 +44,14 @@ func (r *Ha3ChatRecall) attachToolParamEvidence(result *SearchGoodsResult, value
 		}
 		for i := range result.Hits {
 			hit := &result.Hits[i]
+			value, exists := hit.Properties[param.Field]
+			if !exists || value == nil {
+				continue
+			}
 			if hit.ConstraintEvidence == nil {
 				hit.ConstraintEvidence = make(map[string]interface{})
 			}
-			hit.ConstraintEvidence[param.Name] = hit.Properties[param.Field]
+			hit.ConstraintEvidence[param.Name] = value
 		}
 	}
 }
