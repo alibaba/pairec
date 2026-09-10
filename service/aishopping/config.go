@@ -21,6 +21,11 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 		return nil, fmt.Errorf("AIChatConfig not found for scene:%s", sceneId)
 	}
 	cfg := normalizeConfig(cloneAIChatConfig(category.AIChatConfig))
+	switch cfg.PlannerToolChoice {
+	case "auto", "required":
+	default:
+		return nil, fmt.Errorf("PlannerToolChoice must be auto or required")
+	}
 	if err := validateFineRankConfig(config.AlgoConfs, cfg); err != nil {
 		return nil, err
 	}
@@ -38,7 +43,7 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 	if replyPrompt == "" {
 		return nil, fmt.Errorf("reply_prompt_missing:%s", language)
 	}
-	if _, ok := cfg.FallbackTemplates[language]; !ok {
+	if strings.TrimSpace(cfg.FallbackTemplates[language]["generic"]) == "" {
 		return nil, fmt.Errorf("fallback_missing:%s", language)
 	}
 	fieldAware := isFieldAwareRecall(config.RecallConfs, cfg.RecallName)
@@ -79,6 +84,9 @@ func isKnowledgeRecall(recallConfs []recconf.RecallConfig, recallName string) bo
 }
 
 func normalizeConfig(cfg *recconf.AIChatConfig) *recconf.AIChatConfig {
+	if cfg.PlannerToolChoice == "" {
+		cfg.PlannerToolChoice = "auto"
+	}
 	if cfg.DefaultLanguage == "" {
 		cfg.DefaultLanguage = "zh"
 	}
@@ -200,8 +208,5 @@ func fallbackText(cfg *recconf.AIChatConfig, language, key string) string {
 	if text := langFallbacks[key]; text != "" {
 		return text
 	}
-	if text := langFallbacks["generic"]; text != "" {
-		return text
-	}
-	return "抱歉，我这边出了点小问题，麻烦再试一次。"
+	return langFallbacks["generic"]
 }

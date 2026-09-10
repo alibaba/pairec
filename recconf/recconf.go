@@ -406,9 +406,11 @@ type Ha3ChatRecallConfig struct {
 }
 
 type SearchGoodsConfig struct {
-	DropPreferredOnEmpty bool
-	ConstraintParams     []SearchConstraintConfig // Deprecated: retained to reject obsolete configurations explicitly.
-	ToolParams           []SearchToolParamConfig
+	ToolDescription       string
+	ParameterDescriptions map[string]string // Descriptions for the built-in search parameters.
+	DropPreferredOnEmpty  bool
+	ConstraintParams      []SearchConstraintConfig // Deprecated: retained to reject obsolete configurations explicitly.
+	ToolParams            []SearchToolParamConfig
 }
 
 type SearchToolParamConfig struct {
@@ -862,6 +864,8 @@ type AIChatConfig struct {
 	DefaultLanguage             string
 	OutputLanguages             []string
 	PlannerPromptTemplates      map[string]string
+	PlannerToolStrict           bool
+	PlannerToolChoice           string
 	ReplyPromptTemplates        map[string]string
 	FallbackTemplates           map[string]map[string]string
 	ToolMaxRounds               int
@@ -885,6 +889,7 @@ type SuggestionConfig struct {
 	RecallName      string
 	LLMAlgoName     string
 	PromptTemplates map[string]string
+	ToolDescription string
 }
 
 type FallbackConfig struct {

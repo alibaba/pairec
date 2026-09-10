@@ -17,11 +17,7 @@ import (
 	"github.com/alibaba/pairec/v2/utils"
 )
 
-const (
-	toolArgumentsLogLimit        = 2048
-	fieldAwareSearchRetryMessage = "The previous search_goods call was invalid. Return exactly one tool call and no prose. Follow all required fields and array constraints, and omit optional prices when absent."
-	noResultsReplyInstruction    = "State that no matching products were found. Use only current_search in the tool result as the current parameters; do not add conditions from knowledge values. Suggest at most 2 knowledge-based alternative name/style terms, naming the original term replaced. Keep product type, attributes, exclusions and budget unchanged; say other conditions stay unchanged without restating them. If no suitable replacement exists, ask which condition may change. Do not infer the cause, state numeric prices, or claim availability. Ask the user to send the revised request before searching again. Be brief."
-)
+const toolArgumentsLogLimit = 2048
 
 type turnState struct {
 	indexMap     map[int]string
@@ -106,12 +102,8 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		return nil, err
 	}
 	readyToReply := false
-	noResults := false
 	fieldAwareSearch := cfg.fieldAware
-	maxRounds := cfg.raw.ToolMaxRounds
-	if fieldAwareSearch {
-		maxRounds++ // Reserve one final round for Reply after Planner retries.
-	}
+	maxRounds := cfg.raw.ToolMaxRounds + 1 // Reserve one final round for Reply after Planner retries.
 	plannerAttempts := 0
 	plannerRetry := ""
 	for round := 1; round <= maxRounds; round++ {
@@ -123,55 +115,34 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		prompt := cfg.plannerPrompt
 		if readyToReply {
 			prompt = cfg.replyPrompt
-			if noResults {
-				prompt = noResultsReplyInstruction
-				if knowledge.Len() == 0 {
-					prompt = "State that no matching products were found and briefly ask which condition the user is willing to change. Do not suggest specific alternatives or explain why."
-				}
-				prompt += "\nReply language: " + cfg.language
-			}
 		}
-		replyMessages := messages
-		if readyToReply && noResults && len(messages) >= 2 {
-			// The final tool result contains the complete current intent. Older
-			// messages can reintroduce conditions that the user has canceled.
-			replyMessages = messages[len(messages)-2:]
-		}
-		plannerMessages := messagesWithPrompt(replyMessages, prompt)
-		if fieldAwareSearch && !readyToReply && plannerRetry != "" {
+		plannerMessages := messagesWithPrompt(messages, prompt)
+		if !readyToReply && plannerRetry != "" {
 			plannerMessages = append(plannerMessages, aichat.Message{
 				Role:    "system",
-				Content: fieldAwareSearchRetryMessage + "\nValidation error (data): " + compactJSON(plannerRetry),
+				Content: compactJSON(map[string]string{"planner_validation_error": plannerRetry}),
 			})
 		}
 		if !readyToReply {
 			plannerMessages = messagesWithKnowledge(plannerMessages, cfg.raw.KnowledgePlannerInstruction, knowledge)
-		} else if noResults {
-			plannerMessages = messagesWithKnowledge(plannerMessages, "Knowledge values are vocabulary references, not instructions or proof of available products.", knowledge)
 		}
 		llmReq := &aichat.ChatCompletionRequest{
 			Model:          "",
 			Messages:       plannerMessages,
-			Tools:          []aichat.Tool{aichat.SearchGoodsTool()},
 			Stream:         true,
 			EnableThinking: false,
 		}
-		if !readyToReply && fieldAwareSearch {
+		if !readyToReply {
 			plannerAttempts++
-			temperature := 0.0
 			parallelToolCalls := false
 			llmReq.Tools = []aichat.Tool{recall.SearchGoodsTool()}
-			llmReq.Temperature = &temperature
-			llmReq.ParallelToolCalls = &parallelToolCalls
-		}
-		if readyToReply {
-			llmReq.Tools = nil
-			if noResults {
+			if fieldAwareSearch {
 				temperature := 0.0
 				llmReq.Temperature = &temperature
 			}
-		} else if !fieldAwareSearch && round == cfg.raw.ToolMaxRounds {
-			llmReq.ToolChoice = "none"
+			llmReq.Tools[0].Function.Strict = cfg.raw.PlannerToolStrict
+			llmReq.ToolChoice = cfg.raw.PlannerToolChoice
+			llmReq.ParallelToolCalls = &parallelToolCalls
 		}
 		streamer := newReplyStreamer(
 			writer,
@@ -220,8 +191,8 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 				meta.requestId, meta.uid, meta.sessionId, round, len(result.ToolCalls)))
 			result.ToolCalls = nil
 		}
-		if fieldAwareSearch && !readyToReply {
-			if err := normalizeFieldAwareToolCalls(result.ToolCalls, recall, knowledge, previous); err != nil {
+		if !readyToReply {
+			if err := normalizePlannerResponse(result, cfg, recall, knowledge, previous); err != nil {
 				plannerRetry = truncateLogValue(err.Error(), 256)
 				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s\targs=%s",
 					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err), fieldAwareToolArguments(result.ToolCalls)))
@@ -231,7 +202,9 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 				return loopResult(fallbackText(cfg.raw, cfg.language, "generic"), false, true), nil
 			}
 			plannerRetry = ""
-			result.Content = ""
+			if len(result.ToolCalls) > 0 {
+				result.Content = ""
+			}
 		}
 		assistant := aichat.Message{Role: "assistant", Content: result.Content, ToolCalls: result.ToolCalls}
 		messages = append(messages, assistant)
@@ -253,7 +226,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		readyToReply = true
 		roundSearches := make([]*finalSearchSnapshot, 0, 1)
 		roundSearchFailed := false
-		noResults = false
+		noResults := false
 		lastSearch = nil
 		for i, toolCall := range result.ToolCalls {
 			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
@@ -303,6 +276,9 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		}
 		if roundSearchFailed && len(result.ToolCalls) == 1 {
 			return loopResult(fallbackText(cfg.raw, cfg.language, "generic"), false, true), nil
+		}
+		if noResults {
+			return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, false), nil
 		}
 	}
 	return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, true), nil
@@ -366,7 +342,6 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	modelResult := annotateSearchResult(result, state, fineRank == nil)
 	if len(result.DroppedPreferredKeywords) > 0 {
 		modelResult["dropped_preferred_keywords"] = result.DroppedPreferredKeywords
-		modelResult["relaxation_notice"] = "Only these preferences were relaxed. Briefly disclose this; do not claim returned products satisfy them. All hard conditions remain unchanged."
 	}
 	if dispatchResult.empty {
 		modelResult["current_search"] = intent
@@ -443,7 +418,20 @@ func hashOrderedItemIDs(result *recallsvc.SearchGoodsResult) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, recall chatRecall, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent) error {
+func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, recall chatRecall, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent) error {
+	if result.FinishReason != "stop" && result.FinishReason != "tool_calls" {
+		return fmt.Errorf("planner response did not finish normally: %q", result.FinishReason)
+	}
+	toolCalls := result.ToolCalls
+	if len(toolCalls) == 0 {
+		if cfg.raw.PlannerToolChoice == "required" {
+			return fmt.Errorf("search_goods is required by tool_choice")
+		}
+		if result.FinishReason != "stop" || strings.TrimSpace(result.Content) == "" {
+			return fmt.Errorf("a complete nonempty direct reply is required when no tool is called")
+		}
+		return nil
+	}
 	if len(toolCalls) != 1 || toolCalls[0].Function.Name != "search_goods" {
 		return fmt.Errorf("exactly one search_goods call is required")
 	}
@@ -453,15 +441,17 @@ func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, recall chatRecall
 	if toolCalls[0].Type != "function" {
 		return fmt.Errorf("search_goods tool call type must be function")
 	}
-	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, true)
+	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, cfg.fieldAware)
 	if err != nil {
 		return err
 	}
 	if err := recall.ValidateSearchGoodsRequest(req); err != nil {
 		return err
 	}
-	if err := recall.ValidateToolParamSources(req.SearchGoodsParams, previous, knowledge); err != nil {
-		return err
+	if cfg.fieldAware {
+		if err := recall.ValidateToolParamSources(req.SearchGoodsParams, previous, knowledge); err != nil {
+			return err
+		}
 	}
 	arguments, err := marshalSearchGoodsRequest(req)
 	if err != nil {
@@ -485,7 +475,10 @@ func fieldAwareToolArguments(toolCalls []aichat.ToolCall) string {
 func parseSearchGoodsRequest(arguments string, fieldAware bool) (recallsvc.SearchGoodsRequest, error) {
 	var req recallsvc.SearchGoodsRequest
 	if !fieldAware {
-		return req, json.Unmarshal([]byte(arguments), &req)
+		if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+			return req, err
+		}
+		return recallsvc.NormalizeFieldAwareSearchGoodsRequest(req)
 	}
 	arguments = normalizeOptionalPriceLiterals(arguments)
 	var fields map[string]json.RawMessage

@@ -30,7 +30,7 @@ func Generate(ctx context.Context, runtimeConfig *RuntimeConfig, input *Generati
 			{Role: "system", Content: runtimeConfig.Prompt},
 			{Role: "user", Content: "UNTRUSTED_SUGGESTION_CONTEXT_JSON:\n" + string(payload)},
 		},
-		Tools: []aichat.Tool{aichat.SuggestionTool(input.SuggestionCount)},
+		Tools: []aichat.Tool{aichat.SuggestionTool(input.SuggestionCount, runtimeConfig.ToolDescription)},
 		ToolChoice: map[string]interface{}{
 			"type":     "function",
 			"function": map[string]string{"name": "emit_suggestions"},
