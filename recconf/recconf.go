@@ -862,6 +862,8 @@ type AIChatConfig struct {
 	DefaultLanguage             string
 	OutputLanguages             []string
 	PlannerPromptTemplates      map[string]string
+	PlannerToolStrict           bool
+	PlannerToolChoice           string
 	ReplyPromptTemplates        map[string]string
 	FallbackTemplates           map[string]map[string]string
 	ToolMaxRounds               int

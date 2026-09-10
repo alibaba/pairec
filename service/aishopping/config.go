@@ -21,6 +21,11 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 		return nil, fmt.Errorf("AIChatConfig not found for scene:%s", sceneId)
 	}
 	cfg := normalizeConfig(cloneAIChatConfig(category.AIChatConfig))
+	switch cfg.PlannerToolChoice {
+	case "auto", "required":
+	default:
+		return nil, fmt.Errorf("PlannerToolChoice must be auto or required")
+	}
 	if err := validateFineRankConfig(config.AlgoConfs, cfg); err != nil {
 		return nil, err
 	}
@@ -79,6 +84,9 @@ func isKnowledgeRecall(recallConfs []recconf.RecallConfig, recallName string) bo
 }
 
 func normalizeConfig(cfg *recconf.AIChatConfig) *recconf.AIChatConfig {
+	if cfg.PlannerToolChoice == "" {
+		cfg.PlannerToolChoice = "auto"
+	}
 	if cfg.DefaultLanguage == "" {
 		cfg.DefaultLanguage = "zh"
 	}

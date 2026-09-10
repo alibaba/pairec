@@ -27,6 +27,7 @@ type ToolFunction struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	Parameters  map[string]interface{} `json:"parameters"`
+	Strict      bool                   `json:"strict,omitempty"`
 }
 
 type ChatCompletionRequest struct {
