@@ -1,6 +1,7 @@
 package aichat
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/alibaba/pairec/v2/recconf"
@@ -24,7 +25,7 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 			"items":       map[string]interface{}{"type": "string"},
 			"minItems":    1,
 			"maxItems":    SearchGoodsMaxKeywords,
-			"description": "Required English catalog terms or phrases, combined with AND: product noun and hard text conditions not represented in constraints. Use separate entries for separate terms; do not merge them into one phrase. No singular/plural expansion, synonyms, prices, exclusions or optional preferences. Knowledge values are vocabulary references only.",
+			"description": "Required English catalog terms or phrases, combined with AND: product noun and hard text conditions not represented by other tool parameters. Use separate entries for separate terms; do not merge them into one phrase. No singular/plural expansion, synonyms, prices, exclusions or optional preferences. Knowledge values are vocabulary references only.",
 		},
 		"preferred_keywords": map[string]interface{}{
 			"type":        "array",
@@ -51,6 +52,22 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 	}
 	constraints := map[string]interface{}{}
 	if conf != nil {
+		for _, param := range conf.ToolParams {
+			items := map[string]interface{}{"type": "string"}
+			description := param.Description + " Values are OR; never relax this condition."
+			if param.KnowledgeField != "" {
+				description += fmt.Sprintf(" Copy only relevant exact values from knowledge field %q, or retain still-valid previous values. Never invent values.", param.KnowledgeField)
+			} else {
+				items["enum"] = param.Values
+			}
+			if param.ParentParam != "" {
+				description += fmt.Sprintf(" If %q is set, choose associated values from the same knowledge record.", param.ParentParam)
+			}
+			properties[param.Name] = map[string]interface{}{
+				"type": []string{"array", "null"}, "items": items, "uniqueItems": true,
+				"description": description,
+			}
+		}
 		for _, param := range conf.ConstraintParams {
 			values := make([]string, 0, len(param.Values)+len(param.EqualValues))
 			for value := range param.Values {
@@ -89,7 +106,7 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "search_goods",
-			Description: "Parse one product-shopping query in any language and search real products from the English-language catalog.",
+			Description: "Parse a shopping query in any language and search the English catalog. Retain unchanged requirements; changing product type alone does not clear the budget. Preserve the requested subtype when selecting broader catalog terms.",
 			Parameters: map[string]interface{}{
 				"type":                 "object",
 				"properties":           properties,

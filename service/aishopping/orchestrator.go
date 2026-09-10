@@ -55,6 +55,10 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		_ = writer.EmitStop("error", "recall_not_found")
 		return err
 	}
+	toolParamsConfigID := chatRecall.ToolParamsConfigID()
+	if blob.LastSearch != nil && blob.ToolParamsConfigID != toolParamsConfigID {
+		blob.LastSearch.ToolParams = nil
+	}
 	meta := timingMeta{
 		requestId: req.RequestId,
 		uid:       req.Uid,
@@ -118,7 +122,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	if cfg.raw.FineRankConfig != nil {
 		rankRuntime = newFineRankRuntime(req)
 	}
-	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob.messages(req.UserText), cfg, rankRuntime, knowledge, writer, meta, onFinalSearch)
+	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob.messages(req.UserText), cfg, rankRuntime, knowledge, blob.LastSearch, writer, meta, onFinalSearch)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=upstream\terr=%v",
 			req.RequestId, req.Uid, req.SessionId, err))
@@ -151,6 +155,9 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		}
 	}
 	blob.recordTurn(req.UserText, loopResult.LastSearch)
+	if loopResult.LastSearch != nil {
+		blob.ToolParamsConfigID = toolParamsConfigID
+	}
 	if err := store.Save(req.Uid, req.SessionId, blob); err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=session_write\terr=%v",
 			req.RequestId, req.Uid, req.SessionId, err))

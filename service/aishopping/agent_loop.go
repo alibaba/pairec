@@ -34,6 +34,8 @@ type chatRecall interface {
 	Search(context.Context, recallsvc.SearchGoodsRequest) (*recallsvc.SearchGoodsResult, error)
 	SearchGoodsTool() aichat.Tool
 	ValidateSearchGoodsRequest(recallsvc.SearchGoodsRequest) error
+	ValidateToolParamSources(aichat.SearchGoodsParams, *aichat.SearchGoodsParams, recallsvc.ToolParamEvidence) error
+	ToolParamsConfigID() string
 }
 
 type agentLoopResult struct {
@@ -81,7 +83,7 @@ type toolDispatchResult struct {
 	intent   *searchsuggestion.SearchIntent
 }
 
-func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, messages []aichat.Message, cfg *chatConfig, rankRuntime *fineRankRuntime, knowledge *knowledgeEvidence, writer *StreamWriter, meta timingMeta, onFinalSearch func(context.Context, *finalSearchSnapshot)) (*agentLoopResult, error) {
+func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, messages []aichat.Message, cfg *chatConfig, rankRuntime *fineRankRuntime, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent, writer *StreamWriter, meta timingMeta, onFinalSearch func(context.Context, *finalSearchSnapshot)) (*agentLoopResult, error) {
 	state := &turnState{
 		indexMap:    make(map[int]string),
 		itemToIndex: make(map[string]int),
@@ -219,7 +221,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 			result.ToolCalls = nil
 		}
 		if fieldAwareSearch && !readyToReply {
-			if err := normalizeFieldAwareToolCalls(result.ToolCalls, recall); err != nil {
+			if err := normalizeFieldAwareToolCalls(result.ToolCalls, recall, knowledge, previous); err != nil {
 				plannerRetry = truncateLogValue(err.Error(), 256)
 				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s\targs=%s",
 					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err), fieldAwareToolArguments(result.ToolCalls)))
@@ -400,6 +402,7 @@ func sanitizeSearchIntent(req recallsvc.SearchGoodsRequest) searchsuggestion.Sea
 		ExcludeKeywords:   append([]string(nil), req.ExcludeKeywords...),
 		MinPrice:          cloneFloat(req.MinPrice),
 		MaxPrice:          cloneFloat(req.MaxPrice),
+		ToolParams:        cloneConstraints(req.ToolParams),
 	}
 }
 
@@ -441,7 +444,7 @@ func hashOrderedItemIDs(result *recallsvc.SearchGoodsResult) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, recall chatRecall) error {
+func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, recall chatRecall, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent) error {
 	if len(toolCalls) != 1 || toolCalls[0].Function.Name != "search_goods" {
 		return fmt.Errorf("exactly one search_goods call is required")
 	}
@@ -456,6 +459,9 @@ func normalizeFieldAwareToolCalls(toolCalls []aichat.ToolCall, recall chatRecall
 		return err
 	}
 	if err := recall.ValidateSearchGoodsRequest(req); err != nil {
+		return err
+	}
+	if err := recall.ValidateToolParamSources(req.SearchGoodsParams, previous, knowledge); err != nil {
 		return err
 	}
 	arguments, err := marshalSearchGoodsRequest(req)

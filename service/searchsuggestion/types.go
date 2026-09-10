@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	"github.com/alibaba/pairec/v2/service/shoppingknowledge"
 )
 
@@ -21,14 +22,7 @@ type ConversationTurn struct {
 	Content string `json:"content"`
 }
 
-type SearchIntent struct {
-	Keywords          []string                   `json:"keywords"`
-	PreferredKeywords []string                   `json:"preferred_keywords,omitempty"`
-	Constraints       map[string]json.RawMessage `json:"constraints,omitempty"`
-	ExcludeKeywords   []string                   `json:"exclude_keywords,omitempty"`
-	MinPrice          *float64                   `json:"min_price,omitempty"`
-	MaxPrice          *float64                   `json:"max_price,omitempty"`
-}
+type SearchIntent = aichat.SearchGoodsParams
 
 type ProductSummary struct {
 	Total int                 `json:"total"`

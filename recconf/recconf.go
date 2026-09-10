@@ -408,6 +408,17 @@ type Ha3ChatRecallConfig struct {
 type SearchGoodsConfig struct {
 	DropPreferredOnEmpty bool
 	ConstraintParams     []SearchConstraintConfig
+	ToolParams           []SearchToolParamConfig
+}
+
+type SearchToolParamConfig struct {
+	Name           string
+	Kind           string
+	Field          string
+	KnowledgeField string
+	Values         []string
+	ParentParam    string
+	Description    string
 }
 
 type SearchConstraintConfig struct {
@@ -446,6 +457,13 @@ type Ha3KnowledgeVectorConfig struct {
 	TopK               int
 	SearchTimeout      int
 	QueryTemplate      string
+	ModelFields        []KnowledgeModelFieldConfig
+}
+
+type KnowledgeModelFieldConfig struct {
+	Name      string
+	Field     string
+	Separator string
 }
 
 type GraphConf struct {

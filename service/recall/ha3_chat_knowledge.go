@@ -35,11 +35,12 @@ var validKnowledgeTypes = map[string]struct{}{
 }
 
 type KnowledgeHit struct {
-	KnowledgeID   string      `json:"knowledge_id"`
-	KnowledgeType string      `json:"knowledge_type"`
-	Value         string      `json:"value"`
-	Category      string      `json:"category"`
-	Score         interface{} `json:"score,omitempty"`
+	KnowledgeID   string                 `json:"knowledge_id"`
+	KnowledgeType string                 `json:"knowledge_type"`
+	Value         string                 `json:"value"`
+	Category      string                 `json:"category"`
+	Score         interface{}            `json:"score,omitempty"`
+	ModelFields   map[string]interface{} `json:"-"`
 }
 
 type KnowledgeSearchResult struct {
@@ -77,6 +78,7 @@ func newHa3KnowledgeSearcher(client *ha3engine.Ha3EngineClient, config recconf.H
 }
 
 func normalizeHa3KnowledgeVectorConfig(conf recconf.Ha3KnowledgeVectorConfig) recconf.Ha3KnowledgeVectorConfig {
+	conf.ModelFields = append([]recconf.KnowledgeModelFieldConfig(nil), conf.ModelFields...)
 	conf.EngineName = strings.TrimSpace(conf.EngineName)
 	conf.FeatureStoreName = strings.TrimSpace(conf.FeatureStoreName)
 	conf.LLMConfigName = strings.TrimSpace(conf.LLMConfigName)
@@ -104,6 +106,13 @@ func normalizeHa3KnowledgeVectorConfig(conf recconf.Ha3KnowledgeVectorConfig) re
 }
 
 func validateHa3KnowledgeVectorConfig(conf recconf.Ha3KnowledgeVectorConfig) {
+	modelNames := make(map[string]bool)
+	for _, field := range conf.ModelFields {
+		if !validHa3FieldName(field.Name) || !validHa3FieldName(field.Field) || modelNames[field.Name] {
+			panic("Ha3KnowledgeVectorConf.ModelFields requires valid, unique names and valid fields")
+		}
+		modelNames[field.Name] = true
+	}
 	required := []struct {
 		name  string
 		value string
@@ -291,8 +300,9 @@ func (s *ha3KnowledgeSearcher) parseKnowledgeResponse(resp *ha3client.SearchResp
 			Value:         strings.TrimSpace(stringFromAny(fields[s.conf.ValueField])),
 			Category:      strings.TrimSpace(stringFromAny(fields[s.conf.CategoryField])),
 			Score:         firstAny(itemMap["sortExprValues"], itemMap["score"]),
+			ModelFields:   projectKnowledgeFields(fields, s.conf.ModelFields),
 		}
-		if hit.KnowledgeID == "" || hit.KnowledgeType == "" || hit.Value == "" || hit.Category == "" {
+		if hit.KnowledgeID == "" || hit.KnowledgeType == "" || hit.Value == "" {
 			continue
 		}
 		hits = append(hits, hit)
@@ -301,4 +311,22 @@ func (s *ha3KnowledgeSearcher) parseKnowledgeResponse(resp *ha3client.SearchResp
 		return nil, fmt.Errorf("ha3 knowledge response contains %d items but none has all configured result fields", len(items))
 	}
 	return &KnowledgeSearchResult{Total: total, Hits: hits}, nil
+}
+
+func projectKnowledgeFields(fields map[string]interface{}, config []recconf.KnowledgeModelFieldConfig) map[string]interface{} {
+	view := make(map[string]interface{}, len(config))
+	for _, field := range config {
+		value := fields[field.Field]
+		if text, ok := value.(string); ok && field.Separator != "" {
+			parts := make([]string, 0)
+			for _, part := range strings.Split(text, field.Separator) {
+				if strings.TrimSpace(part) != "" {
+					parts = append(parts, part)
+				}
+			}
+			value = parts
+		}
+		view[field.Name] = value
+	}
+	return view
 }
