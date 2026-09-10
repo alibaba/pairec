@@ -69,7 +69,6 @@ func NewHa3ChatRecall(config recconf.RecallConfig) *Ha3ChatRecall {
 	}
 	validateHa3ChatFieldConfig(conf)
 	conf.SearchGoodsConf = cloneSearchGoodsConfig(conf.SearchGoodsConf)
-	validateSearchGoodsConfig(conf.SearchGoodsConf)
 	validateSearchToolParams(conf.SearchGoodsConf, config.Ha3KnowledgeVectorConf)
 	conf.DistinctConf = normalizeHa3ChatDistinctConfig(conf.DistinctConf)
 	if config.Ha3KnowledgeVectorConf != nil && !ha3ChatFieldAwareConfigured(conf) {
@@ -114,14 +113,14 @@ func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*Se
 	result, err := search(ctx, r.conf.DefaultField, keywords, "AND", req, req.Limit)
 	if err != nil || result == nil || result.Total != 0 || len(result.Hits) != 0 || len(req.PreferredKeywords) == 0 || r.conf.SearchGoodsConf == nil || !r.conf.SearchGoodsConf.DropPreferredOnEmpty {
 		if err == nil {
-			r.attachConstraintEvidence(result, req.Constraints)
+			r.attachToolParamEvidence(result, req.ToolParams)
 		}
 		return result, err
 	}
 	result, err = search(ctx, r.conf.DefaultField, req.Keywords, "AND", req, req.Limit)
 	if err == nil && result != nil {
 		result.DroppedPreferredKeywords = append([]string(nil), req.PreferredKeywords...)
-		r.attachConstraintEvidence(result, req.Constraints)
+		r.attachToolParamEvidence(result, req.ToolParams)
 	}
 	return result, err
 }
@@ -135,16 +134,6 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 		return nil, err
 	}
 	filterExpr := r.buildFilterExpr(req)
-	constraintExpr, err := r.buildConstraintExpr(req.Constraints)
-	if err != nil {
-		return nil, err
-	}
-	if constraintExpr != "" {
-		if filterExpr != "" {
-			filterExpr += " AND "
-		}
-		filterExpr += constraintExpr
-	}
 	toolExpr, err := r.buildToolParamsExpr(req.ToolParams)
 	if err != nil {
 		return nil, err

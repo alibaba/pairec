@@ -2,7 +2,6 @@ package aichat
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/alibaba/pairec/v2/recconf"
 )
@@ -37,7 +36,7 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 			"type":        "array",
 			"items":       map[string]interface{}{"type": "string"},
 			"maxItems":    5,
-			"description": "Explicitly rejected English text terms without a configured attribute. Use constraints for configured attributes; do not duplicate them here or infer exclusions.",
+			"description": "All explicitly rejected English catalog terms or phrases, including configured attributes. Output the rejected content without no/not; keep a phrase in one entry. Do not infer exclusions or enumerate complementary positive values.",
 		},
 		"min_price": map[string]interface{}{
 			"type":             "number",
@@ -50,11 +49,10 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 			"description":      "Inclusive positive maximum in catalog price units, only when explicit and supported; otherwise omit.",
 		},
 	}
-	constraints := map[string]interface{}{}
 	if conf != nil {
 		for _, param := range conf.ToolParams {
 			items := map[string]interface{}{"type": "string"}
-			description := param.Description + " Values are OR; never relax this condition."
+			description := param.Description + " Select only explicitly wanted values, combined with OR; never relax this condition. Put rejections in exclude_keywords, never enumerate complementary choices. Omit when unspecified. Configured value mappings are expanded by the backend."
 			if param.KnowledgeField != "" {
 				description += fmt.Sprintf(" Copy only relevant exact values from knowledge field %q, or retain still-valid previous values. Never invent values.", param.KnowledgeField)
 			} else {
@@ -64,42 +62,10 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 				description += fmt.Sprintf(" If %q is set, choose associated values from the same knowledge record.", param.ParentParam)
 			}
 			properties[param.Name] = map[string]interface{}{
-				"type": []string{"array", "null"}, "items": items, "uniqueItems": true,
+				"type": "array", "items": items, "minItems": 1, "uniqueItems": true,
 				"description": description,
 			}
 		}
-		for _, param := range conf.ConstraintParams {
-			values := make([]string, 0, len(param.Values)+len(param.EqualValues))
-			for value := range param.Values {
-				values = append(values, value)
-			}
-			for value := range param.EqualValues {
-				values = append(values, value)
-			}
-			sort.Strings(values)
-			property := map[string]interface{}{"description": param.Description}
-			if param.Kind == "all_eq" {
-				property["type"] = []string{"string", "null"}
-				property["enum"] = appendNullable(values)
-			} else {
-				selection := func() map[string]interface{} {
-					return map[string]interface{}{
-						"type": []string{"array", "null"}, "items": map[string]interface{}{"type": "string", "enum": values}, "uniqueItems": true,
-					}
-				}
-				property["type"] = []string{"object", "null"}
-				property["additionalProperties"] = false
-				property["properties"] = map[string]interface{}{
-					"any": selection(), "exclude": selection(),
-					"known": map[string]interface{}{"enum": []interface{}{true, nil}},
-				}
-			}
-			constraints[param.Name] = property
-		}
-	}
-	properties["constraints"] = map[string]interface{}{
-		"type": []string{"object", "null"}, "properties": constraints, "additionalProperties": false,
-		"description": "Hard attributes, never relaxed. any: one allowed value; exclude: reject those values among known options; known=true: require evidence without selecting a value. any/exclude imply known. Omit unspecified fields. For option sets, the same selectable option must satisfy any and exclude.",
 	}
 	required := []string{"keywords"}
 	return Tool{
@@ -115,14 +81,6 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 			},
 		},
 	}
-}
-
-func appendNullable(values []string) []interface{} {
-	result := make([]interface{}, 0, len(values)+1)
-	for _, value := range values {
-		result = append(result, value)
-	}
-	return append(result, nil)
 }
 
 func SuggestionTool(count int) Tool {

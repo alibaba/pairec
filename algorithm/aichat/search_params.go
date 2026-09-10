@@ -10,7 +10,6 @@ import (
 type SearchGoodsParams struct {
 	Keywords          []string                   `json:"keywords"`
 	PreferredKeywords []string                   `json:"preferred_keywords,omitempty"`
-	Constraints       map[string]json.RawMessage `json:"constraints,omitempty"`
 	ExcludeKeywords   []string                   `json:"exclude_keywords,omitempty"`
 	MinPrice          *float64                   `json:"min_price,omitempty"`
 	MaxPrice          *float64                   `json:"max_price,omitempty"`
@@ -19,7 +18,7 @@ type SearchGoodsParams struct {
 
 func IsBuiltinSearchParam(name string) bool {
 	switch name {
-	case "keywords", "preferred_keywords", "constraints", "exclude_keywords", "min_price", "max_price":
+	case "keywords", "preferred_keywords", "exclude_keywords", "min_price", "max_price":
 		return true
 	}
 	return false

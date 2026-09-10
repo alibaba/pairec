@@ -58,7 +58,7 @@ func (s *SessionStore) Save(uid, sessionId string, blob *SessionBlob) error {
 }
 
 func sessionStoreKey(uid, sessionId string) string {
-	return uid + ":" + sessionId
+	return "aishopping:v2:" + uid + ":" + sessionId
 }
 
 func (s *SessionStore) read(sessionId string) (*SessionBlob, error) {

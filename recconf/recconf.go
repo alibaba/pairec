@@ -407,7 +407,7 @@ type Ha3ChatRecallConfig struct {
 
 type SearchGoodsConfig struct {
 	DropPreferredOnEmpty bool
-	ConstraintParams     []SearchConstraintConfig
+	ConstraintParams     []SearchConstraintConfig // Deprecated: retained to reject obsolete configurations explicitly.
 	ToolParams           []SearchToolParamConfig
 }
 
@@ -417,6 +417,7 @@ type SearchToolParamConfig struct {
 	Field          string
 	KnowledgeField string
 	Values         []string
+	ValueMapping   map[string][]string
 	ParentParam    string
 	Description    string
 }

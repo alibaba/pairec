@@ -23,6 +23,9 @@ func validateSearchToolParams(conf *recconf.SearchGoodsConfig, knowledge *reccon
 	if conf == nil {
 		return
 	}
+	if len(conf.ConstraintParams) != 0 {
+		panic("ConstraintParams is no longer supported; migrate positive values to ToolParams and rejections to exclude_keywords")
+	}
 	visible := make(map[string]bool)
 	if knowledge != nil {
 		for _, field := range knowledge.ModelFields {
@@ -30,12 +33,9 @@ func validateSearchToolParams(conf *recconf.SearchGoodsConfig, knowledge *reccon
 		}
 	}
 	names := make(map[string]bool)
-	for _, param := range conf.ConstraintParams {
-		names[param.Name] = true
-	}
 	params := make(map[string]recconf.SearchToolParamConfig)
 	for _, param := range conf.ToolParams {
-		if !validHa3FieldName(param.Name) || strings.Contains(param.Name, ".") || names[param.Name] || aichat.IsBuiltinSearchParam(param.Name) {
+		if !validHa3FieldName(param.Name) || strings.Contains(param.Name, ".") || names[param.Name] || param.Name == "constraints" || aichat.IsBuiltinSearchParam(param.Name) {
 			panic(fmt.Sprintf("invalid or conflicting tool parameter name %q", param.Name))
 		}
 		names[param.Name] = true
@@ -50,11 +50,19 @@ func validateSearchToolParams(conf *recconf.SearchGoodsConfig, knowledge *reccon
 		}
 		seen := make(map[string]bool)
 		for _, value := range param.Values {
-			validateConstraintLiteral(value)
+			validateToolParamLiteral(value)
 			if seen[value] {
 				panic(fmt.Sprintf("tool parameter %q contains duplicate Values", param.Name))
 			}
 			seen[value] = true
+		}
+		for value, mapped := range param.ValueMapping {
+			if param.KnowledgeField != "" || !seen[value] || len(mapped) == 0 {
+				panic(fmt.Sprintf("tool parameter %q requires nonempty ValueMapping entries for configured static Values", param.Name))
+			}
+			for _, literal := range mapped {
+				validateToolParamLiteral(literal)
+			}
 		}
 		params[param.Name] = param
 	}
@@ -100,7 +108,10 @@ func toolTermValues(raw json.RawMessage) ([]string, error) {
 	}
 	var values []string
 	if err := json.Unmarshal(raw, &values); err != nil {
-		return nil, fmt.Errorf("expected a string array or null")
+		return nil, fmt.Errorf("expected a string array")
+	}
+	if len(values) == 0 {
+		return nil, fmt.Errorf("expected a nonempty string array; omit the parameter when unset")
 	}
 	result := make([]string, 0, len(values))
 	for _, value := range values {
@@ -135,13 +146,24 @@ func (r *Ha3ChatRecall) buildToolParamsExpr(values map[string]json.RawMessage) (
 			return "", fmt.Errorf("tool parameter %s: %w", name, err)
 		}
 		var choices []string
+		seen := make(map[string]bool)
 		for _, term := range terms {
 			if param.KnowledgeField == "" && !slices.Contains(param.Values, term) {
 				return "", fmt.Errorf("tool parameter %s: value %q is not in Values", name, term)
 			}
-			choices = append(choices, param.Field+" = "+strconv.Quote(term))
+			mapped, ok := param.ValueMapping[term]
+			if !ok {
+				mapped = []string{term}
+			}
+			for _, literal := range mapped {
+				if !seen[literal] {
+					choices = append(choices, param.Field+" = "+strconv.Quote(literal))
+					seen[literal] = true
+				}
+			}
 		}
 		if len(choices) > 0 {
+			sort.Strings(choices)
 			clauses = append(clauses, "("+strings.Join(choices, " OR ")+")")
 		}
 	}
