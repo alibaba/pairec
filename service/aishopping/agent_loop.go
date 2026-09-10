@@ -488,10 +488,10 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 	if err != nil {
 		return err
 	}
+	if err := recall.ValidateSearchGoodsRequest(req); err != nil {
+		return err
+	}
 	if cfg.fieldAware {
-		if err := recall.ValidateSearchGoodsRequest(req); err != nil {
-			return err
-		}
 		if err := recall.ValidateToolParamSources(req.SearchGoodsParams, previous, knowledge); err != nil {
 			return err
 		}
@@ -518,7 +518,10 @@ func fieldAwareToolArguments(toolCalls []aichat.ToolCall) string {
 func parseSearchGoodsRequest(arguments string, fieldAware bool) (recallsvc.SearchGoodsRequest, error) {
 	var req recallsvc.SearchGoodsRequest
 	if !fieldAware {
-		return req, json.Unmarshal([]byte(arguments), &req)
+		if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+			return req, err
+		}
+		return recallsvc.NormalizeFieldAwareSearchGoodsRequest(req)
 	}
 	arguments = normalizeOptionalPriceLiterals(arguments)
 	var fields map[string]json.RawMessage
