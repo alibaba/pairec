@@ -146,8 +146,9 @@ func (op ComposeFeatureOp) ItemTransOp(featureName string, source string, remove
 // user_features column written by feature log.
 //
 // FeatureName is not used by this op, the expanded feature names come from the
-// keys of the JSON object. Note that the JSON round trip degrades every number
-// to float64, so integer valued features are restored as float64.
+// keys of the JSON object. Values are restored by their JSON type, so an integer
+// stays an integer and a list or object becomes the concrete slice or map type
+// the easyrec request builder has a case for, see convertJsonValue.
 //
 // RemoveFeatureSource is ignored when FeatureStore is item and FeatureSource
 // points at a user property, because that single property is the source shared
@@ -168,8 +169,8 @@ func (op ExpandJsonFeatureOp) UserTransOp(featureName string, source string, rem
 		return
 	}
 
-	properties := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(value), &properties); err != nil {
+	properties, err := unmarshalJsonProperties(value)
+	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=ExpandJsonFeatureOp\tsource=%s\terror=%v", op.getRequestId(context), comms[1], err))
 		return
 	}
@@ -199,8 +200,8 @@ func (op ExpandJsonFeatureOp) ItemTransOp(featureName string, source string, rem
 		return
 	}
 
-	properties := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(value), &properties); err != nil {
+	properties, err := unmarshalJsonProperties(value)
+	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=ExpandJsonFeatureOp\tsource=%s\terror=%v", op.getRequestId(context), comms[1], err))
 		return
 	}
@@ -212,6 +213,244 @@ func (op ExpandJsonFeatureOp) ItemTransOp(featureName string, source string, rem
 		item.DeleteProperty(comms[1])
 	}
 	item.AddProperties(properties)
+}
+
+// unmarshalJsonProperties decodes a JSON object string into properties, keeping
+// the numbers as json.Number. The default decoding turns every number into a
+// float64, which loses precision above 2^53 and also changes the feature type
+// that is finally sent to the processor, so a snapshot would not restore the
+// features the model was scored with.
+func unmarshalJsonProperties(value string) (map[string]interface{}, error) {
+	decoder := json.NewDecoder(strings.NewReader(value))
+	decoder.UseNumber()
+
+	properties := make(map[string]interface{})
+	if err := decoder.Decode(&properties); err != nil {
+		return nil, err
+	}
+	for k, v := range properties {
+		properties[k] = convertJsonValue(v)
+	}
+	return properties, nil
+}
+
+// convertJsonValue restores the Go type of a value decoded with json.Number.
+//
+// The restoration is driven by the json type of the value, because a json round
+// trip keeps the string and number distinction: a []string is written back as a
+// list of quoted elements while a []int64 is written back as a list of bare
+// numbers. Restoring by that distinction keeps the feature type close to the one
+// the model was scored with, which a blanket conversion to string would not.
+func convertJsonValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case json.Number:
+		return convertJsonNumber(v)
+	case []interface{}:
+		return convertJsonList(v)
+	case map[string]interface{}:
+		return convertJsonMap(v)
+	default:
+		return value
+	}
+}
+
+// convertJsonNumber restores the numeric type of a json.Number, the same way
+// web.FeaturesMap does for the features carried in a request body.
+func convertJsonNumber(number json.Number) interface{} {
+	if i64, err := number.Int64(); err == nil {
+		return int(i64)
+	}
+	if f64, err := number.Float64(); err == nil {
+		return f64
+	}
+	return number.String()
+}
+
+// convertJsonList restores a list to the concrete slice type matching the json
+// type of its elements, so the easyrec request builder has a case for it. A list
+// the builder has no type for only gets its elements restored one by one.
+func convertJsonList(list []interface{}) interface{} {
+	if len(list) == 0 {
+		// an empty list gives no hint about its element type
+		return list
+	}
+
+	allString, allNumber, allList := true, true, true
+	integral, numeric := true, true
+	for _, elem := range list {
+		switch v := elem.(type) {
+		case string:
+			allNumber, allList = false, false
+		case json.Number:
+			allString, allList = false, false
+			if _, err := v.Int64(); err != nil {
+				integral = false
+				if _, err := v.Float64(); err != nil {
+					numeric = false
+				}
+			}
+		case []interface{}:
+			allString, allNumber = false, false
+		default:
+			allString, allNumber, allList = false, false, false
+		}
+	}
+
+	switch {
+	case allString:
+		values := make([]string, len(list))
+		for i, elem := range list {
+			values[i] = elem.(string)
+		}
+		return values
+	case allNumber && integral:
+		values := make([]int, len(list))
+		for i, elem := range list {
+			i64, _ := elem.(json.Number).Int64()
+			values[i] = int(i64)
+		}
+		return values
+	case allNumber && numeric:
+		values := make([]float64, len(list))
+		for i, elem := range list {
+			f64, _ := elem.(json.Number).Float64()
+			values[i] = f64
+		}
+		return values
+	case allList:
+		return convertJsonNestedList(list)
+	}
+
+	for i, elem := range list {
+		list[i] = convertJsonValue(elem)
+	}
+	return list
+}
+
+// convertJsonMap restores a json object to the concrete map type matching the
+// json type of its values, so the easyrec request builder has a case for it.
+//
+// A json object always has string keys, so the key type of the original feature
+// is not recoverable: a map[int64]string and a map[string]string look exactly the
+// same once written. The keys are restored as strings, which turns a LongStringMap
+// into a StringStringMap. That is accepted, because the builder has no case for
+// map[string]interface{} at all, so the alternative is dropping the feature.
+//
+// An integral value gives a map[string]int64 and not a map[string]int, because
+// the builder casts a map[string]int down to int32 without a range check.
+func convertJsonMap(object map[string]interface{}) interface{} {
+	if len(object) == 0 {
+		// an empty object gives no hint about its value type
+		return object
+	}
+
+	allString, allNumber := true, true
+	integral, numeric := true, true
+	for _, elem := range object {
+		switch v := elem.(type) {
+		case string:
+			allNumber = false
+		case json.Number:
+			allString = false
+			if _, err := v.Int64(); err != nil {
+				integral = false
+				if _, err := v.Float64(); err != nil {
+					numeric = false
+				}
+			}
+		default:
+			allString, allNumber = false, false
+		}
+	}
+
+	switch {
+	case allString:
+		values := make(map[string]string, len(object))
+		for key, elem := range object {
+			values[key] = elem.(string)
+		}
+		return values
+	case allNumber && integral:
+		values := make(map[string]int64, len(object))
+		for key, elem := range object {
+			values[key], _ = elem.(json.Number).Int64()
+		}
+		return values
+	case allNumber && numeric:
+		values := make(map[string]float64, len(object))
+		for key, elem := range object {
+			values[key], _ = elem.(json.Number).Float64()
+		}
+		return values
+	}
+
+	for key, elem := range object {
+		object[key] = convertJsonValue(elem)
+	}
+	return object
+}
+
+// convertJsonNestedList restores a list of lists, the builder carries those as
+// [][]string, [][]int64 or [][]float64.
+func convertJsonNestedList(list []interface{}) interface{} {
+	allString, allNumber := true, true
+	integral, numeric := true, true
+	for _, elem := range list {
+		for _, inner := range elem.([]interface{}) {
+			switch v := inner.(type) {
+			case string:
+				allNumber = false
+			case json.Number:
+				allString = false
+				if _, err := v.Int64(); err != nil {
+					integral = false
+					if _, err := v.Float64(); err != nil {
+						numeric = false
+					}
+				}
+			default:
+				allString, allNumber = false, false
+			}
+		}
+	}
+
+	switch {
+	case allString:
+		values := make([][]string, len(list))
+		for i, elem := range list {
+			inner := elem.([]interface{})
+			values[i] = make([]string, len(inner))
+			for j, v := range inner {
+				values[i][j] = v.(string)
+			}
+		}
+		return values
+	case allNumber && integral:
+		values := make([][]int64, len(list))
+		for i, elem := range list {
+			inner := elem.([]interface{})
+			values[i] = make([]int64, len(inner))
+			for j, v := range inner {
+				values[i][j], _ = v.(json.Number).Int64()
+			}
+		}
+		return values
+	case allNumber && numeric:
+		values := make([][]float64, len(list))
+		for i, elem := range list {
+			inner := elem.([]interface{})
+			values[i] = make([]float64, len(inner))
+			for j, v := range inner {
+				values[i][j], _ = v.(json.Number).Float64()
+			}
+		}
+		return values
+	}
+
+	for i, elem := range list {
+		list[i] = convertJsonValue(elem)
+	}
+	return list
 }
 
 // ContextFeatureOp add context feature to user
