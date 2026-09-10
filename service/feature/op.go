@@ -148,6 +148,10 @@ func (op ComposeFeatureOp) ItemTransOp(featureName string, source string, remove
 // FeatureName is not used by this op, the expanded feature names come from the
 // keys of the JSON object. Note that the JSON round trip degrades every number
 // to float64, so integer valued features are restored as float64.
+//
+// RemoveFeatureSource is ignored when FeatureStore is item and FeatureSource
+// points at a user property, because that single property is the source shared
+// by every item, same as ComposeFeatureOp does.
 type ExpandJsonFeatureOp struct {
 	featureOp
 }
@@ -201,12 +205,11 @@ func (op ExpandJsonFeatureOp) ItemTransOp(featureName string, source string, rem
 		return
 	}
 
-	if remove {
-		if comms[0] == SOURCE_USER {
-			user.DeleteProperty(comms[1])
-		} else {
-			item.DeleteProperty(comms[1])
-		}
+	// only a source on the item itself is removed. FeatureTran calls ItemTransOp
+	// once per item, so removing a user property while handling the first item
+	// would leave the remaining items with an empty source to expand.
+	if remove && comms[0] != SOURCE_USER {
+		item.DeleteProperty(comms[1])
 	}
 	item.AddProperties(properties)
 }

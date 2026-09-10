@@ -256,4 +256,29 @@ func TestExpandJsonFeatureOp(t *testing.T) {
 		assert.Equal(t, item.GetProperty("price"), float64(9.9))
 		assert.Equal(t, item.GetProperty("item_features"), nil)
 	})
+
+	t.Run("expand user snapshot to every item", func(t *testing.T) {
+		user := module.NewUser("user1")
+		user.AddProperty("user_features", `{"gender":"male","age":30}`)
+		items := []*module.Item{module.NewItem("1"), module.NewItem("2"), module.NewItem("3")}
+
+		conf := recconf.FeatureLoadConfig{}
+		conf.Features = append(conf.Features, recconf.FeatureConfig{
+			FeatureType:         "expand_json_feature",
+			FeatureStore:        "item",
+			FeatureSource:       "user:user_features",
+			RemoveFeatureSource: true,
+		})
+
+		feature := LoadWithConfig(conf)
+		feature.LoadFeatures(user, items, context.NewRecommendContext())
+
+		// the user property is shared by every item, so all of them are expanded
+		// and RemoveFeatureSource does not drop it after the first item
+		for _, item := range items {
+			assert.Equal(t, item.StringProperty("gender"), "male")
+			assert.Equal(t, item.GetProperty("age"), float64(30))
+		}
+		assert.Equal(t, user.StringProperty("user_features"), `{"gender":"male","age":30}`)
+	})
 }
