@@ -56,9 +56,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		return err
 	}
 	toolParamsConfigID := chatRecall.ToolParamsConfigID()
-	if blob.LastSearch != nil && blob.ToolParamsConfigID != toolParamsConfigID {
-		blob.LastSearch.ToolParams = nil
-	}
+	previousSearch := blob.previousSearchForValidation(toolParamsConfigID)
 	meta := timingMeta{
 		requestId: req.RequestId,
 		uid:       req.Uid,
@@ -122,7 +120,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	if cfg.raw.FineRankConfig != nil {
 		rankRuntime = newFineRankRuntime(req)
 	}
-	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob.messages(req.UserText), cfg, rankRuntime, knowledge, blob.LastSearch, writer, meta, onFinalSearch)
+	loopResult, err := runAgentLoop(ctx, model, chatRecall, blob.messages(req.UserText), cfg, rankRuntime, knowledge, previousSearch, writer, meta, onFinalSearch)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=upstream\terr=%v",
 			req.RequestId, req.Uid, req.SessionId, err))

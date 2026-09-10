@@ -398,15 +398,14 @@ func sanitizeSearchIntent(req recallsvc.SearchGoodsRequest) searchsuggestion.Sea
 	return searchsuggestion.SearchIntent{
 		Keywords:          append([]string(nil), req.Keywords...),
 		PreferredKeywords: append([]string(nil), req.PreferredKeywords...),
-		Constraints:       cloneConstraints(req.Constraints),
 		ExcludeKeywords:   append([]string(nil), req.ExcludeKeywords...),
 		MinPrice:          cloneFloat(req.MinPrice),
 		MaxPrice:          cloneFloat(req.MaxPrice),
-		ToolParams:        cloneConstraints(req.ToolParams),
+		ToolParams:        cloneToolParams(req.ToolParams),
 	}
 }
 
-func cloneConstraints(values map[string]json.RawMessage) map[string]json.RawMessage {
+func cloneToolParams(values map[string]json.RawMessage) map[string]json.RawMessage {
 	if values == nil {
 		return nil
 	}
