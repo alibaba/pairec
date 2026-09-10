@@ -3,6 +3,7 @@ package feature_log
 import (
 	"fmt"
 	"math/rand"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -73,6 +74,14 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 		}
 		// write feature logs to FeatureDB directly via fs sdk direct write interface
 		go func() {
+			// the sdk serializes the records and does the http call inside this
+			// goroutine, recover so a panic in it can not take down the process
+			defer func() {
+				if err := recover(); err != nil {
+					stack := string(debug.Stack())
+					log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v\tstack=%s", context.RecommendId, err, strings.ReplaceAll(stack, "\n", "\t")))
+				}
+			}()
 			if err := featureView.WriteFeatures(messages, domain.WithDirect()); err != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
 			}
