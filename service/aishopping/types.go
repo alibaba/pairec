@@ -37,13 +37,14 @@ func (r *Request) GetParameter(name string) interface{} {
 }
 
 type SessionBlob struct {
-	Language         string                         `json:"language"`
-	CreatedAt        int64                          `json:"created_at"`
-	LastActiveAt     int64                          `json:"last_active_at"`
-	TurnCount        int                            `json:"turn_count"`
-	UserQueries      []SessionQuery                 `json:"user_queries"`
-	LastSearch       *searchsuggestion.SearchIntent `json:"last_search,omitempty"`
-	LastSearchTurnID int                            `json:"last_search_turn_id,omitempty"`
+	Language           string                         `json:"language"`
+	CreatedAt          int64                          `json:"created_at"`
+	LastActiveAt       int64                          `json:"last_active_at"`
+	TurnCount          int                            `json:"turn_count"`
+	UserQueries        []SessionQuery                 `json:"user_queries"`
+	LastSearch         *searchsuggestion.SearchIntent `json:"last_search,omitempty"`
+	LastSearchTurnID   int                            `json:"last_search_turn_id,omitempty"`
+	ToolParamsConfigID string                         `json:"tool_params_config_id,omitempty"`
 }
 
 type SessionQuery struct {

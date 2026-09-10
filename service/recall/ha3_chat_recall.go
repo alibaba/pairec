@@ -33,14 +33,9 @@ type Ha3ChatRecall struct {
 }
 
 type SearchGoodsRequest struct {
-	Keywords          []string                   `json:"keywords"`
-	PreferredKeywords []string                   `json:"preferred_keywords,omitempty"`
-	Constraints       map[string]json.RawMessage `json:"constraints,omitempty"`
-	ExcludeKeywords   []string                   `json:"exclude_keywords,omitempty"`
-	MinPrice          *float64                   `json:"min_price,omitempty"`
-	MaxPrice          *float64                   `json:"max_price,omitempty"`
-	Limit             int                        `json:"-"`
-	FieldAware        bool                       `json:"-"`
+	aichat.SearchGoodsParams
+	Limit      int  `json:"-"`
+	FieldAware bool `json:"-"`
 }
 
 type GoodsHit struct {
@@ -75,6 +70,7 @@ func NewHa3ChatRecall(config recconf.RecallConfig) *Ha3ChatRecall {
 	validateHa3ChatFieldConfig(conf)
 	conf.SearchGoodsConf = cloneSearchGoodsConfig(conf.SearchGoodsConf)
 	validateSearchGoodsConfig(conf.SearchGoodsConf)
+	validateSearchToolParams(conf.SearchGoodsConf, config.Ha3KnowledgeVectorConf)
 	conf.DistinctConf = normalizeHa3ChatDistinctConfig(conf.DistinctConf)
 	if config.Ha3KnowledgeVectorConf != nil && !ha3ChatFieldAwareConfigured(conf) {
 		panic("Ha3KnowledgeVectorConf requires field-aware Ha3ChatRecallConf")
@@ -111,7 +107,7 @@ func (r *Ha3ChatRecall) Search(ctx context.Context, req SearchGoodsRequest) (*Se
 	if fieldAware {
 		search = r.searchFieldWithRetry
 	}
-	if _, err := r.buildConstraintExpr(req.Constraints); err != nil {
+	if err := r.ValidateSearchGoodsRequest(req); err != nil {
 		return nil, err
 	}
 	keywords := append(append([]string(nil), req.Keywords...), req.PreferredKeywords...)
@@ -148,6 +144,16 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 			filterExpr += " AND "
 		}
 		filterExpr += constraintExpr
+	}
+	toolExpr, err := r.buildToolParamsExpr(req.ToolParams)
+	if err != nil {
+		return nil, err
+	}
+	if toolExpr != "" {
+		if filterExpr != "" {
+			filterExpr += " AND "
+		}
+		filterExpr += toolExpr
 	}
 	body := map[string]interface{}{
 		"query": queryExpr,

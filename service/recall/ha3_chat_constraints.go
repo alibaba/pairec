@@ -77,7 +77,10 @@ func (r *Ha3ChatRecall) SearchGoodsTool() aichat.Tool {
 }
 
 func (r *Ha3ChatRecall) ValidateSearchGoodsRequest(req SearchGoodsRequest) error {
-	_, err := r.buildConstraintExpr(req.Constraints)
+	if _, err := r.buildConstraintExpr(req.Constraints); err != nil {
+		return err
+	}
+	_, err := r.buildToolParamsExpr(req.ToolParams)
 	return err
 }
 
