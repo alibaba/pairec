@@ -25,7 +25,7 @@ type Tool struct {
 
 type ToolFunction struct {
 	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
+	Description string                 `json:"description,omitempty"`
 	Parameters  map[string]interface{} `json:"parameters"`
 	Strict      bool                   `json:"strict,omitempty"`
 }

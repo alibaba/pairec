@@ -406,9 +406,11 @@ type Ha3ChatRecallConfig struct {
 }
 
 type SearchGoodsConfig struct {
-	DropPreferredOnEmpty bool
-	ConstraintParams     []SearchConstraintConfig // Deprecated: retained to reject obsolete configurations explicitly.
-	ToolParams           []SearchToolParamConfig
+	ToolDescription       string
+	ParameterDescriptions map[string]string // Descriptions for the built-in search parameters.
+	DropPreferredOnEmpty  bool
+	ConstraintParams      []SearchConstraintConfig // Deprecated: retained to reject obsolete configurations explicitly.
+	ToolParams            []SearchToolParamConfig
 }
 
 type SearchToolParamConfig struct {
@@ -887,6 +889,7 @@ type SuggestionConfig struct {
 	RecallName      string
 	LLMAlgoName     string
 	PromptTemplates map[string]string
+	ToolDescription string
 }
 
 type FallbackConfig struct {

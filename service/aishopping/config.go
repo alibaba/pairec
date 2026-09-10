@@ -43,7 +43,7 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 	if replyPrompt == "" {
 		return nil, fmt.Errorf("reply_prompt_missing:%s", language)
 	}
-	if _, ok := cfg.FallbackTemplates[language]; !ok {
+	if strings.TrimSpace(cfg.FallbackTemplates[language]["generic"]) == "" {
 		return nil, fmt.Errorf("fallback_missing:%s", language)
 	}
 	fieldAware := isFieldAwareRecall(config.RecallConfs, cfg.RecallName)
@@ -208,8 +208,5 @@ func fallbackText(cfg *recconf.AIChatConfig, language, key string) string {
 	if text := langFallbacks[key]; text != "" {
 		return text
 	}
-	if text := langFallbacks["generic"]; text != "" {
-		return text
-	}
-	return "抱歉，我这边出了点小问题，麻烦再试一次。"
+	return langFallbacks["generic"]
 }

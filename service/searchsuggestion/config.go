@@ -16,8 +16,9 @@ type KnowledgeRecall interface {
 }
 
 type RuntimeConfig struct {
-	Prompt string
-	Model  *aichat.Model
+	Prompt          string
+	ToolDescription string
+	Model           *aichat.Model
 }
 
 func ResolveGenerator(config *recconf.RecommendConfig, sceneID, language string) (*RuntimeConfig, *Error) {
@@ -40,7 +41,7 @@ func ResolveGenerator(config *recconf.RecommendConfig, sceneID, language string)
 	if !ok {
 		return nil, NewError(CodeModelUnavailable, false, fmt.Errorf("algorithm %q is not PAI_CHAT", suggestionConfig.LLMAlgoName))
 	}
-	return &RuntimeConfig{Prompt: prompt, Model: model}, nil
+	return &RuntimeConfig{Prompt: prompt, ToolDescription: suggestionConfig.ToolDescription, Model: model}, nil
 }
 
 func ResolveStandalone(config *recconf.RecommendConfig, sceneID, language string) (*RuntimeConfig, KnowledgeRecall, *Error) {
