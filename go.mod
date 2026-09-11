@@ -44,7 +44,7 @@ require (
 	fortio.org/assert v1.2.1
 	github.com/alibabacloud-go/opensearch-util v1.0.1
 	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.4.1-0.20260731011323-5c4e41560f3c
-	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260714015931-6e1064f3fe1a
+	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260820092810-95aabe924556
 	github.com/aliyun/credentials-go v1.4.8
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
 	github.com/bruceding/go-antlr-valuate v0.0.4

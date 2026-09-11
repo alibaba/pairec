@@ -104,6 +104,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 	//var triggerItem string
 	//var triggerItems []string
 	var userEmbedding string
+	var version string
 
 	if err != nil {
 		plog.Error(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\terr=%v", context.RecommendId, err))
@@ -112,6 +113,11 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 		if result, ok := algoRet.([]response.AlgoResponse); ok && len(result) > 0 {
 			if embeddingReponse, ok := result[0].(*eas.TorchrecEmbeddingResponse); ok {
 				embeddings := embeddingReponse.GetEmbedding()
+				passThroughData := embeddingReponse.GetPassThroughData()
+				version = strings.TrimSpace(passThroughData["version"])
+				if version == "" {
+					version = strings.TrimSpace(passThroughData["model_version"])
+				}
 				embeddingList := make([]string, 0, len(embeddings))
 				for _, embedding := range embeddings {
 					embeddingList = append(embeddingList, strconv.FormatFloat(float64(embedding), 'f', -1, 32))
@@ -142,6 +148,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 
 	triggerResult := &TriggerResult{
 		TriggerItem: userEmbedding,
+		Version:     version,
 	}
 	//plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\tcost=%v", context.RecommendId, utils.CostTime(start)))
 	return triggerResult
