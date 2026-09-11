@@ -301,6 +301,10 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 		req.Limit = fineRank.CandidateCount
 	}
 	req.FieldAware = fieldAware
+	req.LogRequest = func(dsl string) {
+		log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tdsl=%s",
+			meta.requestId, meta.uid, meta.sessionId, round, dsl))
+	}
 	intent := sanitizeSearchIntent(req)
 	dispatchResult := toolDispatchResult{
 		isSearch: true,
@@ -311,8 +315,8 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	result, err := recall.Search(ctx, req)
 	recallCost := utils.CostTime(recallStart)
 	if err != nil {
-		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tkeywords=%s\toperator=%s\tlimit=%d\tcost=%d\terr=%v",
-			meta.requestId, meta.uid, meta.sessionId, round, compactJSON(req.Keywords), dispatchResult.operator, req.Limit, recallCost, err))
+		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tcost=%d\terr=%v",
+			meta.requestId, meta.uid, meta.sessionId, round, recallCost, err))
 		dispatchResult.content = fmt.Sprintf(`{"error":%q}`, err.Error())
 		dispatchResult.hasError = true
 		return dispatchResult
@@ -322,8 +326,6 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 		dispatchResult.hasError = true
 		return dispatchResult
 	}
-	log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tkeywords=%s\toperator=%s\tlimit=%d\ttotal=%d\thits=%d\titemIds=%s\tcost=%d",
-		meta.requestId, meta.uid, meta.sessionId, round, compactJSON(req.Keywords), dispatchResult.operator, req.Limit, result.Total, len(result.Hits), compactJSON(searchResultItemIds(result)), recallCost))
 	dispatchResult.empty = len(result.Hits) == 0
 	if fineRank != nil {
 		if len(result.Hits) > 1 {
