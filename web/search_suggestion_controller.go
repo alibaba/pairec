@@ -104,7 +104,7 @@ func (c *SearchSuggestionController) Process(w http.ResponseWriter, r *http.Requ
 func (c *SearchSuggestionController) writeSuggestionError(w http.ResponseWriter, suggestionErr *searchsuggestion.Error) {
 	log.Warning(fmt.Sprintf("requestId=%s\tmodule=SearchSuggestion\tevent=end\tstatus=error\tcode=%s\tretryable=%t\terr=%v\tcost=%d",
 		c.RequestId, suggestionErr.Code, suggestionErr.Retryable, suggestionErr.Cause, time.Since(c.Start).Milliseconds()))
-	c.writeResponse(w, SERVER_ERROR_CODE, suggestionErr.Code, nil)
+	c.writeResponse(w, SERVER_ERROR_CODE, suggestionErr.Error(), nil)
 }
 
 func (c *SearchSuggestionController) writeResponse(w http.ResponseWriter, code int, message string, suggestions []string) {
