@@ -41,6 +41,7 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 		},
 	}
 	description := ""
+	required := []string{"keywords"}
 	if conf != nil {
 		description = conf.ToolDescription
 		for name, property := range properties {
@@ -60,9 +61,11 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 				property["description"] = param.Description
 			}
 			properties[param.Name] = property
+			if param.Required {
+				required = append(required, param.Name)
+			}
 		}
 	}
-	required := []string{"keywords"}
 	return Tool{
 		Type: "function",
 		Function: ToolFunction{

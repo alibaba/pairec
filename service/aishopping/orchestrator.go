@@ -93,18 +93,15 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 				knowledgeResult = &recallsvc.KnowledgeSearchResult{}
 			}
 			knowledge = newKnowledgeEvidence(knowledgeResult)
-			candidateCount := 0
-			candidateSummary := "[]"
 			if knowledge != nil {
-				candidateCount = knowledge.Len()
-				candidateSummary = compactJSON(knowledge.LogSummary())
+				knowledge.LogModelView(meta.requestId)
 			} else if req.EnableSuggestion && suggestionPrerequisite == nil {
 				suggestionPrerequisite = searchsuggestion.NewError(searchsuggestion.CodeKnowledgeEmpty, false, nil)
 			}
-			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=knowledge_recall\tstatus=ok\ttotal=%d\thits=%d\tcandidates=%d\tembeddingDimension=%d\tembeddingAttempts=%d\tembeddingCost=%d\tsearchCost=%d\tcost=%d\tcandidateSummary=%s",
-				meta.requestId, meta.uid, meta.sessionId, knowledgeResult.Total, len(knowledgeResult.Hits), candidateCount,
+			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=knowledge_recall\tstatus=ok\ttotal=%d\thits=%d\tcandidates=%d\tembeddingDimension=%d\tembeddingAttempts=%d\tembeddingCost=%d\tsearchCost=%d\tcost=%d",
+				meta.requestId, meta.uid, meta.sessionId, knowledgeResult.Total, len(knowledgeResult.Hits), knowledge.Len(),
 				knowledgeResult.EmbeddingDimension, knowledgeResult.EmbeddingAttempts, knowledgeResult.EmbeddingCostMs,
-				knowledgeResult.SearchCostMs, knowledgeCost, compactJSONString(candidateSummary, toolArgumentsLogLimit)))
+				knowledgeResult.SearchCostMs, knowledgeCost))
 		}
 	}
 	var coordinator *suggestionCoordinator

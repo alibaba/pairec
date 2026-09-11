@@ -83,6 +83,7 @@ func (c *SearchSuggestionController) Process(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	evidence := shoppingknowledge.NewEvidence(knowledgeResult)
+	evidence.LogModelView(c.RequestId)
 	if evidence == nil {
 		c.writeSuggestionError(w, searchsuggestion.NewError(searchsuggestion.CodeKnowledgeEmpty, false, nil))
 		return

@@ -445,6 +445,13 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 	if err != nil {
 		return err
 	}
+	if cfg.fieldAware {
+		if filler, ok := recall.(interface {
+			FillMissingToolParams(aichat.SearchGoodsParams, *aichat.SearchGoodsParams, recallsvc.ToolParamEvidence) aichat.SearchGoodsParams
+		}); ok {
+			req.SearchGoodsParams = filler.FillMissingToolParams(req.SearchGoodsParams, previous, knowledge)
+		}
+	}
 	if err := recall.ValidateSearchGoodsRequest(req); err != nil {
 		return err
 	}

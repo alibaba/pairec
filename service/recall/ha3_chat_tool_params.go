@@ -48,6 +48,9 @@ func validateSearchToolParams(conf *recconf.SearchGoodsConfig, knowledge *reccon
 		if param.KnowledgeField != "" && !visible[param.KnowledgeField] {
 			panic(fmt.Sprintf("tool parameter %q requires a configured knowledge ModelField", param.Name))
 		}
+		if param.FillMissingFromKnowledge && param.KnowledgeField == "" {
+			panic(fmt.Sprintf("tool parameter %q requires KnowledgeField when FillMissingFromKnowledge is enabled", param.Name))
+		}
 		seen := make(map[string]bool)
 		for _, value := range param.Values {
 			validateToolParamLiteral(value)
