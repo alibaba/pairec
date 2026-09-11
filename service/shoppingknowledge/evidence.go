@@ -2,8 +2,10 @@ package shoppingknowledge
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
+	"github.com/alibaba/pairec/v2/log"
 	recallsvc "github.com/alibaba/pairec/v2/service/recall"
 )
 
@@ -62,6 +64,15 @@ func (e *Evidence) PromptJSON() string {
 		return ""
 	}
 	return e.promptJSON
+}
+
+// LogModelView logs the same knowledge JSON sent to the model.
+func (e *Evidence) LogModelView(requestID string) {
+	if e == nil {
+		return
+	}
+	log.Info(fmt.Sprintf("requestId=%s\tmodule=ShoppingKnowledge\tevent=model_view\tpayload=%s",
+		requestID, e.PromptJSON()))
 }
 
 func (e *Evidence) SuggestionKnowledge() []SuggestionKnowledge {
