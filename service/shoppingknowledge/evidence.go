@@ -2,19 +2,15 @@ package shoppingknowledge
 
 import (
 	"encoding/json"
-	"fmt"
+	"strings"
 
-	"github.com/alibaba/pairec/v2/log"
 	recallsvc "github.com/alibaba/pairec/v2/service/recall"
 )
-
-const promptMaxBytes = 6000
 
 // SuggestionKnowledge contains only explicitly configured model-visible fields.
 type SuggestionKnowledge map[string]interface{}
 
 type Evidence struct {
-	hits       []recallsvc.KnowledgeHit
 	values     []SuggestionKnowledge
 	promptJSON string
 }
@@ -25,7 +21,8 @@ func NewEvidence(result *recallsvc.KnowledgeSearchResult) *Evidence {
 	}
 	evidence := &Evidence{}
 	seen := make(map[string]struct{}, len(result.Hits))
-	skipped := 0
+	var payload strings.Builder
+	payload.WriteByte('[')
 	for _, hit := range result.Hits {
 		if len(hit.ModelFields) == 0 {
 			continue
@@ -39,22 +36,17 @@ func NewEvidence(result *recallsvc.KnowledgeSearchResult) *Evidence {
 			continue
 		}
 		seen[key] = struct{}{}
-		prospective := append(append([]SuggestionKnowledge(nil), evidence.values...), SuggestionKnowledge(hit.ModelFields))
-		payload, err := json.Marshal(prospective)
-		if err != nil || len(payload) > promptMaxBytes {
-			skipped++
-			continue
+		if len(evidence.values) > 0 {
+			payload.WriteByte(',')
 		}
-		evidence.hits = append(evidence.hits, hit)
-		evidence.values = prospective
-		evidence.promptJSON = string(payload)
-	}
-	if skipped > 0 {
-		log.Info(fmt.Sprintf("module=ShoppingKnowledge\tevent=model_view_budget\tkept=%d\tskipped=%d\tmaxBytes=%d", len(evidence.values), skipped, promptMaxBytes))
+		payload.Write(record)
+		evidence.values = append(evidence.values, SuggestionKnowledge(hit.ModelFields))
 	}
 	if len(evidence.values) == 0 {
 		return nil
 	}
+	payload.WriteByte(']')
+	evidence.promptJSON = payload.String()
 	return evidence
 }
 
@@ -72,27 +64,24 @@ func (e *Evidence) PromptJSON() string {
 	return e.promptJSON
 }
 
-func (e *Evidence) LogSummary() []map[string]string {
-	if e == nil {
-		return nil
-	}
-	result := make([]map[string]string, 0, len(e.hits))
-	for _, hit := range e.hits {
-		result = append(result, map[string]string{
-			"knowledge_id":   hit.KnowledgeID,
-			"knowledge_type": hit.KnowledgeType,
-			"value":          hit.Value,
-			"category":       hit.Category,
-		})
-	}
-	return result
-}
-
 func (e *Evidence) SuggestionKnowledge() []SuggestionKnowledge {
 	if e == nil {
 		return nil
 	}
 	return append([]SuggestionKnowledge(nil), e.values...)
+}
+
+// Records returns the model-visible records in retrieval order for configured
+// missing-parameter defaults. Callers must not mutate the record maps.
+func (e *Evidence) Records() []map[string]interface{} {
+	if e == nil {
+		return nil
+	}
+	records := make([]map[string]interface{}, len(e.values))
+	for i, value := range e.values {
+		records[i] = value
+	}
+	return records
 }
 
 func (e *Evidence) Contains(field, value string) bool {

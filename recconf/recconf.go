@@ -414,14 +414,16 @@ type SearchGoodsConfig struct {
 }
 
 type SearchToolParamConfig struct {
-	Name           string
-	Kind           string
-	Field          string
-	KnowledgeField string
-	Values         []string
-	ValueMapping   map[string][]string
-	ParentParam    string
-	Description    string
+	Name                     string
+	Kind                     string
+	Field                    string
+	KnowledgeField           string
+	Values                   []string
+	ValueMapping             map[string][]string
+	ParentParam              string
+	Description              string
+	Required                 bool `json:"Required,omitempty"`
+	FillMissingFromKnowledge bool `json:"FillMissingFromKnowledge,omitempty"`
 }
 
 type SearchConstraintConfig struct {
