@@ -3,10 +3,8 @@ package aichat
 import "github.com/alibaba/pairec/v2/recconf"
 
 const (
-	SearchGoodsMaxKeywords          = 8
-	SearchGoodsMaxPreferredKeywords = 5
-	SuggestionMinLength             = 2
-	SuggestionMaxLength             = 80
+	SuggestionMinLength = 2
+	SuggestionMaxLength = 80
 )
 
 func SearchGoodsTool() Tool {
@@ -19,17 +17,14 @@ func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
 			"type":     "array",
 			"items":    map[string]interface{}{"type": "string"},
 			"minItems": 1,
-			"maxItems": SearchGoodsMaxKeywords,
 		},
 		"preferred_keywords": map[string]interface{}{
-			"type":     "array",
-			"items":    map[string]interface{}{"type": "string"},
-			"maxItems": SearchGoodsMaxPreferredKeywords,
+			"type":  "array",
+			"items": map[string]interface{}{"type": "string"},
 		},
 		"exclude_keywords": map[string]interface{}{
-			"type":     "array",
-			"items":    map[string]interface{}{"type": "string"},
-			"maxItems": 5,
+			"type":  "array",
+			"items": map[string]interface{}{"type": "string"},
 		},
 		"min_price": map[string]interface{}{
 			"type":             "number",

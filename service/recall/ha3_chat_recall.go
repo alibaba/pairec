@@ -19,10 +19,8 @@ import (
 )
 
 const (
-	maxSearchKeywordCount          = aichat.SearchGoodsMaxKeywords
-	maxSearchPreferredKeywordCount = aichat.SearchGoodsMaxPreferredKeywords
-	maxSearchKeywordRunes          = 64
-	fieldAwareSearchTimeout        = 2 * time.Second
+	maxSearchKeywordRunes   = 64
+	fieldAwareSearchTimeout = 2 * time.Second
 )
 
 type Ha3ChatRecall struct {
@@ -198,11 +196,7 @@ func (r *Ha3ChatRecall) buildFieldQueryExpr(field string, keywords []string, ope
 	if field == "" {
 		return "", fmt.Errorf("search field is empty")
 	}
-	keywordLimit := maxSearchKeywordCount
-	if r.fieldAwareEnabled() {
-		keywordLimit += maxSearchPreferredKeywordCount
-	}
-	keywords = normalizeKeywords(keywords, keywordLimit)
+	keywords = normalizeKeywords(keywords)
 	if len(keywords) == 0 {
 		return "", fmt.Errorf("keywords is empty")
 	}
@@ -210,19 +204,12 @@ func (r *Ha3ChatRecall) buildFieldQueryExpr(field string, keywords []string, ope
 	if strings.EqualFold(operator, "OR") {
 		sep = " | "
 	}
-	first, rest := keywords[0], keywords[1:]
-	pos := fmt.Sprintf("%s:'%s'", field, first)
-	for _, kw := range rest {
-		pos += sep + fmt.Sprintf("'%s'", kw)
-	}
-	excludes := normalizeKeywords(excludeKeywords, maxSearchKeywordCount)
+	pos := fmt.Sprintf("%s:'%s'", field, strings.Join(keywords, "'"+sep+"'"))
+	excludes := normalizeKeywords(excludeKeywords)
 	if len(excludes) == 0 {
 		return pos, nil
 	}
-	neg := fmt.Sprintf("%s:'%s'", r.conf.DefaultField, excludes[0])
-	for _, kw := range excludes[1:] {
-		neg += " | " + fmt.Sprintf("'%s'", kw)
-	}
+	neg := fmt.Sprintf("%s:'%s'", r.conf.DefaultField, strings.Join(excludes, "' | '"))
 	return fmt.Sprintf("(%s) ANDNOT (%s)", pos, neg), nil
 }
 
@@ -240,15 +227,12 @@ func (r *Ha3ChatRecall) buildFilterExpr(req SearchGoodsRequest) string {
 	return strings.Join(conds, " AND ")
 }
 
-func normalizeKeywords(keywords []string, limit int) []string {
+func normalizeKeywords(keywords []string) []string {
 	out := make([]string, 0, len(keywords))
 	for _, keyword := range keywords {
 		keyword = sanitizeSearchKeyword(keyword)
 		if keyword != "" {
 			out = append(out, keyword)
-			if len(out) >= limit {
-				break
-			}
 		}
 	}
 	return out

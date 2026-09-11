@@ -91,14 +91,8 @@ func isASCIIAlpha(char byte) bool {
 }
 
 func normalizeFieldAwareRequest(req SearchGoodsRequest) (SearchGoodsRequest, error) {
-	if len(req.Keywords) == 0 || len(req.Keywords) > maxSearchKeywordCount {
-		return req, fmt.Errorf("keywords must contain 1 to %d terms or phrases", maxSearchKeywordCount)
-	}
-	if len(req.PreferredKeywords) > maxSearchPreferredKeywordCount {
-		return req, fmt.Errorf("preferred_keywords must contain at most %d values", maxSearchPreferredKeywordCount)
-	}
-	if len(req.ExcludeKeywords) > 5 {
-		return req, fmt.Errorf("exclude_keywords must contain at most 5 values")
+	if len(req.Keywords) == 0 {
+		return req, fmt.Errorf("keywords must contain at least one term or phrase")
 	}
 
 	var err error

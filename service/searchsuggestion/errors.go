@@ -47,17 +47,6 @@ func (e *Error) Unwrap() error {
 	return e.Cause
 }
 
-func (e *Error) PublicMessage(language string) string {
-	switch language {
-	case "zh":
-		return "追问建议暂时不可用"
-	case "ar":
-		return "اقتراحات البحث غير متاحة مؤقتًا"
-	default:
-		return "Search suggestions are temporarily unavailable"
-	}
-}
-
 type Outcome struct {
 	Suggestions []string
 	Err         *Error
