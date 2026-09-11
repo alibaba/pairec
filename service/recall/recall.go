@@ -46,6 +46,11 @@ func GetRecall(name string) (Recall, error) {
 }
 func Load(config *recconf.RecommendConfig) {
 	for _, conf := range config.RecallConfs {
+		if conf.Ha3KnowledgeVectorConf != nil &&
+			conf.RecallType != "HA3_CHAT_RECALL" &&
+			conf.RecallType != "HA3_KNOWLEDGE_RECALL" {
+			panic(fmt.Sprintf("Ha3KnowledgeVectorConf requires RecallType HA3_CHAT_RECALL or HA3_KNOWLEDGE_RECALL, got %q", conf.RecallType))
+		}
 		if _, ok := recalls[conf.Name]; ok {
 			sign, _ := json.Marshal(&conf)
 			if utils.Md5(string(sign)) == recallSigns[conf.Name] {
@@ -96,6 +101,8 @@ func Load(config *recconf.RecommendConfig) {
 			recall = NewRecallEngineRecall(conf)
 		} else if conf.RecallType == "HA3_CHAT_RECALL" {
 			recall = NewHa3ChatRecall(conf)
+		} else if conf.RecallType == "HA3_KNOWLEDGE_RECALL" {
+			recall = NewHa3KnowledgeRecall(conf)
 		}
 
 		if recall == nil {

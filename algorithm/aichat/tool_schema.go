@@ -1,39 +1,103 @@
 package aichat
 
+import "github.com/alibaba/pairec/v2/recconf"
+
+const (
+	SuggestionMinLength = 2
+	SuggestionMaxLength = 80
+)
+
 func SearchGoodsTool() Tool {
+	return FieldAwareSearchGoodsTool(nil)
+}
+
+func FieldAwareSearchGoodsTool(conf *recconf.SearchGoodsConfig) Tool {
+	properties := map[string]interface{}{
+		"keywords": map[string]interface{}{
+			"type":     "array",
+			"items":    map[string]interface{}{"type": "string"},
+			"minItems": 1,
+		},
+		"preferred_keywords": map[string]interface{}{
+			"type":  "array",
+			"items": map[string]interface{}{"type": "string"},
+		},
+		"exclude_keywords": map[string]interface{}{
+			"type":  "array",
+			"items": map[string]interface{}{"type": "string"},
+		},
+		"min_price": map[string]interface{}{
+			"type":             "number",
+			"exclusiveMinimum": 0,
+		},
+		"max_price": map[string]interface{}{
+			"type":             "number",
+			"exclusiveMinimum": 0,
+		},
+	}
+	description := ""
+	required := []string{"keywords"}
+	if conf != nil {
+		description = conf.ToolDescription
+		for name, property := range properties {
+			if text := conf.ParameterDescriptions[name]; text != "" {
+				property.(map[string]interface{})["description"] = text
+			}
+		}
+		for _, param := range conf.ToolParams {
+			items := map[string]interface{}{"type": "string"}
+			if param.KnowledgeField == "" {
+				items["enum"] = param.Values
+			}
+			property := map[string]interface{}{
+				"type": "array", "items": items, "minItems": 1, "uniqueItems": true,
+			}
+			if param.Description != "" {
+				property["description"] = param.Description
+			}
+			properties[param.Name] = property
+			if param.Required {
+				required = append(required, param.Name)
+			}
+		}
+	}
 	return Tool{
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "search_goods",
-			Description: "Search real products from the catalog. Use this for product recommendation requests, including first recommendations, changed conditions, category/color/material/style/occasion changes, or requests for more options.",
+			Description: description,
+			Parameters: map[string]interface{}{
+				"type":                 "object",
+				"properties":           properties,
+				"required":             required,
+				"additionalProperties": false,
+			},
+		},
+	}
+}
+
+func SuggestionTool(count int, description string) Tool {
+	return Tool{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "emit_suggestions",
+			Description: description,
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"keywords": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": `English catalog search keywords, 1-5 terms, e.g. ["Shirt","Blue","Long Sleeve"]. Translate product/category/color/material/style/occasion intent into English before calling.`,
-					},
-					"operator": map[string]interface{}{
-						"type":        "string",
-						"enum":        []string{"AND", "OR"},
-						"description": `Keyword boolean logic. For the first call with multiple keywords, pass "AND" for precise all-term matching. Only if that AND result returns total=0 may you call this tool again with "OR" to broaden recall. If AND returns any hits, even 1-3, do not call OR. OR is a fallback, not the default first call.`,
-					},
-					"exclude_keywords": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": `English keywords to exclude, e.g. ["Red"]. Set only when the user explicitly rejects an attribute, e.g. "不要红色", "no leather", or "不要短袖"; translate the rejected attribute to English; do not infer.`,
-					},
-					"min_price": map[string]interface{}{
-						"type":        "number",
-						"description": `Inclusive minimum price in CNY. Set only when the user explicitly states a lower bound, e.g. "100元以上" or "at least 100"; do not infer.`,
-					},
-					"max_price": map[string]interface{}{
-						"type":        "number",
-						"description": `Inclusive maximum price in CNY. Set only when the user explicitly states an upper bound, e.g. "200元以下" or "under 200"; do not infer.`,
+					"suggestions": map[string]interface{}{
+						"type":     "array",
+						"minItems": count,
+						"maxItems": count,
+						"items": map[string]interface{}{
+							"type":      "string",
+							"minLength": SuggestionMinLength,
+							"maxLength": SuggestionMaxLength,
+						},
 					},
 				},
-				"required": []string{"keywords"},
+				"required":             []string{"suggestions"},
+				"additionalProperties": false,
 			},
 		},
 	}
