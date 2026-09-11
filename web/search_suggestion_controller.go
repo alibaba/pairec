@@ -78,7 +78,6 @@ func (c *SearchSuggestionController) Process(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	knowledgeResult, err := knowledgeRecall.SearchKnowledge(ctx, c.param.Query)
-	shoppingknowledge.LogSearchResult(c.RequestId, knowledgeResult)
 	if err != nil {
 		c.writeSuggestionError(w, searchsuggestion.NewError(searchsuggestion.CodeKnowledgeFailed, true, err))
 		return

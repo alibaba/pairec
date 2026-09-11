@@ -192,7 +192,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 			result.ToolCalls = nil
 		}
 		if !readyToReply {
-			if err := normalizePlannerResponse(result, cfg, recall, knowledge, previous, meta.requestId); err != nil {
+			if err := normalizePlannerResponse(result, cfg, recall, knowledge, previous); err != nil {
 				plannerRetry = truncateLogValue(err.Error(), 256)
 				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s\targs=%s",
 					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err), fieldAwareToolArguments(result.ToolCalls)))
@@ -418,7 +418,7 @@ func hashOrderedItemIDs(result *recallsvc.SearchGoodsResult) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, recall chatRecall, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent, requestID string) error {
+func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, recall chatRecall, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent) error {
 	if result.FinishReason != "stop" && result.FinishReason != "tool_calls" {
 		return fmt.Errorf("planner response did not finish normally: %q", result.FinishReason)
 	}
@@ -447,9 +447,9 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 	}
 	if cfg.fieldAware {
 		if filler, ok := recall.(interface {
-			FillMissingToolParams(aichat.SearchGoodsParams, *aichat.SearchGoodsParams, recallsvc.ToolParamEvidence, string) aichat.SearchGoodsParams
+			FillMissingToolParams(aichat.SearchGoodsParams, *aichat.SearchGoodsParams, recallsvc.ToolParamEvidence) aichat.SearchGoodsParams
 		}); ok {
-			req.SearchGoodsParams = filler.FillMissingToolParams(req.SearchGoodsParams, previous, knowledge, requestID)
+			req.SearchGoodsParams = filler.FillMissingToolParams(req.SearchGoodsParams, previous, knowledge)
 		}
 	}
 	if err := recall.ValidateSearchGoodsRequest(req); err != nil {

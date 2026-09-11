@@ -46,7 +46,6 @@ type KnowledgeHit struct {
 type KnowledgeSearchResult struct {
 	Total              int            `json:"total"`
 	Hits               []KnowledgeHit `json:"hits"`
-	RawItems           []interface{}  `json:"-"` // Complete returned records, before hit validation or model projection.
 	EmbeddingDimension int            `json:"embedding_dimension"`
 	EmbeddingAttempts  int            `json:"embedding_attempts"`
 	EmbeddingCostMs    int64          `json:"embedding_cost_ms"`
@@ -216,12 +215,12 @@ func (s *ha3KnowledgeSearcher) SearchKnowledge(ctx context.Context, query string
 	searchStart := time.Now()
 	searchResult, err := s.searchKnowledgeVector(ctx, vectorText)
 	result.SearchCostMs = time.Since(searchStart).Milliseconds()
-	if searchResult != nil {
-		result.Total = searchResult.Total
-		result.Hits = searchResult.Hits
-		result.RawItems = searchResult.RawItems
+	if err != nil {
+		return nil, err
 	}
-	return result, err
+	result.Total = searchResult.Total
+	result.Hits = searchResult.Hits
+	return result, nil
 }
 
 func encodeKnowledgeVector(vector []float32, delimiter string) (string, error) {
@@ -308,11 +307,10 @@ func (s *ha3KnowledgeSearcher) parseKnowledgeResponse(resp *ha3client.SearchResp
 		}
 		hits = append(hits, hit)
 	}
-	result := &KnowledgeSearchResult{Total: total, Hits: hits, RawItems: items}
 	if len(items) > 0 && len(hits) == 0 {
-		return result, fmt.Errorf("ha3 knowledge response contains %d items but none has all configured result fields", len(items))
+		return nil, fmt.Errorf("ha3 knowledge response contains %d items but none has all configured result fields", len(items))
 	}
-	return result, nil
+	return &KnowledgeSearchResult{Total: total, Hits: hits}, nil
 }
 
 func projectKnowledgeFields(fields map[string]interface{}, config []recconf.KnowledgeModelFieldConfig) map[string]interface{} {

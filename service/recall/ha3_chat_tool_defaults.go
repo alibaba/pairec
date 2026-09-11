@@ -2,16 +2,14 @@ package recall
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/alibaba/pairec/v2/algorithm/aichat"
-	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 )
 
 // FillMissingToolParams applies only explicitly enabled knowledge defaults.
 // No usable record leaves the original parameters unchanged, without an error.
-func (r *Ha3ChatRecall) FillMissingToolParams(current aichat.SearchGoodsParams, previous *aichat.SearchGoodsParams, evidence ToolParamEvidence, requestID string) aichat.SearchGoodsParams {
+func (r *Ha3ChatRecall) FillMissingToolParams(current aichat.SearchGoodsParams, previous *aichat.SearchGoodsParams, evidence ToolParamEvidence) aichat.SearchGoodsParams {
 	provider, ok := evidence.(interface {
 		Records() []map[string]interface{}
 	})
@@ -44,7 +42,7 @@ func (r *Ha3ChatRecall) FillMissingToolParams(current aichat.SearchGoodsParams, 
 	}
 	records := provider.Records()
 	for _, root := range roots {
-		for index, record := range records {
+		for _, record := range records {
 			candidate := current
 			candidate.ToolParams = copyToolParamValues(current.ToolParams)
 			complete := true
@@ -73,10 +71,6 @@ func (r *Ha3ChatRecall) FillMissingToolParams(current aichat.SearchGoodsParams, 
 				continue
 			}
 			current = candidate
-			for _, param := range groups[root] {
-				log.Info(fmt.Sprintf("requestId=%s\tmodule=ShoppingKnowledge\tevent=parameter_default\tparameter=%s\tknowledgeField=%s\trecordIndex=%d",
-					requestID, param.Name, param.KnowledgeField, index+1))
-			}
 			break
 		}
 	}

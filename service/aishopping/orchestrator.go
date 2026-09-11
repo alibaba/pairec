@@ -10,7 +10,6 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	recallsvc "github.com/alibaba/pairec/v2/service/recall"
 	"github.com/alibaba/pairec/v2/service/searchsuggestion"
-	"github.com/alibaba/pairec/v2/service/shoppingknowledge"
 	"github.com/alibaba/pairec/v2/utils"
 )
 
@@ -83,7 +82,6 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		knowledgeStart := time.Now()
 		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, blob.knowledgeQuery(req.UserText))
 		knowledgeCost := utils.CostTime(knowledgeStart)
-		shoppingknowledge.LogSearchResult(meta.requestId, knowledgeResult)
 		if knowledgeErr != nil {
 			if req.EnableSuggestion && suggestionPrerequisite == nil {
 				suggestionPrerequisite = searchsuggestion.NewError(searchsuggestion.CodeKnowledgeFailed, true, knowledgeErr)
@@ -100,8 +98,8 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			} else if req.EnableSuggestion && suggestionPrerequisite == nil {
 				suggestionPrerequisite = searchsuggestion.NewError(searchsuggestion.CodeKnowledgeEmpty, false, nil)
 			}
-			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=knowledge_recall\tstatus=ok\ttotal=%d\trawCount=%d\thits=%d\tcandidates=%d\tembeddingDimension=%d\tembeddingAttempts=%d\tembeddingCost=%d\tsearchCost=%d\tcost=%d",
-				meta.requestId, meta.uid, meta.sessionId, knowledgeResult.Total, len(knowledgeResult.RawItems), len(knowledgeResult.Hits), knowledge.Len(),
+			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=knowledge_recall\tstatus=ok\ttotal=%d\thits=%d\tcandidates=%d\tembeddingDimension=%d\tembeddingAttempts=%d\tembeddingCost=%d\tsearchCost=%d\tcost=%d",
+				meta.requestId, meta.uid, meta.sessionId, knowledgeResult.Total, len(knowledgeResult.Hits), knowledge.Len(),
 				knowledgeResult.EmbeddingDimension, knowledgeResult.EmbeddingAttempts, knowledgeResult.EmbeddingCostMs,
 				knowledgeResult.SearchCostMs, knowledgeCost))
 		}
