@@ -165,7 +165,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		if outcome.Err != nil {
 			log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=suggestion\tstatus=error\tcode=%s\tretryable=%t\terr=%s",
 				req.RequestId, req.Uid, req.SessionId, outcome.Err.Code, outcome.Err.Retryable, compactLogError(outcome.Err.Cause)))
-			if err := writer.EmitSuggestionError(outcome.Err.Code, outcome.Err.PublicMessage(cfg.language), outcome.Err.Retryable); err != nil {
+			if err := writer.EmitSuggestionError(outcome.Err.Code, outcome.Err.Code, outcome.Err.Retryable); err != nil {
 				return err
 			}
 		} else {

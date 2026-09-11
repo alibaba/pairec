@@ -47,10 +47,6 @@ func (e *Error) Unwrap() error {
 	return e.Cause
 }
 
-func (e *Error) PublicMessage(_ string) string {
-	return "Search suggestions are temporarily unavailable"
-}
-
 type Outcome struct {
 	Suggestions []string
 	Err         *Error
