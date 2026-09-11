@@ -34,8 +34,9 @@ type Ha3ChatRecall struct {
 
 type SearchGoodsRequest struct {
 	aichat.SearchGoodsParams
-	Limit      int  `json:"-"`
-	FieldAware bool `json:"-"`
+	Limit      int              `json:"-"`
+	FieldAware bool             `json:"-"`
+	LogRequest func(dsl string) `json:"-"`
 }
 
 type GoodsHit struct {
@@ -166,6 +167,9 @@ func (r *Ha3ChatRecall) searchField(ctx context.Context, field string, keywords 
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
+	}
+	if req.LogRequest != nil {
+		req.LogRequest(string(bodyBytes))
 	}
 	resp, err := r.client.Ha3Client.SearchRestWithContext(
 		ctx,
