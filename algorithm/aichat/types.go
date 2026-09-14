@@ -25,17 +25,21 @@ type Tool struct {
 
 type ToolFunction struct {
 	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
+	Description string                 `json:"description,omitempty"`
 	Parameters  map[string]interface{} `json:"parameters"`
+	Strict      bool                   `json:"strict,omitempty"`
 }
 
 type ChatCompletionRequest struct {
-	Model          string      `json:"model"`
-	Messages       []Message   `json:"messages"`
-	Tools          []Tool      `json:"tools,omitempty"`
-	ToolChoice     interface{} `json:"tool_choice,omitempty"`
-	Stream         bool        `json:"stream"`
-	EnableThinking bool        `json:"enable_thinking"`
+	Model             string      `json:"model"`
+	Messages          []Message   `json:"messages"`
+	Tools             []Tool      `json:"tools,omitempty"`
+	ToolChoice        interface{} `json:"tool_choice,omitempty"`
+	Stream            bool        `json:"stream"`
+	EnableThinking    bool        `json:"enable_thinking"`
+	Temperature       *float64    `json:"temperature,omitempty"`
+	ParallelToolCalls *bool       `json:"parallel_tool_calls,omitempty"`
+	MaxTokens         int         `json:"max_tokens,omitempty"`
 }
 
 type StreamResult struct {

@@ -2,7 +2,9 @@
 package ha3client
 
 import (
+	"context"
 	"errors"
+	"sync"
 
 	encodeutil "github.com/alibabacloud-go/darabonba-encode-util/client"
 	map_ "github.com/alibabacloud-go/darabonba-map/client"
@@ -480,6 +482,7 @@ type Client struct {
 	UserAgent    *string
 	Credential   *string
 	Domainsuffix *string
+	httpClients  sync.Map
 }
 
 func NewClient(config *Config) (*Client, error) {
@@ -507,6 +510,13 @@ func (client *Client) Init(config *Config) (_err error) {
 }
 
 func (client *Client) _request(method *string, pathname *string, query map[string]interface{}, headers map[string]*string, body interface{}, runtime *util.RuntimeOptions) (_result map[string]interface{}, _err error) {
+	return client.requestWithContext(nil, method, pathname, query, headers, body, runtime)
+}
+
+func (client *Client) requestWithContext(ctx context.Context, method *string, pathname *string, query map[string]interface{}, headers map[string]*string, body interface{}, runtime *util.RuntimeOptions) (_result map[string]interface{}, _err error) {
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	_err = tea.Validate(runtime)
 	if _err != nil {
 		return _result, _err
@@ -528,6 +538,12 @@ func (client *Client) _request(method *string, pathname *string, query map[strin
 			"period": tea.IntValue(util.DefaultNumber(runtime.BackoffPeriod, tea.Int(1))),
 		},
 		"ignoreSSL": tea.BoolValue(runtime.IgnoreSSL),
+	}
+	if ctx != nil {
+		_runtime["httpClient"], _err = client.contextHTTPClient(ctx, _runtime)
+		if _err != nil {
+			return nil, _err
+		}
 	}
 
 	_resp := make(map[string]interface{})
@@ -564,6 +580,7 @@ func (client *Client) _request(method *string, pathname *string, query map[strin
 			if _err != nil {
 				return _result, _err
 			}
+			defer response_.Body.Close()
 			objStr, _err := util.ReadAsString(response_.Body)
 			if _err != nil {
 				return _result, _err
@@ -622,6 +639,9 @@ func (client *Client) _request(method *string, pathname *string, query map[strin
 			}, &_result)
 			return _result, _err
 		}()
+		if ctx != nil && ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		if !tea.BoolValue(tea.Retryable(_err)) {
 			break
 		}
@@ -1011,6 +1031,10 @@ func (client *Client) SearchWithOptions(request *SearchRequestModel, runtime *ut
  * 支持 HA3 JSON 查询语法。
  */
 func (client *Client) SearchRestEx(indexName *string, request *SearchRequestModel, runtime *util.RuntimeOptions) (_result *SearchResponseModel, _err error) {
+	return client.searchRestWithContext(nil, indexName, request, runtime)
+}
+
+func (client *Client) searchRestWithContext(ctx context.Context, indexName *string, request *SearchRequestModel, runtime *util.RuntimeOptions) (_result *SearchResponseModel, _err error) {
 	_result = &SearchResponseModel{}
 	if tea.StringValue(indexName) == "" {
 		return _result, errors.New("indexName should be set")
@@ -1024,7 +1048,7 @@ func (client *Client) SearchRestEx(indexName *string, request *SearchRequestMode
 	if runtime == nil {
 		return _result, errors.New("runtime should be set")
 	}
-	_body, _err := client._request(tea.String("POST"), tea.String("/"+tea.StringValue(indexName)+"/search"), nil, request.Headers, tea.StringValue(request.Body), runtime)
+	_body, _err := client.requestWithContext(ctx, tea.String("POST"), tea.String("/"+tea.StringValue(indexName)+"/search"), nil, request.Headers, tea.StringValue(request.Body), runtime)
 	if _err != nil {
 		return _result, _err
 	}
