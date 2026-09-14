@@ -450,14 +450,16 @@ type RecallEngineParam struct {
 	UserRealtimeEmbeddingTrigger UserRealtimeEmbeddingTriggerConfig // get user feature and invoke eas model, get item embedding sink to be
 	UserEmbeddingO2OTrigger      UserEmbeddingO2OTriggerConfig
 
-	ItemIdName      string
-	TriggerIdName   string
-	RecallTableName string
-	DiversityParam  string
-	CustomParams    map[string]interface{}
-	TriggerLimit    int
-	Timeout         int          // per-way recall timeout in milliseconds, 0 means no per-way timeout
-	Item2XConf      Item2XConfig // aggregate item triggers to item property(x) triggers, empty XKey means disabled
+	ItemIdName             string
+	TriggerIdName          string
+	RecallTableName        string
+	DiversityParam         string
+	CustomParams           map[string]interface{}
+	TriggerLimit           int
+	Timeout                int          // per-way recall timeout in milliseconds, 0 means no per-way timeout
+	VersionId              string       // item vector table version
+	UserEmbeddingVersionId string       // user vector table version
+	Item2XConf             Item2XConfig // aggregate item triggers to item property(x) triggers, empty XKey means disabled
 }
 
 // Item2XConfig aggregates item level trigger weights into item property(x) level triggers.
