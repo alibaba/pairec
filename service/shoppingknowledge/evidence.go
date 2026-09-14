@@ -3,6 +3,7 @@ package shoppingknowledge
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/alibaba/pairec/v2/log"
@@ -130,15 +131,21 @@ func knowledgeContains(raw interface{}, value string) bool {
 			}
 		}
 	case []interface{}:
-		found := false
 		for _, entry := range raw {
-			text, ok := entry.(string)
-			if !ok {
-				return false
+			if knowledgeContains(entry, value) {
+				return true
 			}
-			found = found || text == value
 		}
-		return found
+	default:
+		if raw == nil {
+			return false
+		}
+		// Numbers decoded from the engine JSON reach here as float64, so compare
+		// them with the JSON text the model sees instead of rejecting the field.
+		if number, ok := raw.(float64); ok {
+			return strconv.FormatFloat(number, 'f', -1, 64) == value
+		}
+		return fmt.Sprintf("%v", raw) == value
 	}
 	return false
 }

@@ -133,6 +133,8 @@ func (m *Model) streamOnce(ctx context.Context, body []byte, onDelta DeltaHandle
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		// Drain the rest of the error body so the connection can be reused.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 		if readErr != nil {
 			return nil, fmt.Errorf("aichat upstream status:%d read body error:%v", resp.StatusCode, readErr)
 		}

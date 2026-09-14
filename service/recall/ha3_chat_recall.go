@@ -209,7 +209,7 @@ func (r *Ha3ChatRecall) buildFieldQueryExpr(field string, keywords []string, ope
 	if len(excludes) == 0 {
 		return pos, nil
 	}
-	neg := fmt.Sprintf("%s:'%s'", r.conf.DefaultField, strings.Join(excludes, "' | '"))
+	neg := fmt.Sprintf("%s:'%s'", field, strings.Join(excludes, "' | '"))
 	return fmt.Sprintf("(%s) ANDNOT (%s)", pos, neg), nil
 }
 

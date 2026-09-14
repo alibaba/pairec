@@ -265,7 +265,8 @@ func (s *ha3KnowledgeSearcher) searchKnowledgeVector(ctx context.Context, vector
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.client.Ha3Client.SearchRestWithOptions(
+	resp, err := s.client.Ha3Client.SearchRestWithContext(
+		ctx,
 		tea.String(conf.IndexName),
 		(&ha3client.SearchRequestModel{}).SetHeaders(map[string]*string{}).SetBody(string(payload)),
 		s.client.Runtime(),
