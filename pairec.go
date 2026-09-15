@@ -171,6 +171,7 @@ func registerRouteInfo() {
 	Route("/api/feature_reply", &web.FeatureReplyController{})
 	Route("/api/embedding", &web.EmbeddingController{})
 	Route("/api/chat_search", &web.ChatController{})
+	Route("/api/search_suggestion", &web.SearchSuggestionController{})
 	HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		promhttp.Handler().ServeHTTP(w, r)
 	})
