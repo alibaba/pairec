@@ -41,9 +41,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
-			return err
-		}
+		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
 		m.request = &req
 
 		if conf.EasConf.RetryTimes > 0 {
@@ -56,9 +54,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetSignatureName(conf.EasConf.SignatureName)
 		req.SetTimeout(conf.EasConf.Timeout)
-		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
-			return err
-		}
+		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
 		if len(conf.EasConf.Outputs) > 0 {
 			req.SetOutputs(conf.EasConf.Outputs)
 		}
@@ -73,9 +69,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
-			return err
-		}
+		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
 		m.request = req
 
 		if conf.EasConf.RetryTimes > 0 {
@@ -88,9 +82,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
-			return err
-		}
+		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
 		m.request = &req
 
 		if conf.EasConf.RetryTimes > 0 {
@@ -102,9 +94,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
-			return err
-		}
+		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
 
 		var client *eas.PredictClient
 		if conf.EasConf.EndpointType == eas.EndpointTypeDirect {
@@ -169,9 +159,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
-			return err
-		}
+		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
 		m.request = &req
 
 		if conf.EasConf.RetryTimes > 0 {
@@ -186,9 +174,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetSignatureName(conf.EasConf.SignatureName)
 		req.SetTimeout(conf.EasConf.Timeout)
-		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
-			return err
-		}
+		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
 		if len(conf.EasConf.Outputs) > 0 {
 			req.SetOutputs(conf.EasConf.Outputs)
 		}

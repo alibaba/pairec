@@ -725,13 +725,12 @@ func torchrecEmbeddingResponseFunc(data interface{}) (ret []response.AlgoRespons
 	return
 }
 
-func newTorchrecMultiEmbeddingResponseFunc(output string) response.ResponseFunc {
-	return func(data interface{}) ([]response.AlgoResponse, error) {
-		resp, ok := data.(*easyrec.TorchRecPBResponse)
-		if !ok || resp == nil {
-			return nil, fmt.Errorf("multi-embedding response is not TorchRecPBResponse")
-		}
-		tensor := resp.GetMapOutputs()[output]
+func torchrecMultiEmbeddingResponseFunc(data interface{}) ([]response.AlgoResponse, error) {
+	resp, ok := data.(*easyrec.TorchRecPBResponse)
+	if !ok || resp == nil {
+		return nil, fmt.Errorf("multi-embedding response is not TorchRecPBResponse")
+	}
+	for output, tensor := range resp.GetMapOutputs() {
 		if tensor == nil || tensor.ArrayShape == nil {
 			return nil, fmt.Errorf("multi-embedding output %q is missing its tensor or shape", output)
 		}
@@ -759,6 +758,7 @@ func newTorchrecMultiEmbeddingResponseFunc(output string) response.ResponseFunc 
 		}
 		return []response.AlgoResponse{&TorchrecEmbeddingResponse{multiEmbeddings: multiEmbeddings, dimSize: int(d), passThroughData: resp.GetPassThroughData()}}, nil
 	}
+	return nil, fmt.Errorf("multi-embedding response has no output")
 }
 
 type TorchrecEmbeddingItemsResponse struct {
