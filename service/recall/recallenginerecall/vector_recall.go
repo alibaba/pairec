@@ -64,13 +64,10 @@ func (r *RecallEngineVectorRecall) GetItems(user *module.User, context *context.
 	return
 }
 
-func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf, err error) {
+func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
 	triggerResult := r.triggerKey.GetTriggerKey(user, context)
 	if triggerResult == nil {
-		return ret, fmt.Errorf("embedding trigger returned nil")
-	}
-	if triggerResult.Err != nil {
-		return ret, triggerResult.Err
+		return
 	}
 	if triggerResult.Queries != nil {
 		if len(triggerResult.Queries) == 0 {
@@ -88,7 +85,8 @@ func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *
 		ret.VersionId = triggerResult.Version
 	}
 	if ret.Queries != nil && strings.TrimSpace(ret.VersionId) == "" {
-		return re.RecallConf{}, fmt.Errorf("multi-vector recall requires an explicit item version")
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=RecallEngineVectorRecall\trecall_name=%s\terror=multi-vector recall requires an explicit item version", context.RecommendId, r.recallName))
+		return re.RecallConf{}
 	}
 	if r.timeout > 0 {
 		ret.Options = &re.RecallOptions{Timeout: r.timeout}

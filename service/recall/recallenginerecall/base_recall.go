@@ -16,7 +16,7 @@ const (
 type RecallEngineBaseRecall interface {
 	GetItems(user *module.User, context *context.RecommendContext) ([]*module.Item, error)
 	//BuildRecallParam(user *module.User, context *context.RecommendContext) *be.RecallParam
-	BuildQueryParams(user *module.User, context *context.RecommendContext) (re.RecallConf, error)
+	BuildQueryParams(user *module.User, context *context.RecommendContext) re.RecallConf
 	CloneWithConfig(params map[string]interface{}) RecallEngineBaseRecall
 	GetRecallName() string
 }

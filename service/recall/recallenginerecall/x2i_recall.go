@@ -63,7 +63,7 @@ func (r *RecallEngineX2IRecall) GetItems(user *module.User, context *context.Rec
 	return
 }
 
-func (r *RecallEngineX2IRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf, err error) {
+func (r *RecallEngineX2IRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
 	triggerResult := r.triggerKey.GetTriggerKey(user, context)
 	if triggerResult.TriggerItem == "" {
 		return

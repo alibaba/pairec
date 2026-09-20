@@ -1,7 +1,6 @@
 package recallenginerecall
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -224,7 +223,7 @@ func (r *RecallEngineServiceRecall) getRecalls(user *module.User, context *conte
 	log.Info(fmt.Sprintf("requestId=%s\tbizName=%s\trecall_names=%s", context.RecommendId, r.bizName, strings.Join(recallNames, ",")))
 	return
 }
-func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *context.RecommendContext) (*re.RecallRequest, error) {
+func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *context.RecommendContext) *re.RecallRequest {
 	recallRequest := re.RecallRequest{
 		Recalls:       make(map[string]re.RecallConf),
 		ContextParams: make(map[string]interface{}),
@@ -242,7 +241,6 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var buildErrors []error
 	/*
 		beABParams := r.beABParams
 		if context.ExperimentResult != nil {
@@ -259,13 +257,7 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 		wg.Add(1)
 		go func(recall RecallEngineBaseRecall) {
 			defer wg.Done()
-			recallConf, err := recall.BuildQueryParams(user, context)
-			if err != nil {
-				mu.Lock()
-				buildErrors = append(buildErrors, fmt.Errorf("recall %s: %w", recall.GetRecallName(), err))
-				mu.Unlock()
-				return
-			}
+			recallConf := recall.BuildQueryParams(user, context)
 			if recallConf.Count > 0 {
 				mu.Lock()
 				defer mu.Unlock()
@@ -302,9 +294,6 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 		mergeFeaturesToContextParams(features, recallRequest.ContextParams)
 	}
 	wg.Wait()
-	if err := errors.Join(buildErrors...); err != nil {
-		return nil, err
-	}
 	if len(exposeList) > 0 {
 		recallRequest.ExposureList = strings.Join(exposeList, ",")
 	}
@@ -324,18 +313,12 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 		log.Info(fmt.Sprintf("requestId=%s\tname=%s\tserviceName=%s\tversionName=%s\trequest=%v", context.RecommendId,
 			r.modelName, r.serviceName, r.versionName, recallRequest))
 	}
-	return &recallRequest, nil
+	return &recallRequest
 }
 
 func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context.RecommendContext) (ret []*module.Item, err error) {
 	start := time.Now()
-	recallRequest, err := r.buildRequest(user, context)
-	if err != nil {
-		return nil, err
-	}
-	if len(recallRequest.Recalls) == 0 {
-		return nil, nil
-	}
+	recallRequest := r.buildRequest(user, context)
 
 	response, err := r.client.GetRecallEngineClient().Recall(recallRequest)
 	if err != nil {
@@ -429,7 +412,7 @@ func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context
 	return
 }
 
-func (r *RecallEngineServiceRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf, err error) {
+func (r *RecallEngineServiceRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
 	return
 }
 
