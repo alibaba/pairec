@@ -117,7 +117,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 	if version == "" {
 		version = strings.TrimSpace(passThrough["model_version"])
 	}
-	if queries := embedding.GetInterests(); queries != nil {
+	if queries := embedding.GetEmbeddings(); queries != nil {
 		return &TriggerResult{Queries: queries, Version: version}
 	}
 	values := embedding.GetEmbedding()

@@ -88,7 +88,7 @@ func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *
 		ret.VersionId = triggerResult.Version
 	}
 	if ret.Queries != nil && strings.TrimSpace(ret.VersionId) == "" {
-		return re.RecallConf{}, fmt.Errorf("MIND recall requires an explicit item version")
+		return re.RecallConf{}, fmt.Errorf("multi-vector recall requires an explicit item version")
 	}
 	if r.timeout > 0 {
 		ret.Options = &re.RecallOptions{Timeout: r.timeout}

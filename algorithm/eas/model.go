@@ -41,7 +41,9 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
+		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
+			return err
+		}
 		m.request = &req
 
 		if conf.EasConf.RetryTimes > 0 {
@@ -54,7 +56,9 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetSignatureName(conf.EasConf.SignatureName)
 		req.SetTimeout(conf.EasConf.Timeout)
-		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
+		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
+			return err
+		}
 		if len(conf.EasConf.Outputs) > 0 {
 			req.SetOutputs(conf.EasConf.Outputs)
 		}
@@ -69,7 +73,9 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
+		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
+			return err
+		}
 		m.request = req
 
 		if conf.EasConf.RetryTimes > 0 {
@@ -82,8 +88,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
-		if err := req.setMindOutput(conf.EasConf.Outputs); err != nil {
+		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
 			return err
 		}
 		m.request = &req
@@ -97,8 +102,7 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
-		if err := req.setMindOutput(conf.EasConf.Outputs); err != nil {
+		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
 			return err
 		}
 
@@ -165,7 +169,9 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
+		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
+			return err
+		}
 		m.request = &req
 
 		if conf.EasConf.RetryTimes > 0 {
@@ -180,7 +186,9 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetSignatureName(conf.EasConf.SignatureName)
 		req.SetTimeout(conf.EasConf.Timeout)
-		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
+		if err := req.SetResponseFunc(conf.EasConf.ResponseFuncName, conf.EasConf.Outputs...); err != nil {
+			return err
+		}
 		if len(conf.EasConf.Outputs) > 0 {
 			req.SetOutputs(conf.EasConf.Outputs)
 		}

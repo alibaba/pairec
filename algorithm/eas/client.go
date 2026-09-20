@@ -1,8 +1,10 @@
 package eas
 
 import (
+	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alibaba/pairec/v2/algorithm/response"
@@ -57,7 +59,7 @@ func (r *EasRequest) SetTimeout(timeout int) {
 		r.timeout = time.Millisecond * time.Duration(timeout)
 	}
 }
-func (r *EasRequest) SetResponseFunc(name string) {
+func (r *EasRequest) SetResponseFunc(name string, outputs ...string) error {
 	if name == "pssmartResponseFunc" {
 		r.responseFunc = pssmartResponseFunc
 	} else if name == "tfResponseFunc" {
@@ -90,8 +92,11 @@ func (r *EasRequest) SetResponseFunc(name string) {
 		r.responseFunc = torchrecMutValResponseFunc
 	} else if name == "torchrecMutValResponseFuncDebug" {
 		r.responseFunc = torchrecMutValResponseFuncDebug
-	} else if name == "torchrecMindEmbeddingResponseFunc" {
-		r.responseFunc = torchrecMindEmbeddingResponseFunc("user_tower_emb")
+	} else if name == "torchrecMultiEmbeddingResponseFunc" {
+		if len(outputs) != 1 || strings.TrimSpace(outputs[0]) == "" {
+			return fmt.Errorf("torchrecMultiEmbeddingResponseFunc requires exactly one Outputs name")
+		}
+		r.responseFunc = newTorchrecMultiEmbeddingResponseFunc(outputs[0])
 	} else if name == "torchrecEmbeddingResponseFunc" {
 		r.responseFunc = torchrecEmbeddingResponseFunc
 	} else if name == "torchrecEmbeddingItemsResponseFunc" {
@@ -107,6 +112,7 @@ func (r *EasRequest) SetResponseFunc(name string) {
 	}
 
 	r.responseFuncName = name
+	return nil
 }
 
 func (r *EasRequest) GetResponseFunc() response.ResponseFunc {

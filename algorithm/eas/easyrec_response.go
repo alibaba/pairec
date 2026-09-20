@@ -661,7 +661,7 @@ func torchrecMutClassificationResponseFuncDebug(data interface{}) (ret []respons
 }
 
 type TorchrecEmbeddingResponse struct {
-	interests       [][]float32
+	multiEmbeddings [][]float32
 	embeddings      []float32
 	dimSize         int
 	passThroughData map[string]string
@@ -679,9 +679,8 @@ func (r *TorchrecEmbeddingResponse) GetModuleType() bool {
 	return false
 }
 
-// GetInterests returns nil for legacy single-vector responses. A non-nil empty
-// slice represents a successfully parsed MIND response with no valid interests.
-func (r *TorchrecEmbeddingResponse) GetInterests() [][]float32 { return r.interests }
+// GetEmbeddings returns the embedding matrix, or nil for legacy single-vector responses.
+func (r *TorchrecEmbeddingResponse) GetEmbeddings() [][]float32 { return r.multiEmbeddings }
 
 func (r *TorchrecEmbeddingResponse) GetEmbedding() []float32 {
 	return r.embeddings
