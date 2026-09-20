@@ -9,6 +9,8 @@ import (
 )
 
 type TriggerResult struct {
+	Queries           [][]float32
+	Err               error
 	TriggerItem       string
 	Version           string
 	DistinctParam     string

@@ -57,7 +57,7 @@ func (r *RecallEngineRandomRecall) GetItems(user *module.User, context *context.
 	return
 }
 
-func (r *RecallEngineRandomRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
+func (r *RecallEngineRandomRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf, err error) {
 	ret.Count = r.returnCount
 	if r.timeout > 0 {
 		ret.Options = &re.RecallOptions{Timeout: r.timeout}

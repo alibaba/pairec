@@ -3,6 +3,7 @@ package recallenginerecall
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -63,9 +64,20 @@ func (r *RecallEngineVectorRecall) GetItems(user *module.User, context *context.
 	return
 }
 
-func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
+func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf, err error) {
 	triggerResult := r.triggerKey.GetTriggerKey(user, context)
-	if triggerResult.TriggerItem == "" {
+	if triggerResult == nil {
+		return ret, fmt.Errorf("embedding trigger returned nil")
+	}
+	if triggerResult.Err != nil {
+		return ret, triggerResult.Err
+	}
+	if triggerResult.Queries != nil {
+		if len(triggerResult.Queries) == 0 {
+			return
+		}
+		ret.Queries = triggerResult.Queries
+	} else if triggerResult.TriggerItem == "" {
 		return
 	}
 	ret.Trigger = triggerResult.TriggerItem
@@ -74,6 +86,9 @@ func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *
 	ret.UserEmbeddingVersionId = r.userEmbeddingVersionId
 	if triggerResult.Version != "" {
 		ret.VersionId = triggerResult.Version
+	}
+	if ret.Queries != nil && strings.TrimSpace(ret.VersionId) == "" {
+		return re.RecallConf{}, fmt.Errorf("MIND recall requires an explicit item version")
 	}
 	if r.timeout > 0 {
 		ret.Options = &re.RecallOptions{Timeout: r.timeout}

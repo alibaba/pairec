@@ -101,55 +101,29 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 	//easyrecRequest.FaissNeighNum = int32(t.embeddingNum)
 	algoRet, err := algorithm.Run(t.recallAlgo, algoData.GetFeatures())
 
-	//var triggerItem string
-	//var triggerItems []string
-	var userEmbedding string
-	var version string
-
 	if err != nil {
-		plog.Error(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\terr=%v", context.RecommendId, err))
-	} else {
-		// eas model invoke success
-		if result, ok := algoRet.([]response.AlgoResponse); ok && len(result) > 0 {
-			if embeddingReponse, ok := result[0].(*eas.TorchrecEmbeddingResponse); ok {
-				embeddings := embeddingReponse.GetEmbedding()
-				passThroughData := embeddingReponse.GetPassThroughData()
-				version = strings.TrimSpace(passThroughData["version"])
-				if version == "" {
-					version = strings.TrimSpace(passThroughData["model_version"])
-				}
-				embeddingList := make([]string, 0, len(embeddings))
-				for _, embedding := range embeddings {
-					embeddingList = append(embeddingList, strconv.FormatFloat(float64(embedding), 'f', -1, 32))
-				}
-
-				userEmbedding = strings.Join(embeddingList, ",")
-			} else {
-				plog.Error(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\terror=unexpected response type, expected *eas.TorchrecEmbeddingResponse, got %T", context.RecommendId, result[0]))
-			}
-			/*
-				if response, ok := result[0].(*eas.EasyrecUserRealtimeEmbeddingResponse); ok {
-					userEmbedding = response.GetUserEmbedding()
-					for _, info := range response.GetEmbeddingList() {
-						triggerItems = append(triggerItems, fmt.Sprintf("%s:%f", info.ItemId, info.Score))
-					}
-
-					triggerItem = strings.Join(triggerItems, ",")
-				}
-			*/
-		}
-
+		return &TriggerResult{Err: fmt.Errorf("user embedding inference: %w", err)}
 	}
-	if context.Debug {
-		plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\tuserEmbedding=%s", context.RecommendId, userEmbedding))
+	result, ok := algoRet.([]response.AlgoResponse)
+	if !ok || len(result) == 0 {
+		return &TriggerResult{Err: fmt.Errorf("user embedding response is empty or invalid")}
 	}
-
-	//go t.featureConsistencyJobService.LogRecallResult(user, nil, context, "dssm", userEmbedding, triggerItem, t.recallAlgo, t.recallAlgoType, "", "", "")
-
-	triggerResult := &TriggerResult{
-		TriggerItem: userEmbedding,
-		Version:     version,
+	embedding, ok := result[0].(*eas.TorchrecEmbeddingResponse)
+	if !ok || embedding == nil {
+		return &TriggerResult{Err: fmt.Errorf("unexpected user embedding response type %T", result[0])}
 	}
-	//plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\tcost=%v", context.RecommendId, utils.CostTime(start)))
-	return triggerResult
+	passThrough := embedding.GetPassThroughData()
+	version := strings.TrimSpace(passThrough["version"])
+	if version == "" {
+		version = strings.TrimSpace(passThrough["model_version"])
+	}
+	if queries := embedding.GetInterests(); queries != nil {
+		return &TriggerResult{Queries: queries, Version: version}
+	}
+	values := embedding.GetEmbedding()
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, strconv.FormatFloat(float64(value), 'f', -1, 32))
+	}
+	return &TriggerResult{TriggerItem: strings.Join(parts, ","), Version: version}
 }

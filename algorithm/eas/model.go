@@ -83,6 +83,9 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
 		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
+		if err := req.setMindOutput(conf.EasConf.Outputs); err != nil {
+			return err
+		}
 		m.request = &req
 
 		if conf.EasConf.RetryTimes > 0 {
@@ -95,6 +98,9 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
 		req.SetResponseFunc(conf.EasConf.ResponseFuncName)
+		if err := req.setMindOutput(conf.EasConf.Outputs); err != nil {
+			return err
+		}
 
 		var client *eas.PredictClient
 		if conf.EasConf.EndpointType == eas.EndpointTypeDirect {

@@ -90,6 +90,8 @@ func (r *EasRequest) SetResponseFunc(name string) {
 		r.responseFunc = torchrecMutValResponseFunc
 	} else if name == "torchrecMutValResponseFuncDebug" {
 		r.responseFunc = torchrecMutValResponseFuncDebug
+	} else if name == "torchrecMindEmbeddingResponseFunc" {
+		r.responseFunc = torchrecMindEmbeddingResponseFunc("user_tower_emb")
 	} else if name == "torchrecEmbeddingResponseFunc" {
 		r.responseFunc = torchrecEmbeddingResponseFunc
 	} else if name == "torchrecEmbeddingItemsResponseFunc" {
