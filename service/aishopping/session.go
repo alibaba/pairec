@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alibaba/pairec/v2/algorithm/aichat"
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
@@ -19,7 +18,7 @@ func NewSessionStore(cfg *recconf.AIChatConfig) *SessionStore {
 	return &SessionStore{cfg: cfg}
 }
 
-func (s *SessionStore) Load(uid, sessionId, language, prompt string) (*SessionBlob, error) {
+func (s *SessionStore) Load(uid, sessionId, language string) (*SessionBlob, error) {
 	blob, err := s.read(sessionStoreKey(uid, sessionId))
 	if err != nil {
 		return nil, err
@@ -30,24 +29,17 @@ func (s *SessionStore) Load(uid, sessionId, language, prompt string) (*SessionBl
 			Language:     language,
 			CreatedAt:    now,
 			LastActiveAt: now,
-			Messages:     []aichat.Message{{Role: "system", Content: prompt}},
 		}
 		return blob, nil
 	}
 	blob.Language = language
 	blob.LastActiveAt = now
-	if len(blob.Messages) == 0 {
-		blob.Messages = []aichat.Message{{Role: "system", Content: prompt}}
-	} else {
-		blob.Messages[0] = aichat.Message{Role: "system", Content: prompt}
-	}
 	return blob, nil
 }
 
 func (s *SessionStore) Save(uid, sessionId string, blob *SessionBlob) error {
 	blob.LastActiveAt = time.Now().Unix()
-	blob.TurnCount = countTurns(blob.Messages)
-	blob.Messages = trimMessages(blob.Messages, s.cfg.SessionMaxTurns, s.cfg.SessionMaxTokens)
+	blob.trim(s.cfg.SessionMaxTurns, s.cfg.SessionMaxTokens)
 	payload, err := json.Marshal(blob)
 	if err != nil {
 		return err
@@ -117,79 +109,4 @@ func (s *SessionStore) featureView() (interface {
 		return nil, fmt.Errorf("feature view not found:%s", s.cfg.SessionFeatureView)
 	}
 	return featureView, nil
-}
-
-func countTurns(messages []aichat.Message) int {
-	count := 0
-	for _, message := range messages {
-		if message.Role == "user" {
-			count++
-		}
-	}
-	return count
-}
-
-func trimMessages(messages []aichat.Message, maxTurns, maxTokens int) []aichat.Message {
-	if len(messages) <= 1 {
-		return messages
-	}
-	system := messages[0]
-	groups := messageGroups(messages[1:])
-	for countGroupTurns(groups) > maxTurns && len(groups) > 1 {
-		groups = groups[1:]
-	}
-	out := flattenMessageGroups(system, groups)
-	for estimatedTokens(out) > maxTokens && len(groups) > 1 {
-		groups = groups[1:]
-		out = flattenMessageGroups(system, groups)
-	}
-	return out
-}
-
-func messageGroups(messages []aichat.Message) [][]aichat.Message {
-	groups := make([][]aichat.Message, 0)
-	var current []aichat.Message
-	for _, message := range messages {
-		if message.Role == "user" && len(current) > 0 {
-			groups = append(groups, current)
-			current = nil
-		}
-		current = append(current, message)
-	}
-	if len(current) > 0 {
-		groups = append(groups, current)
-	}
-	return groups
-}
-
-func countGroupTurns(groups [][]aichat.Message) int {
-	count := 0
-	for _, group := range groups {
-		for _, message := range group {
-			if message.Role == "user" {
-				count++
-				break
-			}
-		}
-	}
-	return count
-}
-
-func flattenMessageGroups(system aichat.Message, groups [][]aichat.Message) []aichat.Message {
-	out := []aichat.Message{system}
-	for _, group := range groups {
-		out = append(out, group...)
-	}
-	return out
-}
-
-func estimatedTokens(messages []aichat.Message) int {
-	total := 0
-	for _, message := range messages {
-		total += len(message.Content) / 4
-		for _, call := range message.ToolCalls {
-			total += len(call.Function.Arguments) / 4
-		}
-	}
-	return total
 }

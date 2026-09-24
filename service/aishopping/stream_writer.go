@@ -41,6 +41,24 @@ func (w *StreamWriter) EmitCitation(itemId string) error {
 	return w.emit(map[string]interface{}{"citation": map[string]string{"type": "item", "_id": itemId}})
 }
 
+func (w *StreamWriter) EmitSuggestions(suggestions []string) error {
+	return w.emit(map[string]interface{}{
+		"payload": map[string]interface{}{"suggestions": suggestions},
+	})
+}
+
+func (w *StreamWriter) EmitSuggestionError(code, message string, retryable bool) error {
+	return w.emit(map[string]interface{}{
+		"payload": map[string]interface{}{
+			"suggestions_error": map[string]interface{}{
+				"code":      code,
+				"message":   message,
+				"retryable": retryable,
+			},
+		},
+	})
+}
+
 func (w *StreamWriter) EmitStop(reason, errorCode string) error {
 	result := map[string]interface{}{"stop_reason": reason}
 	if errorCode != "" {
