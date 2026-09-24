@@ -148,6 +148,7 @@ func registerRouteInfo() {
 			if p == "/ping" ||
 				p == "/route_paths" ||
 				p == "/api/recommend" ||
+				p == "/api/rec/feed" ||
 				p == "/api/recall" ||
 				p == "/api/feature_reply" ||
 				p == "/metrics" ||
@@ -166,6 +167,7 @@ func registerRouteInfo() {
 
 	// register recommend Controller
 	Route("/api/recommend", &web.RecommendController{})
+	Route("/api/rec/feed", &web.RecommendController{})
 	Route("/api/recall", &web.UserRecallController{})
 	Route("/api/callback", &web.CallBackController{})
 	Route("/api/feature_reply", &web.FeatureReplyController{})
