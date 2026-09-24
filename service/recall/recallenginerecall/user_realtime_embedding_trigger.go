@@ -105,6 +105,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 	//var triggerItems []string
 	var userEmbedding string
 	var version string
+	var queries [][]float32
 
 	if err != nil {
 		plog.Error(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\terr=%v", context.RecommendId, err))
@@ -113,6 +114,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 		if result, ok := algoRet.([]response.AlgoResponse); ok && len(result) > 0 {
 			if embeddingReponse, ok := result[0].(*eas.TorchrecEmbeddingResponse); ok {
 				embeddings := embeddingReponse.GetEmbedding()
+				queries = embeddingReponse.GetEmbeddings()
 				passThroughData := embeddingReponse.GetPassThroughData()
 				version = strings.TrimSpace(passThroughData["version"])
 				if version == "" {
@@ -142,6 +144,9 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 	}
 	if context.Debug {
 		plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\tuserEmbedding=%s", context.RecommendId, userEmbedding))
+		if queries != nil {
+			plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\tqueries=%v", context.RecommendId, queries))
+		}
 	}
 
 	//go t.featureConsistencyJobService.LogRecallResult(user, nil, context, "dssm", userEmbedding, triggerItem, t.recallAlgo, t.recallAlgoType, "", "", "")
@@ -149,6 +154,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 	triggerResult := &TriggerResult{
 		TriggerItem: userEmbedding,
 		Version:     version,
+		Queries:     queries,
 	}
 	//plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\tcost=%v", context.RecommendId, utils.CostTime(start)))
 	return triggerResult
