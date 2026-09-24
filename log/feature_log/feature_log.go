@@ -14,7 +14,6 @@ import (
 	"github.com/alibaba/pairec/v2/datasource/datahub"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
-	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 )
 
@@ -62,14 +61,10 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 		}
 		go datahubApi.SendMessage(messages)
 	} else if config.OutputType == "featurestore" {
-		fsClient, err := fs.GetFeatureStoreClient(config.FeatureStoreName)
-		if err != nil {
-			log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
-			return
-		}
-		featureView := fsClient.GetProject().GetFeatureView(config.FeatureStoreViewName)
-		if featureView == nil {
-			log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=feature view not found, name:%s", context.RecommendId, config.FeatureStoreViewName))
+		view, ok := getFeatureView(scene)
+		if !ok {
+			// resolution already failed and was logged at load time; keep the
+			// request path silent and cheap instead of erroring per request
 			return
 		}
 		// write feature logs to FeatureDB directly via fs sdk direct write interface
@@ -82,7 +77,7 @@ func FeatureLog(user *module.User, items []*module.Item, context *context.Recomm
 					log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v\tstack=%s", context.RecommendId, err, strings.ReplaceAll(stack, "\n", "\t")))
 				}
 			}()
-			if err := featureView.WriteFeatures(messages, domain.WithDirect()); err != nil {
+			if err := view.WriteFeatures(messages, domain.WithDirect()); err != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tevent=FeatureLog\terr=%v", context.RecommendId, err))
 			}
 		}()
