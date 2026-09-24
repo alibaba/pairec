@@ -115,17 +115,19 @@ func (f *RRFusionFilter) doFilter(filterData *FilterData) error {
 			item  *module.Item
 			score float64
 		}
-		candidateMap := make(map[module.ItemId]scoredItem, len(items))
+		recallCandidateMap := make(map[module.ItemId]scoredItem, len(items))
 		for _, item := range items {
 			if score, ok := scoreInRecall(item, config.RecallName); ok {
-				current, exists := candidateMap[item.Id]
+				// Deduplicate only within the current recall path. Scores from
+				// different recall paths are never compared.
+				current, exists := recallCandidateMap[item.Id]
 				if !exists || score > current.score {
-					candidateMap[item.Id] = scoredItem{item: item, score: score}
+					recallCandidateMap[item.Id] = scoredItem{item: item, score: score}
 				}
 			}
 		}
-		candidates := make([]scoredItem, 0, len(candidateMap))
-		for _, candidate := range candidateMap {
+		candidates := make([]scoredItem, 0, len(recallCandidateMap))
+		for _, candidate := range recallCandidateMap {
 			candidates = append(candidates, candidate)
 		}
 

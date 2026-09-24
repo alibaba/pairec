@@ -68,6 +68,42 @@ func TestRRFusionFilter(t *testing.T) {
 	assertFloatEqual(t, itemA.GetAlgoScore(rrfScoreName), itemA.Score)
 }
 
+func TestRRFusionFilterRanksScoresOnlyWithinEachRecall(t *testing.T) {
+	itemAR1 := newRRFTestItem("a", "r1", 0.9)
+	itemAR2 := newRRFTestItem("a", "r2", 100)
+	itemB := newRRFTestItem("b", "r1", 0.8)
+	itemC := newRRFTestItem("c", "r2", 200)
+
+	filter := NewRRFusionFilter(recconf.FilterConfig{
+		RRFConf: recconf.RRFConfig{
+			K: 60,
+			Rules: []recconf.RRFRule{
+				{RecallName: "r1", Weight: 1},
+				{RecallName: "r2", Weight: 1},
+			},
+		},
+	})
+	data := newRRFFilterData([]*module.Item{itemAR1, itemAR2, itemB, itemC})
+
+	if err := filter.Filter(data); err != nil {
+		t.Fatal(err)
+	}
+
+	got := data.Data.([]*module.Item)
+	if len(got) != 3 {
+		t.Fatalf("got %d items, want 3", len(got))
+	}
+	wantOrder := []module.ItemId{"a", "c", "b"}
+	for i, id := range wantOrder {
+		if got[i].Id != id {
+			t.Fatalf("item[%d] = %s, want %s", i, got[i].Id, id)
+		}
+	}
+	assertFloatEqual(t, got[0].Score, 1.0/61.0+1.0/62.0)
+	assertFloatEqual(t, got[1].Score, 1.0/61.0)
+	assertFloatEqual(t, got[2].Score, 1.0/62.0)
+}
+
 func TestRRFusionFilterDefaults(t *testing.T) {
 	filter := NewRRFusionFilter(recconf.FilterConfig{
 		RRFConf: recconf.RRFConfig{
