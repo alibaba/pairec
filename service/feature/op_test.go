@@ -1,9 +1,12 @@
 package feature
 
 import (
+	"encoding/json"
+	"math"
 	"testing"
 
 	"fortio.org/assert"
+	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
@@ -332,4 +335,63 @@ func TestExpandJsonFeatureOp(t *testing.T) {
 		assert.Equal(t, user.GetProperty("empty"), map[string]interface{}{})
 		assert.Equal(t, user.GetProperty("deep"), map[string]interface{}{"a": map[string]int64{"b": 1}})
 	})
+}
+
+// TestConvertJsonNumber pins the numeric restoration around the int64/uint64
+// boundaries, the cases a float64 fallback would silently corrupt.
+func TestConvertJsonNumber(t *testing.T) {
+	cases := []struct {
+		literal string
+		want    interface{}
+	}{
+		// within int64, restored exactly as an int
+		{"9007199254740993", int(9007199254740993)}, // 2^53+1
+		{"9223372036854775807", int(math.MaxInt64)},
+		{"-9223372036854775808", int(math.MinInt64)},
+		// (MaxInt64, MaxUint64] becomes a uint64 instead of a lossy float64
+		{"9223372036854775808", uint64(math.MaxInt64) + 1},
+		{"18446744073709551615", uint64(math.MaxUint64)},
+		// an integer too large for uint64 keeps its digits as a string
+		{"18446744073709551616", "18446744073709551616"},
+		// only a real decimal or exponent becomes a float64
+		{"3.14", 3.14},
+		{"1.5e3", 1500.0},
+	}
+	for _, c := range cases {
+		assert.Equal(t, convertJsonNumber(json.Number(c.literal)), c.want)
+	}
+}
+
+// TestExpandJsonFeatureOpBigUintEncoding is the end to end assertion: a big
+// integer restored from a snapshot must reach the model as an exact Long or
+// String feature, never as a lossy Double.
+func TestExpandJsonFeatureOpBigUintEncoding(t *testing.T) {
+	user := module.NewUser("user1")
+	user.AddProperty("user_features", `{"max_u64":18446744073709551615,"over_u64":18446744073709551616}`)
+
+	conf := recconf.FeatureLoadConfig{}
+	conf.Features = append(conf.Features, recconf.FeatureConfig{
+		FeatureType:         "expand_json_feature",
+		FeatureStore:        "user",
+		FeatureSource:       "user:user_features",
+		RemoveFeatureSource: true,
+	})
+	feature := LoadWithConfig(conf)
+	feature.LoadFeatures(user, nil, context.NewRecommendContext())
+
+	builder := easyrec.NewEasyrecRequestBuilder()
+	builder.AddUserFeature("max_u64", user.GetProperty("max_u64"))
+	builder.AddUserFeature("over_u64", user.GetProperty("over_u64"))
+	request := builder.EasyrecRequest()
+
+	// MaxUint64 exceeds int64, the builder keeps it exact as a String feature
+	if _, ok := request.UserFeatures["max_u64"].Value.(*easyrec.PBFeature_StringFeature); !ok {
+		t.Fatalf("max_u64 = %T, want *easyrec.PBFeature_StringFeature", request.UserFeatures["max_u64"].Value)
+	}
+	assert.Equal(t, request.UserFeatures["max_u64"].GetStringFeature(), "18446744073709551615")
+	// an integer above uint64 stays a string through the whole chain
+	if _, ok := request.UserFeatures["over_u64"].Value.(*easyrec.PBFeature_StringFeature); !ok {
+		t.Fatalf("over_u64 = %T, want *easyrec.PBFeature_StringFeature", request.UserFeatures["over_u64"].Value)
+	}
+	assert.Equal(t, request.UserFeatures["over_u64"].GetStringFeature(), "18446744073709551616")
 }

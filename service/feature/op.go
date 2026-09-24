@@ -3,6 +3,7 @@ package feature
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -254,16 +255,36 @@ func convertJsonValue(value interface{}) interface{} {
 	}
 }
 
-// convertJsonNumber restores the numeric type of a json.Number, the same way
-// web.FeaturesMap does for the features carried in a request body.
+// convertJsonNumber restores the numeric type of a json.Number without losing
+// the precision of a large integer.
+//
+// An integer is restored as the narrowest exact type: int when it fits int64,
+// then uint64 for the (MaxInt64, MaxUint64] range, which the easyrec request
+// builder encodes exactly as a Long or a String feature. An integer literal that
+// does not even fit uint64 stays a string, because a float64 round trip would
+// alter its digits. Only a literal that is really a decimal or an exponent
+// becomes a float64, so an integer is never downgraded to the lossy float64 this
+// whole op exists to avoid.
 func convertJsonNumber(number json.Number) interface{} {
 	if i64, err := number.Int64(); err == nil {
 		return int(i64)
+	}
+	if u64, err := strconv.ParseUint(number.String(), 10, 64); err == nil {
+		return u64
+	}
+	if isIntegerLiteral(number.String()) {
+		return number.String()
 	}
 	if f64, err := number.Float64(); err == nil {
 		return f64
 	}
 	return number.String()
+}
+
+// isIntegerLiteral reports whether a json number literal is written as an
+// integer, that is it carries no fraction point and no exponent.
+func isIntegerLiteral(literal string) bool {
+	return !strings.ContainsAny(literal, ".eE")
 }
 
 // convertJsonList restores a list to the concrete slice type matching the json
