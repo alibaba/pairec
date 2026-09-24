@@ -23,6 +23,11 @@ import (
 	"github.com/alibaba/pairec/v2/utils"
 )
 
+// processorWriteCallbackLogDebugLevel is the debug_level that makes the easyrec
+// processor write the callback feature log on its own side. A request using it
+// must reach the processor, otherwise no log is produced at all.
+const processorWriteCallbackLogDebugLevel = 6
+
 type CallBackService struct {
 	recallService      *RecallService
 	featureService     *feature.FeatureService
@@ -175,6 +180,9 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 
 	var algoData rank.IAlgoData
 	debugLevel := 3
+	if callBackConfig.DebugLevel > 0 {
+		debugLevel = callBackConfig.DebugLevel
+	}
 
 	writeRawFeatrues := false
 	if callBackConfig.RawFeatures && callBackConfig.RawFeaturesRate > 0 {
@@ -184,11 +192,16 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 		}
 	}
 
+	// carry the request id in the pb meta data, so the processor side log can be
+	// joined back to this callback request, same as the rank and recall paths do
+	meta := map[string]string{"request_id": context.RecommendId}
 	if algoGenerator.HasFeatures() {
-		if context.Debug {
-			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(2, nil)
+		// the processor writes the log itself at this level, so it has to be sent
+		// through even for a debug request
+		if context.Debug && debugLevel != processorWriteCallbackLogDebugLevel {
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(2, meta)
 		} else {
-			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel, nil)
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(debugLevel, meta)
 		}
 	}
 
