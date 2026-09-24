@@ -23,6 +23,7 @@ import (
 	"github.com/alibaba/pairec/v2/datasource/sls"
 	"github.com/alibaba/pairec/v2/filter"
 	"github.com/alibaba/pairec/v2/log"
+	"github.com/alibaba/pairec/v2/log/feature_log"
 	"github.com/alibaba/pairec/v2/persist/clickhouse"
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/persist/holo"
@@ -104,6 +105,9 @@ func (l *ConfigLoader) reloadConfig(config *recconf.RecommendConfig) {
 	lindorm.Load(config)
 	hbase_thrift.Load(config)
 	fs.Load(config)
+	// feature_log resolves its FeatureDB feature views from the fs clients, so it
+	// must load after fs.Load
+	feature_log.Load(config)
 	clickhouse.Load(config)
 	algorithm.Load(config) // holo must be loaded before loading some algorithm
 	register(config)
