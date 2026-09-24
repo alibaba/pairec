@@ -306,7 +306,11 @@ func convertJsonList(list []interface{}) interface{} {
 			allString, allList = false, false
 			if _, err := v.Int64(); err != nil {
 				integral = false
-				if _, err := v.Float64(); err != nil {
+				if isIntegerLiteral(v.String()) {
+					// an integer literal beyond int64 must not become a lossy
+					// float64; it is restored as an exact string below
+					numeric = false
+				} else if _, err := v.Float64(); err != nil {
 					numeric = false
 				}
 			}
@@ -336,6 +340,15 @@ func convertJsonList(list []interface{}) interface{} {
 		for i, elem := range list {
 			f64, _ := elem.(json.Number).Float64()
 			values[i] = f64
+		}
+		return values
+	case allNumber:
+		// integer literals beyond int64 (or numbers with no exact float64): keep
+		// the original digits as a string list, which the builder carries as a
+		// StringList, instead of a lossy []float64 or a []interface{} it drops
+		values := make([]string, len(list))
+		for i, elem := range list {
+			values[i] = elem.(json.Number).String()
 		}
 		return values
 	case allList:
@@ -375,7 +388,11 @@ func convertJsonMap(object map[string]interface{}) interface{} {
 			allString = false
 			if _, err := v.Int64(); err != nil {
 				integral = false
-				if _, err := v.Float64(); err != nil {
+				if isIntegerLiteral(v.String()) {
+					// an integer literal beyond int64 must not become a lossy
+					// float64; it is restored as an exact string below
+					numeric = false
+				} else if _, err := v.Float64(); err != nil {
 					numeric = false
 				}
 			}
@@ -403,6 +420,15 @@ func convertJsonMap(object map[string]interface{}) interface{} {
 			values[key], _ = elem.(json.Number).Float64()
 		}
 		return values
+	case allNumber:
+		// integer values beyond int64: keep the original digits as a string map,
+		// which the builder carries as a StringStringMap, instead of a lossy
+		// map[string]float64 or a map[string]interface{} it drops
+		values := make(map[string]string, len(object))
+		for key, elem := range object {
+			values[key] = elem.(json.Number).String()
+		}
+		return values
 	}
 
 	for key, elem := range object {
@@ -425,7 +451,11 @@ func convertJsonNestedList(list []interface{}) interface{} {
 				allString = false
 				if _, err := v.Int64(); err != nil {
 					integral = false
-					if _, err := v.Float64(); err != nil {
+					if isIntegerLiteral(v.String()) {
+						// an integer literal beyond int64 must not become a
+						// lossy float64; it is restored as an exact string below
+						numeric = false
+					} else if _, err := v.Float64(); err != nil {
 						numeric = false
 					}
 				}
@@ -463,6 +493,18 @@ func convertJsonNestedList(list []interface{}) interface{} {
 			values[i] = make([]float64, len(inner))
 			for j, v := range inner {
 				values[i][j], _ = v.(json.Number).Float64()
+			}
+		}
+		return values
+	case allNumber:
+		// integer values beyond int64: keep the original digits, the builder
+		// carries [][]string as StringLists, instead of a lossy [][]float64
+		values := make([][]string, len(list))
+		for i, elem := range list {
+			inner := elem.([]interface{})
+			values[i] = make([]string, len(inner))
+			for j, v := range inner {
+				values[i][j] = v.(json.Number).String()
 			}
 		}
 		return values

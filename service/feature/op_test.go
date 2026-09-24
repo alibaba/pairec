@@ -395,3 +395,50 @@ func TestExpandJsonFeatureOpBigUintEncoding(t *testing.T) {
 	}
 	assert.Equal(t, request.UserFeatures["over_u64"].GetStringFeature(), "18446744073709551616")
 }
+
+// TestExpandJsonFeatureOpBigIntCollections covers the collection scanners: a
+// list, map or nested list holding integers beyond int64 must keep the exact
+// digits instead of collapsing to a lossy float64 collection.
+func TestExpandJsonFeatureOpBigIntCollections(t *testing.T) {
+	conf := recconf.FeatureLoadConfig{}
+	conf.Features = append(conf.Features, recconf.FeatureConfig{
+		FeatureType:         "expand_json_feature",
+		FeatureStore:        "user",
+		FeatureSource:       "user:user_features",
+		RemoveFeatureSource: true,
+	})
+
+	user := module.NewUser("user1")
+	user.AddProperty("user_features", `{"ids":[18446744073709551615,9223372036854775808],"w":{"a":18446744073709551615},"s":[[18446744073709551615],[42]],"flt":[1.5,2.5],"small":[1,2]}`)
+
+	feature := LoadWithConfig(conf)
+	feature.LoadFeatures(user, nil, context.NewRecommendContext())
+
+	// integers beyond int64 keep their exact digits as strings, never a lossy float64
+	assert.Equal(t, user.GetProperty("ids"), []string{"18446744073709551615", "9223372036854775808"})
+	assert.Equal(t, user.GetProperty("w"), map[string]string{"a": "18446744073709551615"})
+	assert.Equal(t, user.GetProperty("s"), [][]string{{"18446744073709551615"}, {"42"}})
+	// an ordinary float list and a small int list are unchanged
+	assert.Equal(t, user.GetProperty("flt"), []float64{1.5, 2.5})
+	assert.Equal(t, user.GetProperty("small"), []int{1, 2})
+
+	// end to end: the collections reach the builder as String* features, neither
+	// a lossy Double* nor dropped
+	builder := easyrec.NewEasyrecRequestBuilder()
+	builder.AddUserFeature("ids", user.GetProperty("ids"))
+	builder.AddUserFeature("w", user.GetProperty("w"))
+	builder.AddUserFeature("s", user.GetProperty("s"))
+	request := builder.EasyrecRequest()
+
+	if _, ok := request.UserFeatures["ids"].Value.(*easyrec.PBFeature_StringList); !ok {
+		t.Fatalf("ids = %T, want *easyrec.PBFeature_StringList", request.UserFeatures["ids"].Value)
+	}
+	assert.Equal(t, request.UserFeatures["ids"].GetStringList().Features, []string{"18446744073709551615", "9223372036854775808"})
+	if _, ok := request.UserFeatures["w"].Value.(*easyrec.PBFeature_StringStringMap); !ok {
+		t.Fatalf("w = %T, want *easyrec.PBFeature_StringStringMap", request.UserFeatures["w"].Value)
+	}
+	assert.Equal(t, request.UserFeatures["w"].GetStringStringMap().MapField, map[string]string{"a": "18446744073709551615"})
+	if _, ok := request.UserFeatures["s"].Value.(*easyrec.PBFeature_StringLists); !ok {
+		t.Fatalf("s = %T, want *easyrec.PBFeature_StringLists", request.UserFeatures["s"].Value)
+	}
+}
