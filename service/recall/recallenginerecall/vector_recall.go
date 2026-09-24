@@ -3,7 +3,6 @@ package recallenginerecall
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -83,10 +82,6 @@ func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *
 	ret.UserEmbeddingVersionId = r.userEmbeddingVersionId
 	if triggerResult.Version != "" {
 		ret.VersionId = triggerResult.Version
-	}
-	if ret.Queries != nil && strings.TrimSpace(ret.VersionId) == "" {
-		log.Error(fmt.Sprintf("requestId=%s\tmodule=RecallEngineVectorRecall\trecall_name=%s\terror=multi-vector recall requires an explicit item version", context.RecommendId, r.recallName))
-		return re.RecallConf{}
 	}
 	if r.timeout > 0 {
 		ret.Options = &re.RecallOptions{Timeout: r.timeout}
