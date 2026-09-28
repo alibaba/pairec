@@ -104,6 +104,40 @@ func TestRRFusionFilterRanksScoresOnlyWithinEachRecall(t *testing.T) {
 	assertFloatEqual(t, got[2].Score, 1.0/62.0)
 }
 
+func TestRRFusionFilterRanksByRecallScoresNotOverwrittenScore(t *testing.T) {
+	// item.Score has been overwritten by an intermediate stage and no longer
+	// equals the in-path recall score; RecallScores is the source of truth for
+	// ranking. Both items sit in r1 with Score != RecallScores[r1].
+	itemA := newRRFTestItem("a", "r1", 999) // Score overwritten
+	itemA.RecallScores = map[string]float64{"r1": 1}
+	itemB := newRRFTestItem("b", "r1", 5) // Score overwritten
+	itemB.RecallScores = map[string]float64{"r1": 10}
+
+	filter := NewRRFusionFilter(recconf.FilterConfig{
+		RRFConf: recconf.RRFConfig{
+			K:     60,
+			Rules: []recconf.RRFRule{{RecallName: "r1", Weight: 1}},
+		},
+	})
+	data := newRRFFilterData([]*module.Item{itemA, itemB})
+
+	if err := filter.Filter(data); err != nil {
+		t.Fatal(err)
+	}
+
+	got := data.Data.([]*module.Item)
+	if len(got) != 2 {
+		t.Fatalf("got %d items, want 2", len(got))
+	}
+	// b's in-path score (10) > a's (1), so b ranks first. Ranking by the
+	// overwritten Score (999 vs 5) would wrongly put a first.
+	if got[0].Id != "b" || got[1].Id != "a" {
+		t.Fatalf("unexpected order: [%s, %s], want [b, a]", got[0].Id, got[1].Id)
+	}
+	assertFloatEqual(t, got[0].Score, 1.0/61.0) // b: rank 1
+	assertFloatEqual(t, got[1].Score, 1.0/62.0) // a: rank 2
+}
+
 func TestRRFusionFilterDefaults(t *testing.T) {
 	filter := NewRRFusionFilter(recconf.FilterConfig{
 		RRFConf: recconf.RRFConfig{

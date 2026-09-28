@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 )
@@ -88,16 +87,19 @@ func (f *RRFusionFilter) Filter(filterData *FilterData) error {
 }
 
 // scoreInRecall returns the item's score in the given recall path and whether
-// the item is present in that path. It supports both single-recall items and
-// items merged by UniqueFilter (whose per-path scores live in RecallScores).
+// the item is present in that path. RecallScores is the source of truth for
+// per-path scores of merged items, so it takes precedence; item.Score is only
+// used as a fallback for single-recall items whose RecallScores does not
+// contain the path yet, because Score may have been modified by intermediate
+// sort/filter stages (or by a previous run of this filter).
 func scoreInRecall(item *module.Item, recallName string) (float64, bool) {
-	if item.RetrieveId == recallName {
-		return item.Score, true
-	}
 	if item.RecallScores != nil {
 		if score, ok := item.RecallScores[recallName]; ok {
 			return score, true
 		}
+	}
+	if item.RetrieveId == recallName {
+		return item.Score, true
 	}
 	return 0, false
 }
@@ -169,7 +171,7 @@ func (f *RRFusionFilter) doFilter(filterData *FilterData) error {
 	}
 
 	if len(f.configs) == 0 {
-		log.Warning("module=RRFusionFilter\tname=" + f.name + "\terror=no recall configured, result is empty")
+		filterData.Context.LogWarning("module=RRFusionFilter\tname=" + f.name + "\terror=no recall configured, result is empty")
 	}
 
 	filterData.Data = newItems
