@@ -2,6 +2,7 @@ package filter
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -172,6 +173,15 @@ func (f *RRFusionFilter) doFilter(filterData *FilterData) error {
 
 	if len(f.configs) == 0 {
 		filterData.Context.LogWarning("module=RRFusionFilter\tname=" + f.name + "\terror=no recall configured, result is empty")
+	} else if len(items) > 0 && len(newItems) == 0 {
+		// Rules are configured but no item hit any of them (e.g. RecallName
+		// misspelled, or item.RetrieveId is a data-driven value rather than the
+		// recall name). This would otherwise silently yield an empty result.
+		recallNames := make([]string, 0, len(f.configs))
+		for _, config := range f.configs {
+			recallNames = append(recallNames, config.RecallName)
+		}
+		filterData.Context.LogWarning(fmt.Sprintf("module=RRFusionFilter\tname=%s\terror=rules configured but no item matched any recall, result is empty\trecalls=%v\tinput=%d", f.name, recallNames, len(items)))
 	}
 
 	filterData.Data = newItems

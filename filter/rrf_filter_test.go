@@ -2,6 +2,7 @@ package filter
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -248,6 +249,43 @@ func TestRRFusionFilterNoRules(t *testing.T) {
 	}
 	if got := data.Data.([]*module.Item); len(got) != 0 {
 		t.Fatalf("got %d items, want empty result", len(got))
+	}
+}
+
+func TestRRFusionFilterWarnsWhenNoItemMatchesRules(t *testing.T) {
+	// Rules are configured but no item's RetrieveId/RecallScores matches any
+	// configured RecallName (e.g. misspelled recall name). The result is empty
+	// and a diagnostic warning must land in the per-request context log.
+	filter := NewRRFusionFilter(recconf.FilterConfig{
+		Name: "rrf",
+		RRFConf: recconf.RRFConfig{
+			Rules: []recconf.RRFRule{
+				{RecallName: "r1", Weight: 1},
+				{RecallName: "r2", Weight: 1},
+			},
+		},
+	})
+	data := newRRFFilterData([]*module.Item{
+		newRRFTestItem("a", "typo_recall", 10),
+		newRRFTestItem("b", "another_recall", 20),
+	})
+
+	if err := filter.Filter(data); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := data.Data.([]*module.Item); len(got) != 0 {
+		t.Fatalf("got %d items, want empty result", len(got))
+	}
+	var warned bool
+	for _, entry := range data.Context.Log {
+		if strings.Contains(entry, "no item matched any recall") {
+			warned = true
+			break
+		}
+	}
+	if !warned {
+		t.Fatalf("expected 'no item matched any recall' warning in context log, got %v", data.Context.Log)
 	}
 }
 
