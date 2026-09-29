@@ -41,11 +41,11 @@ func TestFeatureViewCacheStopIsIdempotent(t *testing.T) {
 // would empty the result set). The previous snapshot and ready state are kept.
 func TestFetchAllDataKeepsPreviousOnEmptyScan(t *testing.T) {
 	c := &FeatureViewCache{name: "test", stopCh: make(chan struct{})}
-	c.itemCache.Store("item-1", map[string]any{"status": 1})
+	c.itemCache.Store("item-1", &cacheEntry{props: map[string]any{"status": 1}, updatedAt: time.Now().UnixNano()})
 	c.size.Store(1)
 	c.ready.Store(true)
 
-	if err := c.fetchAllData(nil); err != nil {
+	if err := c.fetchAllData(nil, time.Now().UnixNano()); err != nil {
 		t.Fatalf("fetchAllData(nil) returned error: %v", err)
 	}
 	if _, ok := c.Get("item-1"); !ok {
@@ -56,6 +56,34 @@ func TestFetchAllDataKeepsPreviousOnEmptyScan(t *testing.T) {
 	}
 	if !c.Ready() {
 		t.Fatal("empty scan should not clear ready state")
+	}
+}
+
+// TestPruneStalePreservesStreamAddedItems verifies the delete-pass fix: entries
+// written by the Stream consumer at/after the scan start must survive the prune
+// even though they are absent from the scan snapshot, while genuinely stale
+// entries (written before the scan, absent from the snapshot) are removed.
+func TestPruneStalePreservesStreamAddedItems(t *testing.T) {
+	c := &FeatureViewCache{name: "test"}
+	scanStart := time.Now().UnixNano()
+
+	// Stale: written before the scan, absent from the snapshot -> must be pruned.
+	c.itemCache.Store("stale", &cacheEntry{props: map[string]any{"v": 1}, updatedAt: scanStart - int64(time.Minute)})
+	// Present in the snapshot -> kept regardless of age.
+	c.itemCache.Store("kept", &cacheEntry{props: map[string]any{"v": 2}, updatedAt: scanStart - int64(time.Minute)})
+	// Streamed in after the scan snapshot, absent from newIds -> must be kept.
+	c.itemCache.Store("streamed", &cacheEntry{props: map[string]any{"v": 3}, updatedAt: scanStart + int64(time.Second)})
+
+	c.pruneStale(map[string]bool{"kept": true}, scanStart)
+
+	if _, ok := c.Get("stale"); ok {
+		t.Fatal("stale item absent from snapshot should be pruned")
+	}
+	if _, ok := c.Get("kept"); !ok {
+		t.Fatal("item present in snapshot should be kept")
+	}
+	if _, ok := c.Get("streamed"); !ok {
+		t.Fatal("stream-added item written after the snapshot must be preserved")
 	}
 }
 

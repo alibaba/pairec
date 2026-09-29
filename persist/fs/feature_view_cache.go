@@ -109,6 +109,15 @@ func loadFeatureViewCachesWithFactory(config *recconf.RecommendConfig, factory f
 	}
 }
 
+// cacheEntry wraps cached properties with the wall-clock time (unix nano) at
+// which they were written, so the periodic full-refresh prune can distinguish
+// items removed from the view (written before the scan snapshot) from items
+// streamed in after the snapshot, which must not be pruned.
+type cacheEntry struct {
+	props     map[string]any
+	updatedAt int64
+}
+
 // FeatureViewCache is a local materialized view of a FeatureStore FeatureView.
 // Data is loaded via scan on startup and refreshed periodically.
 // Stream-type views also receive incremental updates via iterate.
@@ -119,7 +128,7 @@ type FeatureViewCache struct {
 	joinId          string // feature entity join id field name, e.g. item_id
 	selectFields    []string
 	conf            recconf.FeatureViewCacheConfig
-	itemCache       sync.Map     // itemId(string) -> map[string]any
+	itemCache       sync.Map     // itemId(string) -> *cacheEntry
 	size            atomic.Int64 // current cache size
 	ready           atomic.Bool  // true after the first successful full load
 	ch              chan string  // iterate channel for Stream type
@@ -147,7 +156,7 @@ func (c *FeatureViewCache) Get(id string) (map[string]any, bool) {
 	if !ok {
 		return nil, false
 	}
-	return val.(map[string]any), true
+	return val.(*cacheEntry).props, true
 }
 
 // GetMulti returns cached properties for multiple item IDs.
@@ -156,7 +165,7 @@ func (c *FeatureViewCache) GetMulti(ids []string) map[string]map[string]any {
 	result := make(map[string]map[string]any, len(ids))
 	for _, id := range ids {
 		if val, ok := c.itemCache.Load(id); ok {
-			result[id] = val.(map[string]any)
+			result[id] = val.(*cacheEntry).props
 		}
 	}
 	return result
@@ -270,6 +279,10 @@ func (c *FeatureViewCache) initData() error {
 		return fmt.Errorf("featureView not found: %s", c.viewName)
 	}
 
+	// Capture the scan start before the (possibly retried) snapshot scan: entries
+	// streamed in at or after this instant are newer than the snapshot and must
+	// survive the prune in fetchAllData.
+	scanStart := time.Now().UnixNano()
 	var (
 		ids []string
 		err error
@@ -294,7 +307,7 @@ func (c *FeatureViewCache) initData() error {
 	c.lastScanTime = time.Now()
 
 	log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan completed\tids=%d", c.name, len(ids)))
-	if err := c.fetchAllData(ids); err != nil {
+	if err := c.fetchAllData(ids, scanStart); err != nil {
 		return err
 	}
 	// Only mark ready when the view actually has data; an empty view stays
@@ -307,7 +320,7 @@ func (c *FeatureViewCache) initData() error {
 
 // fetchAllData loads properties for all given IDs via GetOnlineFeatures and
 // replaces the cache content. Items not in the new ID list are removed.
-func (c *FeatureViewCache) fetchAllData(ids []string) error {
+func (c *FeatureViewCache) fetchAllData(ids []string, scanStartNano int64) error {
 	if len(ids) == 0 {
 		// Never wipe a populated cache on an empty scan: it is more likely a
 		// transient FeatureDB glitch or an unproduced view than a legitimate
@@ -366,7 +379,7 @@ func (c *FeatureViewCache) fetchAllData(ids []string) error {
 			for _, featureMap := range features {
 				itemId := utils.ToString(featureMap[featureEntity.FeatureEntityJoinid], "")
 				if itemId != "" {
-					c.itemCache.Store(itemId, featureMap)
+					c.itemCache.Store(itemId, &cacheEntry{props: featureMap, updatedAt: start.UnixNano()})
 					cacheSize.Add(1)
 				}
 			}
@@ -377,18 +390,33 @@ func (c *FeatureViewCache) fetchAllData(ids []string) error {
 		return fmt.Errorf("GetOnlineFeatures failed: %w", fetchErr)
 	}
 
-	// remove items not in the new scan result (handle deletions)
-	c.itemCache.Range(func(key, _ any) bool {
-		if !newIds[key.(string)] {
-			c.itemCache.Delete(key)
-		}
-		return true
-	})
+	// Remove items absent from the new scan snapshot, but preserve entries the
+	// Stream consumer wrote at/after the scan started (newer than the snapshot,
+	// not deletions).
+	c.pruneStale(newIds, scanStartNano)
 
 	c.size.Store(cacheSize.Load())
 	log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=fetchAllData completed\tsize=%d\tcost=%d",
 		c.name, cacheSize.Load(), utils.CostTime(start)))
 	return nil
+}
+
+// pruneStale deletes cache entries that are absent from the latest scan snapshot
+// (newIds) AND were last written before the scan started. Entries written by the
+// Stream iterate consumer at/after scanStartNano are updates newer than the
+// snapshot, so they are preserved; pruning them would silently drop freshly
+// streamed items until the next full refresh.
+func (c *FeatureViewCache) pruneStale(newIds map[string]bool, scanStartNano int64) {
+	c.itemCache.Range(func(key, val any) bool {
+		if newIds[key.(string)] {
+			return true
+		}
+		if entry, ok := val.(*cacheEntry); ok && entry.updatedAt >= scanStartNano {
+			return true
+		}
+		c.itemCache.Delete(key)
+		return true
+	})
 }
 
 // fetchBatchData loads properties for a batch of IDs and adds them to the cache
@@ -416,12 +444,11 @@ func (c *FeatureViewCache) fetchBatchData(ids []string) {
 		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=fetchBatchData error\terror=%v", c.name, err))
 		return
 	}
+	nowNano := time.Now().UnixNano()
 	for _, featureMap := range features {
 		itemId := utils.ToString(featureMap[featureEntity.FeatureEntityJoinid], "")
 		if itemId != "" {
-			if _, loaded := c.itemCache.LoadOrStore(itemId, featureMap); loaded {
-				c.itemCache.Store(itemId, featureMap)
-			} else {
+			if _, loaded := c.itemCache.Swap(itemId, &cacheEntry{props: featureMap, updatedAt: nowNano}); !loaded {
 				c.size.Add(1)
 			}
 		}
@@ -485,6 +512,9 @@ func (c *FeatureViewCache) loopRefresh() {
 			continue
 		}
 
+		// Capture scan start before the snapshot scan so entries streamed in
+		// afterwards survive the prune in fetchAllData.
+		scanStart := time.Now().UnixNano()
 		var (
 			ids []string
 			err error
@@ -501,7 +531,7 @@ func (c *FeatureViewCache) loopRefresh() {
 			continue
 		}
 
-		if err := c.fetchAllData(ids); err != nil {
+		if err := c.fetchAllData(ids, scanStart); err != nil {
 			log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=refresh data failed: %v", c.name, err))
 			continue
 		}
