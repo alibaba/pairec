@@ -26,6 +26,11 @@ var (
 // yet completed its first successful full load, bounding the degraded window.
 const notReadyRetryInterval = 30 * time.Second
 
+// minRefreshIntervalMinutes is the lower bound for the periodic full re-scan
+// interval. Any configured value below it (including unset/<=0) is clamped up to
+// this minimum, so a full scan never runs more often than once per hour.
+const minRefreshIntervalMinutes = 60
+
 type featureViewCacheFactory func(string, recconf.FeatureViewCacheConfig) (*FeatureViewCache, error)
 
 // GetFeatureViewCache returns a named FeatureViewCache instance.
@@ -189,8 +194,8 @@ func newFeatureViewCache(name string, conf recconf.FeatureViewCacheConfig) (*Fea
 	}
 
 	refreshMinutes := conf.RefreshIntervalMinutes
-	if refreshMinutes <= 0 {
-		refreshMinutes = 60
+	if refreshMinutes < minRefreshIntervalMinutes {
+		refreshMinutes = minRefreshIntervalMinutes
 	}
 
 	selectFields := []string{"*"}
