@@ -15,7 +15,18 @@ import (
 var (
 	featureViewCacheMu sync.RWMutex
 	featureViewCaches  = make(map[string]*FeatureViewCache)
+	// featureViewCacheLoadMu serializes the (potentially slow) load/reload flow
+	// so that startup loading and a concurrent config hot-reload cannot run
+	// loadFeatureViewCachesWithFactory at the same time. It is separate from
+	// featureViewCacheMu, so holding it never blocks GetFeatureViewCache readers.
+	featureViewCacheLoadMu sync.Mutex
 )
+
+// notReadyRetryInterval is how often loopRefresh retries while the cache has not
+// yet completed its first successful full load, bounding the degraded window.
+const notReadyRetryInterval = 30 * time.Second
+
+type featureViewCacheFactory func(string, recconf.FeatureViewCacheConfig) (*FeatureViewCache, error)
 
 // GetFeatureViewCache returns a named FeatureViewCache instance.
 func GetFeatureViewCache(name string) (*FeatureViewCache, error) {
@@ -30,34 +41,60 @@ func GetFeatureViewCache(name string) (*FeatureViewCache, error) {
 // LoadFeatureViewCaches initializes or reloads all FeatureViewCache instances
 // from config. Must be called after fs.Load().
 func LoadFeatureViewCaches(config *recconf.RecommendConfig) {
-	featureViewCacheMu.Lock()
-	defer featureViewCacheMu.Unlock()
+	loadFeatureViewCachesWithFactory(config, newFeatureViewCache)
+}
 
-	// track which caches are still in config
+// loadFeatureViewCachesWithFactory builds new caches OUTSIDE the write lock
+// (initData performs a full scan and can take minutes) and only holds the lock
+// for the atomic swap, so request-path readers via GetFeatureViewCache are never
+// blocked during a reload. On build failure the existing instance is kept
+// running; a new instance is published only after it is fully loaded.
+func loadFeatureViewCachesWithFactory(config *recconf.RecommendConfig, factory featureViewCacheFactory) {
+	// Serialize the whole load flow; this lock is independent of the map lock so
+	// readers are never blocked while a slow initData runs.
+	featureViewCacheLoadMu.Lock()
+	defer featureViewCacheLoadMu.Unlock()
+
+	// Phase 1: snapshot what needs (re)creating under a short read lock.
+	type pending struct {
+		name string
+		conf recconf.FeatureViewCacheConfig
+	}
+	featureViewCacheMu.RLock()
+	toCreate := make([]pending, 0, len(config.FeatureViewCacheConfs))
 	activeNames := make(map[string]bool, len(config.FeatureViewCacheConfs))
-
 	for name, conf := range config.FeatureViewCacheConfs {
 		activeNames[name] = true
-
-		if existing, ok := featureViewCaches[name]; ok {
-			// check if config changed
-			if existing.configEqual(conf) {
-				continue
-			}
-			// config changed, stop old and recreate
-			existing.stop()
-		}
-
-		c, err := newFeatureViewCache(name, conf)
-		if err != nil {
-			log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=init failed: %v", name, err))
+		if existing, ok := featureViewCaches[name]; ok && existing.configEqual(conf) {
 			continue
 		}
-		featureViewCaches[name] = c
-		log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=initialized", name))
+		toCreate = append(toCreate, pending{name: name, conf: conf})
+	}
+	featureViewCacheMu.RUnlock()
+
+	// Phase 2: build new instances outside any lock (expensive initData).
+	created := make(map[string]*FeatureViewCache, len(toCreate))
+	for _, p := range toCreate {
+		c, err := factory(p.name, p.conf)
+		if err != nil {
+			log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=init failed: %v", p.name, err))
+			continue
+		}
+		created[p.name] = c
 	}
 
-	// remove caches no longer in config
+	// Phase 3: short write lock to atomically swap in new instances and drop
+	// caches no longer present in config.
+	featureViewCacheMu.Lock()
+	defer featureViewCacheMu.Unlock()
+	for name, c := range created {
+		if old, ok := featureViewCaches[name]; ok {
+			old.stop()
+		}
+		featureViewCaches[name] = c
+		c.start()
+		log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=initialized", name))
+	}
 	for name, c := range featureViewCaches {
 		if !activeNames[name] {
 			c.stop()
@@ -74,14 +111,29 @@ type FeatureViewCache struct {
 	name            string
 	fsClient        *FSClient
 	viewName        string
+	joinId          string // feature entity join id field name, e.g. item_id
 	selectFields    []string
 	conf            recconf.FeatureViewCacheConfig
 	itemCache       sync.Map     // itemId(string) -> map[string]any
 	size            atomic.Int64 // current cache size
+	ready           atomic.Bool  // true after the first successful full load
 	ch              chan string  // iterate channel for Stream type
 	lastScanTime    time.Time
 	refreshInterval time.Duration
 	stopCh          chan struct{} // signal to stop background goroutines
+	stopOnce        sync.Once
+	stream          bool
+}
+
+// JoinId returns the feature entity join id field name of the cached view.
+func (c *FeatureViewCache) JoinId() string {
+	return c.joinId
+}
+
+// Ready reports whether the cache has completed its first successful full load.
+// Consumers should fail open (skip filtering) while it returns false.
+func (c *FeatureViewCache) Ready() bool {
+	return c.ready.Load()
 }
 
 // Get returns cached properties for a single item ID.
@@ -131,6 +183,11 @@ func newFeatureViewCache(name string, conf recconf.FeatureViewCacheConfig) (*Fea
 		return nil, fmt.Errorf("feature view not found, name:%s", conf.FeatureStoreViewName)
 	}
 
+	joinId := ""
+	if featureEntity := fsclient.GetProject().GetFeatureEntity(featureView.GetFeatureEntityName()); featureEntity != nil {
+		joinId = featureEntity.FeatureEntityJoinid
+	}
+
 	refreshMinutes := conf.RefreshIntervalMinutes
 	if refreshMinutes <= 0 {
 		refreshMinutes = 60
@@ -149,19 +206,35 @@ func newFeatureViewCache(name string, conf recconf.FeatureViewCacheConfig) (*Fea
 		name:            name,
 		fsClient:        fsclient,
 		viewName:        conf.FeatureStoreViewName,
+		joinId:          joinId,
 		selectFields:    selectFields,
 		conf:            conf,
 		ch:              make(chan string, 1000),
 		refreshInterval: time.Duration(refreshMinutes) * time.Minute,
+		stream:          featureView.GetType() == "Stream",
 		stopCh:          make(chan struct{}),
 	}
 
-	go cache.initData()
-	if featureView.GetType() == "Stream" {
+	// For Stream views attach the iterate consumer BEFORE the initial scan:
+	// ScanAndIterateData starts an SDK producer goroutine that blocks once c.ch's
+	// buffer fills, so a consumer must already be draining it during the
+	// (possibly minutes-long) initial full load. Every error return above happens
+	// before the struct is built, so this cannot orphan a goroutine.
+	if cache.stream {
 		go cache.loopIterateData()
 	}
-	go cache.loopRefresh()
 
+	// Config errors (client/view missing) already failed fast above. A data-plane
+	// error during the initial load is logged and the instance is still published
+	// in a not-ready state so that:
+	//   - Stream views keep a consumer for the SDK iterate goroutine's channel,
+	//     avoiding a goroutine and FeatureDB snapshot leak;
+	//   - the DAO can resolve the cache by name without panicking at startup.
+	// loopRefresh retries at notReadyRetryInterval until the first success, and
+	// consumers fail open while Ready() is false.
+	if err := cache.initData(); err != nil {
+		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=initial load failed, serving degraded and retrying in background\terror=%v", name, err))
+	}
 	return cache, nil
 }
 
@@ -172,16 +245,24 @@ func (c *FeatureViewCache) configEqual(conf recconf.FeatureViewCacheConfig) bool
 		c.conf.RefreshIntervalMinutes == conf.RefreshIntervalMinutes
 }
 
+// start launches the periodic refresh loop; it is called after the instance is
+// published. The Stream iterate consumer is started earlier in
+// newFeatureViewCache so that it drains c.ch during the initial scan.
+func (c *FeatureViewCache) start() {
+	go c.loopRefresh()
+}
+
 func (c *FeatureViewCache) stop() {
-	close(c.stopCh)
+	c.stopOnce.Do(func() {
+		close(c.stopCh)
+	})
 }
 
 // initData performs the initial full scan and data load.
-func (c *FeatureViewCache) initData() {
+func (c *FeatureViewCache) initData() error {
 	featureView := c.fsClient.GetProject().GetFeatureView(c.viewName)
 	if featureView == nil {
-		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=featureView not found: %s", c.name, c.viewName))
-		return
+		return fmt.Errorf("featureView not found: %s", c.viewName)
 	}
 
 	var (
@@ -200,44 +281,46 @@ func (c *FeatureViewCache) initData() {
 		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan retry %d\terror=%v", c.name, i+1, err))
 		time.Sleep(10 * time.Second)
 	}
-	c.lastScanTime = time.Now()
 	if err != nil {
-		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=scan failed after retries: %v", c.name, err))
-		return
+		return fmt.Errorf("scan failed after retries: %w", err)
 	}
+	// Only advance lastScanTime after a successful scan, so a failed init never
+	// suppresses the next refresh attempt.
+	c.lastScanTime = time.Now()
 
 	log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan completed\tids=%d", c.name, len(ids)))
-	c.fetchAllData(ids)
+	if err := c.fetchAllData(ids); err != nil {
+		return err
+	}
+	// Only mark ready when the view actually has data; an empty view stays
+	// not-ready so consumers fail open instead of filtering every item.
+	if len(ids) > 0 {
+		c.ready.Store(true)
+	}
+	return nil
 }
 
 // fetchAllData loads properties for all given IDs via GetOnlineFeatures and
 // replaces the cache content. Items not in the new ID list are removed.
-func (c *FeatureViewCache) fetchAllData(ids []string) {
+func (c *FeatureViewCache) fetchAllData(ids []string) error {
 	if len(ids) == 0 {
-		// clear cache if scan returned empty
-		var keysToDelete []string
-		c.itemCache.Range(func(key, _ any) bool {
-			keysToDelete = append(keysToDelete, key.(string))
-			return true
-		})
-		for _, k := range keysToDelete {
-			c.itemCache.Delete(k)
-		}
-		c.size.Store(0)
-		log.Warning(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan returned empty, cache cleared", c.name))
-		return
+		// Never wipe a populated cache on an empty scan: it is more likely a
+		// transient FeatureDB glitch or an unproduced view than a legitimate
+		// "all items removed" signal. Keep the previous snapshot; ready is left
+		// unchanged so consumers keep serving last-known-good data (or fail open
+		// if this was the initial, still-empty load).
+		log.Warning(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan returned empty ids, keep previous cache\tsize=%d", c.name, c.size.Load()))
+		return nil
 	}
 
 	start := time.Now()
 	featureView := c.fsClient.GetProject().GetFeatureView(c.viewName)
 	if featureView == nil {
-		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=featureView not found: %s", c.name, c.viewName))
-		return
+		return fmt.Errorf("featureView not found: %s", c.viewName)
 	}
 	featureEntity := c.fsClient.GetProject().GetFeatureEntity(featureView.GetFeatureEntityName())
 	if featureEntity == nil {
-		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=featureEntity not found: %s", c.name, featureView.GetFeatureEntityName()))
-		return
+		return fmt.Errorf("featureEntity not found: %s", featureView.GetFeatureEntityName())
 	}
 
 	newIds := make(map[string]bool, len(ids))
@@ -246,6 +329,8 @@ func (c *FeatureViewCache) fetchAllData(ids []string) {
 	}
 
 	var cacheSize atomic.Int64
+	var fetchErr error
+	var fetchErrOnce sync.Once
 	var wg sync.WaitGroup
 	concurrencyCh := make(chan int, 5)
 	batchSize := 200
@@ -268,7 +353,9 @@ func (c *FeatureViewCache) fetchAllData(ids []string) {
 			}
 			features, err := featureView.GetOnlineFeatures(joinIds, c.selectFields, map[string]string{})
 			if err != nil {
-				log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=GetOnlineFeatures error\terror=%v", c.name, err))
+				fetchErrOnce.Do(func() {
+					fetchErr = err
+				})
 				return
 			}
 			for _, featureMap := range features {
@@ -281,6 +368,9 @@ func (c *FeatureViewCache) fetchAllData(ids []string) {
 		}(ids[i:end])
 	}
 	wg.Wait()
+	if fetchErr != nil {
+		return fmt.Errorf("GetOnlineFeatures failed: %w", fetchErr)
+	}
 
 	// remove items not in the new scan result (handle deletions)
 	c.itemCache.Range(func(key, _ any) bool {
@@ -293,6 +383,7 @@ func (c *FeatureViewCache) fetchAllData(ids []string) {
 	c.size.Store(cacheSize.Load())
 	log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=fetchAllData completed\tsize=%d\tcost=%d",
 		c.name, cacheSize.Load(), utils.CostTime(start)))
+	return nil
 }
 
 // fetchBatchData loads properties for a batch of IDs and adds them to the cache
@@ -367,16 +458,21 @@ func (c *FeatureViewCache) loopIterateData() {
 // loopRefresh periodically re-scans the FeatureView and replaces cache content.
 func (c *FeatureViewCache) loopRefresh() {
 	for {
+		// Retry quickly until the first successful load, then refresh on schedule.
+		interval := c.refreshInterval
+		if !c.ready.Load() {
+			interval = notReadyRetryInterval
+		}
 		select {
 		case <-c.stopCh:
 			return
-		case <-time.After(c.refreshInterval):
+		case <-time.After(interval):
 		}
 
-		if time.Since(c.lastScanTime) < c.refreshInterval {
+		// Once ready, skip if a scan already happened within the refresh interval.
+		if c.ready.Load() && time.Since(c.lastScanTime) < c.refreshInterval {
 			continue
 		}
-		c.lastScanTime = time.Now()
 
 		featureView := c.fsClient.GetProject().GetFeatureView(c.viewName)
 		if featureView == nil {
@@ -400,7 +496,16 @@ func (c *FeatureViewCache) loopRefresh() {
 			continue
 		}
 
-		c.fetchAllData(ids)
+		if err := c.fetchAllData(ids); err != nil {
+			log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=refresh data failed: %v", c.name, err))
+			continue
+		}
+		// Advance lastScanTime and mark ready only after a successful, non-empty
+		// refresh, so a failed or empty attempt is retried on the next tick.
+		c.lastScanTime = time.Now()
+		if len(ids) > 0 {
+			c.ready.Store(true)
+		}
 		log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=refresh completed\tsize=%d", c.name, c.size.Load()))
 	}
 }
