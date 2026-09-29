@@ -965,6 +965,9 @@ type FilterConfig struct {
 	Conditions                []FilterParamConfig
 	SnakeType                 string
 
+	// RRF (Reciprocal Rank Fusion) multi-recall fusion config, used in RRFusionFilter
+	RRFConf RRFConfig
+
 	ConditionFilterConfs struct {
 		FilterConfs []struct {
 			Conditions []FilterParamConfig
@@ -1098,6 +1101,19 @@ type AdjustCountConfig struct {
 	Type       string
 	Expression string
 	Weight     int
+}
+
+// RRFConfig defines the RRF fusion parameters.
+type RRFConfig struct {
+	K             float64
+	DefaultWeight float64
+	Rules         []RRFRule
+}
+
+// RRFRule defines a single recall path used by RRFusionFilter.
+type RRFRule struct {
+	RecallName string
+	Weight     float64
 }
 type CallBackConfig struct {
 	DataSource      DataSourceConfig
