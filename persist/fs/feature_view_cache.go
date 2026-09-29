@@ -332,21 +332,9 @@ func (c *FeatureViewCache) fetchBatchData(ids []string) {
 	}
 }
 
-// loopIterateData consumes incremental IDs from the Stream iterate channel,
-// batches them, and loads their properties into the cache.
+// loopIterateData consumes incremental IDs from the Stream iterate channel
+// and immediately loads their latest properties into the cache.
 func (c *FeatureViewCache) loopIterateData() {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	var ids []string
-
-	flushBatch := func() {
-		if len(ids) == 0 {
-			return
-		}
-		c.fetchBatchData(ids)
-		ids = ids[:0]
-	}
-
 	for {
 		select {
 		case <-c.stopCh:
@@ -355,12 +343,23 @@ func (c *FeatureViewCache) loopIterateData() {
 			if !ok {
 				return
 			}
-			ids = append(ids, id)
-			if len(ids) >= 1000 {
-				flushBatch()
+
+			ids := []string{id}
+		drain:
+			for {
+				select {
+				case <-c.stopCh:
+					return
+				case id, ok := <-c.ch:
+					if !ok {
+						return
+					}
+					ids = append(ids, id)
+				default:
+					break drain
+				}
 			}
-		case <-ticker.C:
-			flushBatch()
+			c.fetchBatchData(ids)
 		}
 	}
 }
