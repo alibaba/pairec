@@ -105,6 +105,7 @@ func (l *ConfigLoader) reloadConfig(config *recconf.RecommendConfig) {
 	lindorm.Load(config)
 	hbase_thrift.Load(config)
 	fs.Load(config)
+	fs.LoadFeatureViewCaches(config)
 	// feature_log resolves its FeatureDB feature views from the fs clients, so it
 	// must load after fs.Load
 	feature_log.Load(config)

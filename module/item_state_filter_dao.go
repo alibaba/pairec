@@ -14,6 +14,10 @@ type ItemStateFilterDao interface {
 type FeatureTransFunc func(user *User, item *Item, ctx *context.RecommendContext)
 
 func NewItemStateFilterDao(config recconf.FilterConfig, f FeatureTransFunc) ItemStateFilterDao {
+	// FeatureViewCache takes priority over AdapterType
+	if config.ItemStateDaoConf.FeatureViewCacheName != "" {
+		return NewItemStateFilterFeatureViewCacheDao(config, f)
+	}
 	if config.ItemStateDaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres {
 		return NewItemStateFilterHologresDao(config, f)
 	} else if config.ItemStateDaoConf.AdapterType == recconf.DaoConf_Adapter_TableStore {
