@@ -39,9 +39,13 @@ func (r *UserRecallService) Recommend(context *context.RecommendContext) []*modu
 
 	items = items[:size]
 
-	// asynchronous clean hook func
+	// asynchronous clean hook func.
+	// Wrap each hook in hook.SafeRun so a panic inside any registered hook
+	// is recovered with a stack trace instead of crashing the process. See
+	// service/user_recommend.go for the same protection on the main
+	// recommend path.
 	for _, hf := range hook.RecommendCleanHooks {
-		go hf(context, user, items)
+		go hook.SafeRun(hf, context, user, items)
 	}
 	return items
 }
