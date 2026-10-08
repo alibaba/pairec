@@ -777,8 +777,12 @@ func (p *TrafficControlSort) loadTrafficControllersMap() map[string]*PIDControll
 
 	tasks := experimentClient.ListTrafficControlTasks(runEnv)
 	if len(tasks) == 0 {
+		controllerMap := make(map[string]*PIDController)
+		p.controllerLock.Lock()
+		p.controllersMap = controllerMap
+		p.controllerLock.Unlock()
 		log.Info(fmt.Sprintf("module=TrafficControlSort\tthere are no running tasks."))
-		return nil
+		return controllerMap
 	}
 	oldControllerMap := make(map[string]*PIDController, 0)
 	p.controllerLock.RLock()
