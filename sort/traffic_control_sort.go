@@ -136,10 +136,13 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 
 	// 如果服务启动时，没有加载成功，这里再次尝试
 	var allControllersMap map[string]*PIDController
-	if len(p.controllersMap) == 0 {
+	p.controllerLock.RLock()
+	controllersMap := p.controllersMap
+	p.controllerLock.RUnlock()
+	if len(controllersMap) == 0 {
 		allControllersMap = p.loadTrafficControllersMap()
 	} else {
-		allControllersMap = p.controllersMap
+		allControllersMap = controllersMap
 	}
 
 	validControllersMap := filterValidControllers(ctx, user, experimentParams, allControllersMap)
