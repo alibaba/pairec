@@ -242,6 +242,7 @@ func UserLoadFeatureConfig(config *recconf.RecommendConfig) {
 				panic("user load features config, FeatureStore value must is user")
 			}
 			f := LoadWithConfig(conf)
+			prepareFSEmbeddings(f, conf)
 			userFeatureService.FeatureAsyncLoadMap[f] = false
 			features = append(features, f)
 			if conf.FeatureDaoConf.FeatureAsyncLoad {

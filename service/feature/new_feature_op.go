@@ -29,9 +29,12 @@ func (op CreateNewFeatureOp) UserTransOp(featureName string, source string, remo
 			} else {
 				user.AddProperty(featureName, result)
 			}
-		} else if _, ok := normalizer.(*ExprNormalizer); ok {
+		} else if n, ok := normalizer.(*ExprNormalizer); ok {
 			params := user.MakeUserFeatures2()
 			result := normalizer.Apply(map[string]any{"user": params, "currentTime": fasttime.UnixTimestamp()})
+			if n.embedding != nil && result == nil {
+				return
+			}
 			if boolValue, ok := result.(bool); ok {
 				if boolValue {
 					user.AddProperty(featureName, 1)
@@ -52,6 +55,9 @@ const (
 )
 
 func (op CreateNewFeatureOp) ItemTransOp(featureName string, source string, remove bool, normalizer Normalizer, user *module.User, item *module.Item, context *context.RecommendContext) {
+	if n, ok := normalizer.(*ExprNormalizer); ok && n.embedding != nil {
+		return
+	}
 	params := make(map[string]interface{})
 	params["currentTime"] = fasttime.UnixTimestamp() // current time in seconds
 	if source == "item:recall_name" {
