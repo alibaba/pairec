@@ -29,6 +29,7 @@ func LoadWithConfig(config recconf.FeatureLoadConfig) *Feature {
 		f.featureTrans = append(f.featureTrans, ft)
 	}
 
+	prepareFSEmbeddings(f)
 	return f
 }
 

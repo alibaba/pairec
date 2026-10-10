@@ -10,7 +10,6 @@ import (
 
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/persist/fs"
-	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 	"github.com/expr-lang/expr/ast"
 )
@@ -56,8 +55,8 @@ func (e *fsEmbedding) Visit(node *ast.Node) {
 	e.models[[2]string{store.Value, model.Value}] = nil
 }
 
-// Only this configuration-loading path may perform model metadata requests.
-func prepareFSEmbeddings(f *Feature, conf recconf.FeatureLoadConfig) {
+// Prepare model references while constructing the feature, before it is used.
+func prepareFSEmbeddings(f *Feature) {
 	for _, trans := range f.featureTrans {
 		ft, ok := trans.(*featureTrans)
 		if !ok {
@@ -68,8 +67,8 @@ func prepareFSEmbeddings(f *Feature, conf recconf.FeatureLoadConfig) {
 			continue
 		}
 		e := n.embedding
-		if _, ok := ft.featureOp.(CreateNewFeatureOp); !ok || ft.featureStore != SOURCE_USER || conf.FeatureDaoConf.FeatureAsyncLoad {
-			e.err = errors.New("fsEmbedding requires a synchronous user new_feature")
+		if _, ok := ft.featureOp.(CreateNewFeatureOp); !ok {
+			e.err = errors.New("fsEmbedding requires new_feature")
 			log.Error(fmt.Sprintf("event=FSEmbedding\tfeature=%s\terror=%v", ft.featureName, e.err))
 			continue
 		}
