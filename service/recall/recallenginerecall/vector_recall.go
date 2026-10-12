@@ -65,7 +65,15 @@ func (r *RecallEngineVectorRecall) GetItems(user *module.User, context *context.
 
 func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *context.RecommendContext) (ret re.RecallConf) {
 	triggerResult := r.triggerKey.GetTriggerKey(user, context)
-	if triggerResult.TriggerItem == "" {
+	if triggerResult == nil {
+		return
+	}
+	if triggerResult.Queries != nil {
+		if len(triggerResult.Queries) == 0 {
+			return
+		}
+		ret.Queries = triggerResult.Queries
+	} else if triggerResult.TriggerItem == "" {
 		return
 	}
 	ret.Trigger = triggerResult.TriggerItem
