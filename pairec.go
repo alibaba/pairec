@@ -103,6 +103,7 @@ func runBeforeStart() {
 	holo.Load(recconf.Config)
 	lindorm.Load(recconf.Config)
 	fs.Load(recconf.Config)
+	fs.LoadFeatureViewCaches(recconf.Config)
 	// feature_log resolves its FeatureDB feature views from the fs clients, so it
 	// must load after fs.Load
 	feature_log.Load(recconf.Config)
