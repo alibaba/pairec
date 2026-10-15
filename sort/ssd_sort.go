@@ -1,40 +1,33 @@
 package sort
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/goburrow/cache"
-	"github.com/huandu/go-sqlbuilder"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
 	"math"
 	"math/rand"
 	gosort "sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 type SSDSort struct {
-	db                   *sql.DB
-	tableName            string
+	embeddingDatasource
 	suffixParam          string
-	keyField             string
-	embeddingField       string
-	embSeparator         string
 	gamma                float64
 	useSSDStar           bool
-	dbStmt               *sql.Stmt
 	mu                   sync.RWMutex
 	embCache             cache.Cache
 	lastTableSuffixParam string
@@ -50,10 +43,6 @@ type SSDSort struct {
 }
 
 func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
-	hologres, err := holo.GetPostgres(config.DaoConf.HologresName)
-	if err != nil {
-		panic(err)
-	}
 	cacheTime := time.Duration(360)
 	if config.CacheTimeInMinutes > 0 {
 		cacheTime = time.Duration(config.CacheTimeInMinutes)
@@ -63,12 +52,13 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 		cacheSize = config.CacheSize
 	}
 	ssd := SSDSort{
-		db:                   hologres.DB,
-		tableName:            config.TableName,
+		embeddingDatasource: embeddingDatasource{
+			logModule:      "SSDSort",
+			keyField:       config.TablePKey,
+			embeddingField: config.EmbeddingColumn,
+			embSeparator:   config.EmbeddingSeparator,
+		},
 		suffixParam:          config.TableSuffixParam,
-		keyField:             config.TablePKey,
-		embeddingField:       config.EmbeddingColumn,
-		embSeparator:         config.EmbeddingSeparator,
 		gamma:                0.25,
 		useSSDStar:           config.UseSSDStar,
 		embCache:             cache.New(cache.WithMaximumSize(cacheSize), cache.WithExpireAfterAccess(cacheTime*time.Minute)),
@@ -81,6 +71,21 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 		embMissThreshold:     0.5,
 		filterRetrieveIds:    config.FilterRetrieveIds,
 		ensurePosSimilarity:  true,
+	}
+	if config.DaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		fsClient, err := fs.GetFeatureStoreClient(config.DaoConf.FeatureStoreName)
+		if err != nil {
+			panic(err)
+		}
+		ssd.fsClient = fsClient
+		ssd.fsViewName = config.DaoConf.FeatureStoreViewName
+	} else {
+		hologres, err := holo.GetPostgres(config.DaoConf.HologresName)
+		if err != nil {
+			panic(err)
+		}
+		ssd.db = hologres.DB
+		ssd.tableName = config.TableName
 	}
 	if config.Gamma > 0 {
 		ssd.gamma = config.Gamma
@@ -217,37 +222,14 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 		}
 	}
 	if len(absentItemIds) > 0 {
-		table := s.tableName + tableSuffix
-		builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
-		builder.Select(s.keyField, s.embeddingField)
-		builder.From(table)
-		builder.Where(builder.In(s.keyField, absentItemIds...))
-
-		sqlQuery, args := builder.Build()
-		ctx.LogDebug("module=SSDSort\tsqlquery=" + sqlQuery)
-		rows, err := s.db.Query(sqlQuery, args...)
+		vectors, err := s.queryEmbeddings(ctx, absentItemIds, tableSuffix)
 		if err != nil {
-			ctx.LogError(fmt.Sprintf("module=SSDSort\terror=%v", err))
 			return err
 		}
-		defer rows.Close()
 		rowNum := 0
-		itemID := &sql.NullString{}
-		itemEmb := &sql.NullString{}
-		for rows.Next() {
-			if err := rows.Scan(itemID, itemEmb); err != nil {
-				ctx.LogError(fmt.Sprintf("module=Scan SSDSort\terror=%v\tProductID=%s",
-					err, itemID.String))
+		for id, vector := range vectors {
+			if len(vector) == 0 {
 				continue
-			}
-			elements := strings.Split(strings.Trim(itemEmb.String, "{}"), s.embSeparator)
-			vector := make([]float64, len(elements), len(elements)+1)
-			for i, e := range elements {
-				if val, err := strconv.ParseFloat(e, 64); err != nil {
-					ctx.LogError(fmt.Sprintf("parse embedding value failed\terr=%v", err))
-				} else {
-					vector[i] = val
-				}
 			}
 			if s.normalizeEmb {
 				normV := floats.Norm(vector, 2)
@@ -260,14 +242,12 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 				embedSize = len(vector)
 			} else if embedSize != len(vector) {
 				ctx.LogError(fmt.Sprintf("module=SSDSort\titem %s embedding size do not match, got %d, expect %d",
-					itemID.String, len(vector), embedSize))
+					id, len(vector), embedSize))
 				return errors.New("item embedding size do not match")
 			}
-			s.embCache.Put(itemID.String, vector)
-			if item, ok := itemMap[itemID.String]; ok {
+			s.embCache.Put(id, vector)
+			if item, ok := itemMap[id]; ok {
 				item.Embedding = cloneEmbedding(vector)
-			} else {
-				return errors.New("item id is not in map")
 			}
 			rowNum = rowNum + 1
 		}
@@ -334,7 +314,7 @@ func (s *SSDSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 		ctx.LogInfo(fmt.Sprintf("module=SSDSort\tcandidate count=%d", len(items)))
 	}
 
-	if len(s.tableName) > 0 {
+	if s.hasEmbeddingTable() {
 		if err := s.loadEmbeddingCache(ctx, items); err != nil {
 			ctx.LogError(fmt.Sprintf("load embedding table cache failed %v", err))
 			return items
@@ -370,7 +350,7 @@ func (s *SSDSort) SSDWithSlidingWindow(items []*module.Item, ctx *context.Recomm
 	doNorm := params.GetInt("ssd_norm_quality_score", 0)
 	if doNorm == 1 {
 		mean, variance := stat.PopMeanVariance(relevanceScore, nil)
-		if mean == 0 || variance == 0 { // 模型出错时分数都是0
+		if mean == 0 || variance == 0 { // all item scores are zero when the model errors
 			ctx.LogError("module=SSDSort\tall item score are zeros")
 			return items
 		}
@@ -383,7 +363,7 @@ func (s *SSDSort) SSDWithSlidingWindow(items []*module.Item, ctx *context.Recomm
 		maxScore := relevanceScore[0]
 		minScore := relevanceScore[len(items)-1]
 		scoreSpan := maxScore - minScore
-		if scoreSpan == 0 { // 模型出错时分数都是0
+		if scoreSpan == 0 { // all item scores are zero when the model errors
 			ctx.LogError("module=SSDSort\tall item score are zeros")
 			return items
 		}

@@ -1,40 +1,32 @@
 package sort
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"math"
 	"math/rand"
 	gosort "sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
-	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
+	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/persist/holo"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/goburrow/cache"
-	"github.com/huandu/go-sqlbuilder"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
 )
 
 type DPPSort struct {
-	db                   *sql.DB
-	tableName            string
+	embeddingDatasource
 	suffixParam          string
-	keyField             string
-	embeddingField       string
-	embSeparator         string
 	alpha                float64
-	dbStmt               *sql.Stmt
 	mu                   sync.RWMutex
 	embCache             cache.Cache
 	lastTableSuffixParam string
@@ -57,9 +49,11 @@ func RegisterEmbeddingHook(name string, fn EmbeddingHookFunc) {
 	embeddingHooks[name] = fn
 }
 
-// cloneEmbedding 返回 embCache 中向量的副本。DPP/SSD 的打散过程会对 item.Embedding 做原地运算
-// (floats.Scale/Sub/Add), 若直接引用缓存里的 slice, 会把结果写回缓存, 污染后续其他请求。
-// cap 多预留一位, 保证 KernelMatrix 里 append(embs, 1) 不触发重新分配。
+// cloneEmbedding returns a copy of the vector stored in embCache. The DPP/SSD
+// diversification performs in-place operations (floats.Scale/Sub/Add) on
+// item.Embedding; referencing the cached slice directly would write the results
+// back into the cache and pollute subsequent requests. The capacity reserves one
+// extra slot so that append(embs, 1) in KernelMatrix does not reallocate.
 func cloneEmbedding(emb []float64) []float64 {
 	cloned := make([]float64, len(emb), len(emb)+1)
 	copy(cloned, emb)
@@ -67,10 +61,6 @@ func cloneEmbedding(emb []float64) []float64 {
 }
 
 func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
-	hologres, err := holo.GetPostgres(config.DaoConf.HologresName)
-	if err != nil {
-		panic(err)
-	}
 	cacheTime := time.Duration(360)
 	if config.CacheTimeInMinutes > 0 {
 		cacheTime = time.Duration(config.CacheTimeInMinutes)
@@ -80,12 +70,13 @@ func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 		cacheSize = config.CacheSize
 	}
 	dpp := DPPSort{
-		db:                   hologres.DB,
-		tableName:            config.TableName,
+		embeddingDatasource: embeddingDatasource{
+			logModule:      "DPPSort",
+			keyField:       config.TablePKey,
+			embeddingField: config.EmbeddingColumn,
+			embSeparator:   config.EmbeddingSeparator,
+		},
 		suffixParam:          config.TableSuffixParam,
-		keyField:             config.TablePKey,
-		embeddingField:       config.EmbeddingColumn,
-		embSeparator:         config.EmbeddingSeparator,
 		alpha:                config.Alpha,
 		embCache:             cache.New(cache.WithMaximumSize(cacheSize), cache.WithExpireAfterAccess(cacheTime*time.Minute)),
 		lastTableSuffixParam: "",
@@ -98,6 +89,21 @@ func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 		embMissThreshold:     0.5,
 		filterRetrieveIds:    config.FilterRetrieveIds,
 		ensurePosSimilarity:  true,
+	}
+	if config.DaoConf.AdapterType == recconf.DataSource_Type_FeatureStore {
+		fsClient, err := fs.GetFeatureStoreClient(config.DaoConf.FeatureStoreName)
+		if err != nil {
+			panic(err)
+		}
+		dpp.fsClient = fsClient
+		dpp.fsViewName = config.DaoConf.FeatureStoreViewName
+	} else {
+		hologres, err := holo.GetPostgres(config.DaoConf.HologresName)
+		if err != nil {
+			panic(err)
+		}
+		dpp.db = hologres.DB
+		dpp.tableName = config.TableName
 	}
 	if dpp.windowSize <= 0 {
 		dpp.windowSize = 10
@@ -211,48 +217,23 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 		}
 	}
 	if len(absentItemIds) > 0 {
-		table := s.tableName + tableSuffix
-		builder := sqlbuilder.PostgreSQL.NewSelectBuilder()
-		builder.Select(s.keyField, s.embeddingField)
-		builder.From(table)
-		builder.Where(builder.In(s.keyField, absentItemIds...))
-
-		sqlQuery, args := builder.Build()
-		ctx.LogDebug("module=DPPSort\tsqlquery=" + sqlQuery)
-		rows, err := s.db.Query(sqlQuery, args...)
+		vectors, err := s.queryEmbeddings(ctx, absentItemIds, tableSuffix)
 		if err != nil {
-			ctx.LogError(fmt.Sprintf("module=DPPSort\terror=%v", err))
 			return -1, err
 		}
-		defer rows.Close()
 		rowNum := 0
-		itemID := &sql.NullString{}
-		itemEmb := &sql.NullString{}
-		for rows.Next() {
-			if err := rows.Scan(itemID, itemEmb); err != nil {
-				ctx.LogError(fmt.Sprintf("module=Scan DPPSort\terror=%v\tProductID=%s",
-					err, itemID.String))
+		for id, vector := range vectors {
+			if len(vector) == 0 {
 				continue
-			}
-			elements := strings.Split(strings.Trim(itemEmb.String, "{}"), s.embSeparator)
-			embedSize = len(elements)
-			vector := make([]float64, len(elements), len(elements)+1)
-			for i, e := range elements {
-				if val, err := strconv.ParseFloat(e, 64); err != nil {
-					log.Error(fmt.Sprintf("parse embedding value failed\terr=%v", err))
-				} else {
-					vector[i] = val
-				}
 			}
 			if s.normalizeEmb {
 				normV := floats.Norm(vector, 2)
 				floats.Scale(1/normV, vector)
 			}
-			s.embCache.Put(itemID.String, vector)
-			if item, ok := itemMap[itemID.String]; ok {
+			embedSize = len(vector)
+			s.embCache.Put(id, vector)
+			if item, ok := itemMap[id]; ok {
 				item.Embedding = cloneEmbedding(vector)
-			} else {
-				return -1, errors.New("item id is not in map")
 			}
 			rowNum = rowNum + 1
 		}
@@ -312,7 +293,7 @@ func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 		ctx.LogInfo(fmt.Sprintf("module=DPPSort\tcandidate count=%d", len(items)))
 	}
 
-	if len(s.tableName) > 0 {
+	if s.hasEmbeddingTable() {
 		lenEmb, err := s.loadEmbeddingCache(ctx, items)
 		if err != nil {
 			ctx.LogError(fmt.Sprintf("load embedding table cache failed %v", err))
@@ -321,9 +302,9 @@ func (s *DPPSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 		hookEmb := s.GenerateEmbedding(ctx, items[0])
 		if ctx.Debug {
 			if len(hookEmb) != 0 {
-				ctx.LogInfo(fmt.Sprintf("find embedding table: %s, find HooksEmb, len(hookEmb)=%d", s.tableName, len(hookEmb)))
+				ctx.LogInfo(fmt.Sprintf("find embedding table: %s, find HooksEmb, len(hookEmb)=%d", s.embeddingSource(), len(hookEmb)))
 			} else {
-				ctx.LogInfo(fmt.Sprintf("find embedding table: %s, not find HooksEmb", s.tableName))
+				ctx.LogInfo(fmt.Sprintf("find embedding table: %s, not find HooksEmb", s.embeddingSource()))
 			}
 		}
 		kernelMatrix, err := s.KernelMatrix(ctx, items, lenEmb+len(hookEmb), true)
@@ -395,7 +376,7 @@ func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*modul
 	doNorm := params.GetInt("dpp_norm_relevance_score", 0)
 	if doNorm == 1 {
 		mean, variance := stat.PopMeanVariance(relevanceScore, nil)
-		if mean == 0 || variance == 0 { // 模型出错时分数都是0
+		if mean == 0 || variance == 0 { // all item scores are zero when the model errors
 			context.LogError("module=DDPSort\tall item score is zero")
 			return nil, errors.New("all item score is zero")
 		}
@@ -407,7 +388,7 @@ func (s *DPPSort) KernelMatrix(context *context.RecommendContext, items []*modul
 		maxScore := relevanceScore[0]
 		minScore := relevanceScore[len(items)-1]
 		scoreSpan := maxScore - minScore
-		if scoreSpan == 0 { // 模型出错时分数都是0
+		if scoreSpan == 0 { // all item scores are zero when the model errors
 			context.LogError("module=DDPSort\tall item score is zero")
 			return nil, errors.New("all item score is zero")
 		}

@@ -2,7 +2,6 @@ package module
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
@@ -70,13 +69,7 @@ func (d *UserCustomRecallTableStoreDao) ListItemsByUser(user *User, context *con
 		return
 	}
 
-	if len(itemIds) > d.recallCount {
-		rand.Shuffle(len(itemIds)/2, func(i, j int) {
-			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
-		})
-
-		itemIds = itemIds[:d.recallCount]
-	}
+	itemIds = sortAndTruncateItemIds(itemIds, d.recallCount)
 
 	for _, id := range itemIds {
 		strs := strings.Split(id, ":")
