@@ -80,7 +80,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			return err
 		}
 		knowledgeStart := time.Now()
-		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, blob.knowledgeQuery(req.UserText))
+		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, blob.knowledgeQuery(req.UserText, previousSearch))
 		knowledgeCost := utils.CostTime(knowledgeStart)
 		if knowledgeErr != nil {
 			if req.EnableSuggestion && suggestionPrerequisite == nil {
