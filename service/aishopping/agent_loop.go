@@ -35,6 +35,7 @@ type chatRecall interface {
 }
 
 type agentLoopResult struct {
+	QueryOnly           bool
 	Reply               string
 	IndexMap            map[int]string
 	ReplyItemIDs        []string
@@ -70,6 +71,7 @@ type timingMeta struct {
 }
 
 type toolDispatchResult struct {
+	query    bool
 	content  string
 	isSearch bool
 	operator string
@@ -87,8 +89,11 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 	}
 	finalStatus := finalSearchNotAttempted
 	var lastSearch *searchsuggestion.SearchIntent
+	readyToReply := false
+	hasQueryResult := false
 	loopResult := func(reply string, emitted, fallback bool) *agentLoopResult {
 		return &agentLoopResult{
+			QueryOnly:           hasQueryResult && !readyToReply,
 			Reply:               reply,
 			IndexMap:            state.indexMap,
 			ReplyItemIDs:        append([]string(nil), state.replyItemIDs...),
@@ -101,9 +106,8 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 	if err := writer.EmitStep("analyze_requirement"); err != nil {
 		return nil, err
 	}
-	readyToReply := false
 	fieldAwareSearch := cfg.fieldAware
-	maxRounds := cfg.raw.ToolMaxRounds + 1 // Reserve one final round for Reply after Planner retries.
+	maxRounds := cfg.raw.ToolMaxRounds + 1 // Reserve a final response round after tool calls.
 	plannerAttempts := 0
 	plannerRetry := ""
 	for round := 1; round <= maxRounds; round++ {
@@ -123,7 +127,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 				Content: compactJSON(map[string]string{"planner_validation_error": plannerRetry}),
 			})
 		}
-		if !readyToReply {
+		if !readyToReply && !hasQueryResult {
 			plannerMessages = messagesWithKnowledge(plannerMessages, cfg.raw.KnowledgePlannerInstruction, knowledge)
 		}
 		llmReq := &aichat.ChatCompletionRequest{
@@ -134,15 +138,19 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		}
 		if !readyToReply {
 			plannerAttempts++
-			parallelToolCalls := false
-			llmReq.Tools = []aichat.Tool{recall.SearchGoodsTool()}
 			if fieldAwareSearch {
 				temperature := 0.0
 				llmReq.Temperature = &temperature
 			}
-			llmReq.Tools[0].Function.Strict = cfg.raw.PlannerToolStrict
-			llmReq.ToolChoice = cfg.raw.PlannerToolChoice
-			llmReq.ParallelToolCalls = &parallelToolCalls
+			if !hasQueryResult {
+				parallelToolCalls := false
+				llmReq.Tools = []aichat.Tool{searchGoodsToolWithMode(recall.SearchGoodsTool())}
+				llmReq.Tools[0].Function.Strict = cfg.raw.PlannerToolStrict
+				llmReq.ToolChoice = cfg.raw.PlannerToolChoice
+				llmReq.ParallelToolCalls = &parallelToolCalls
+			} else {
+				llmReq.ToolChoice = "none"
+			}
 		}
 		streamer := newReplyStreamer(
 			writer,
@@ -192,7 +200,7 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 			result.ToolCalls = nil
 		}
 		if !readyToReply {
-			if err := normalizePlannerResponse(result, cfg, recall, knowledge, previous); err != nil {
+			if err := normalizePlannerResponse(result, cfg, recall, knowledge, previous, hasQueryResult); err != nil {
 				plannerRetry = truncateLogValue(err.Error(), 256)
 				log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=planner_retry\tround=%d\tattempt=%d\terr=%s\targs=%s",
 					meta.requestId, meta.uid, meta.sessionId, round, plannerAttempts, compactLogError(err), fieldAwareToolArguments(result.ToolCalls)))
@@ -226,15 +234,20 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		readyToReply = true
 		roundSearches := make([]*finalSearchSnapshot, 0, 1)
 		roundSearchFailed := false
-		noResults := false
 		lastSearch = nil
 		for i, toolCall := range result.ToolCalls {
 			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
 				meta.requestId, meta.uid, meta.sessionId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
 			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg, rankRuntime, fieldAwareSearch, onFinalSearch != nil, meta, round)
+			if toolResult.query {
+				readyToReply = false
+				if !toolResult.hasError {
+					hasQueryResult = true
+					previous = toolResult.intent
+				}
+			}
 			if len(result.ToolCalls) == 1 {
 				lastSearch = toolResult.intent
-				noResults = toolResult.isSearch && !toolResult.hasError && toolResult.empty
 			}
 			if rankRuntime != nil {
 				if err := ctx.Err(); err != nil {
@@ -277,9 +290,6 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		if roundSearchFailed && len(result.ToolCalls) == 1 {
 			return loopResult(fallbackText(cfg.raw, cfg.language, "generic"), false, true), nil
 		}
-		if noResults {
-			return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, false), nil
-		}
 	}
 	return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, true), nil
 }
@@ -288,7 +298,7 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	if toolCall.Function.Name != "search_goods" {
 		return toolDispatchResult{content: `{"error":"unsupported tool"}`, hasError: true}
 	}
-	req, err := parseSearchGoodsRequest(toolCall.Function.Arguments, fieldAware)
+	req, mode, err := parseSearchGoodsToolCall(toolCall.Function.Arguments, fieldAware)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_parse\tround=%d\terr=%v\targs=%s",
 			meta.requestId, meta.uid, meta.sessionId, round, err, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
@@ -296,9 +306,11 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	}
 	displayLimit := cfg.raw.DisplayItemCountMax
 	fineRank := cfg.raw.FineRankConfig
-	req.Limit = displayLimit
-	if fineRank != nil {
-		req.Limit = fineRank.CandidateCount
+	if mode == "recommend" {
+		req.Limit = displayLimit
+		if fineRank != nil {
+			req.Limit = fineRank.CandidateCount
+		}
 	}
 	req.FieldAware = fieldAware
 	req.LogRequest = func(dsl string) {
@@ -307,6 +319,7 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	}
 	intent := sanitizeSearchIntent(req)
 	dispatchResult := toolDispatchResult{
+		query:    mode == "query",
 		isSearch: true,
 		operator: "AND",
 		intent:   &intent,
@@ -327,7 +340,7 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 		return dispatchResult
 	}
 	dispatchResult.empty = len(result.Hits) == 0
-	if fineRank != nil {
+	if fineRank != nil && !dispatchResult.query {
 		if len(result.Hits) > 1 {
 			rankedHits, rankErr := fineRankGoods(ctx, result.Hits, rankRuntime, fineRank)
 			if rankErr != nil {
@@ -341,7 +354,12 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 			result.Hits = result.Hits[:displayLimit]
 		}
 	}
-	modelResult := annotateSearchResult(result, state, fineRank == nil)
+	resultState := state
+	if dispatchResult.query {
+		// Query evidence must not become recommendation cards or suggestion input.
+		resultState = &turnState{indexMap: map[int]string{}, itemToIndex: map[string]int{}, nextIndex: 1}
+	}
+	modelResult := annotateSearchResult(result, resultState, fineRank == nil)
 	if len(result.DroppedPreferredKeywords) > 0 {
 		modelResult["dropped_preferred_keywords"] = result.DroppedPreferredKeywords
 	}
@@ -355,6 +373,9 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 		return dispatchResult
 	}
 	dispatchResult.content = string(payload)
+	if dispatchResult.query {
+		return dispatchResult
+	}
 	if fineRank != nil {
 		state.replyItemIDs = searchResultItemIds(result)
 	}
@@ -420,19 +441,22 @@ func hashOrderedItemIDs(result *recallsvc.SearchGoodsResult) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, recall chatRecall, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent) error {
+func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, recall chatRecall, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent, hasQueryResult bool) error {
 	if result.FinishReason != "stop" && result.FinishReason != "tool_calls" {
 		return fmt.Errorf("planner response did not finish normally: %q", result.FinishReason)
 	}
 	toolCalls := result.ToolCalls
 	if len(toolCalls) == 0 {
-		if cfg.raw.PlannerToolChoice == "required" {
+		if cfg.raw.PlannerToolChoice == "required" && !hasQueryResult {
 			return fmt.Errorf("search_goods is required by tool_choice")
 		}
 		if result.FinishReason != "stop" || strings.TrimSpace(result.Content) == "" {
 			return fmt.Errorf("a complete nonempty direct reply is required when no tool is called")
 		}
 		return nil
+	}
+	if hasQueryResult {
+		return fmt.Errorf("tool calls are not allowed after query results")
 	}
 	if len(toolCalls) != 1 || toolCalls[0].Function.Name != "search_goods" {
 		return fmt.Errorf("exactly one search_goods call is required")
@@ -443,7 +467,11 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 	if toolCalls[0].Type != "function" {
 		return fmt.Errorf("search_goods tool call type must be function")
 	}
-	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, cfg.fieldAware)
+	arguments, err := normalizeSearchGoodsToolArguments(toolCalls[0].Function.Arguments, searchGoodsToolWithMode(recall.SearchGoodsTool()))
+	if err != nil {
+		return err
+	}
+	req, mode, err := parseSearchGoodsToolCall(arguments, cfg.fieldAware)
 	if err != nil {
 		return err
 	}
@@ -462,12 +490,103 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 			return err
 		}
 	}
-	arguments, err := marshalSearchGoodsRequest(req)
+	payload, err := marshalSearchGoodsRequest(req)
+	if err == nil {
+		var fields map[string]json.RawMessage
+		err = json.Unmarshal(payload, &fields)
+		if err == nil {
+			fields["mode"], _ = json.Marshal(mode)
+			if mode == "query" {
+				fields["limit"], _ = json.Marshal(req.Limit)
+			}
+			payload, err = json.Marshal(fields)
+		}
+	}
 	if err != nil {
 		return err
 	}
-	toolCalls[0].Function.Arguments = string(arguments)
+	toolCalls[0].Function.Arguments = string(payload)
 	return nil
+}
+
+// mode and limit control dialogue routing and query size, not business filters.
+func searchGoodsToolWithMode(tool aichat.Tool) aichat.Tool {
+	tool.Function.Parameters["properties"].(map[string]interface{})["mode"] = map[string]interface{}{
+		"type": "string", "enum": []string{"query", "recommend"},
+	}
+	tool.Function.Parameters["properties"].(map[string]interface{})["limit"] = map[string]interface{}{
+		"type": "integer", "minimum": 1,
+	}
+	required, _ := tool.Function.Parameters["required"].([]string)
+	tool.Function.Parameters["required"] = append(append([]string(nil), required...), "mode")
+	return tool
+}
+
+// Only unwrap string-encoded arrays and integers declared by the tool schema.
+// Existing parsers and source validation still reject invalid values.
+func normalizeSearchGoodsToolArguments(arguments string, tool aichat.Tool) (string, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(arguments), &fields); err != nil {
+		return "", err
+	}
+	if fields == nil {
+		return "", fmt.Errorf("search_goods arguments must be an object")
+	}
+	properties, _ := tool.Function.Parameters["properties"].(map[string]interface{})
+	for name, raw := range fields {
+		property, _ := properties[name].(map[string]interface{})
+		var encoded string
+		if json.Unmarshal(raw, &encoded) != nil {
+			continue
+		}
+		switch property["type"] {
+		case "array":
+			var values []string
+			if json.Unmarshal([]byte(encoded), &values) == nil && values != nil {
+				fields[name] = json.RawMessage(encoded)
+			}
+		case "integer":
+			var value int
+			if json.Unmarshal([]byte(encoded), &value) == nil && strings.TrimSpace(encoded) != "null" {
+				fields[name] = json.RawMessage(encoded)
+			}
+		}
+	}
+	payload, err := json.Marshal(fields)
+	return string(payload), err
+}
+
+func parseSearchGoodsToolCall(arguments string, fieldAware bool) (recallsvc.SearchGoodsRequest, string, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(arguments), &fields); err != nil {
+		return recallsvc.SearchGoodsRequest{}, "", err
+	}
+	mode := "recommend"
+	if raw, ok := fields["mode"]; ok {
+		mode = ""
+		if err := json.Unmarshal(raw, &mode); err != nil {
+			return recallsvc.SearchGoodsRequest{}, "", err
+		}
+	}
+	if mode != "query" && mode != "recommend" {
+		return recallsvc.SearchGoodsRequest{}, "", fmt.Errorf("search_goods mode must be query or recommend")
+	}
+	limit := 0
+	if mode == "query" {
+		raw, ok := fields["limit"]
+		if !ok || json.Unmarshal(raw, &limit) != nil || limit <= 0 {
+			return recallsvc.SearchGoodsRequest{}, "", fmt.Errorf("query requires a positive integer limit")
+		}
+	}
+	delete(fields, "mode")
+	delete(fields, "limit")
+	payload, err := json.Marshal(fields)
+	if err != nil {
+		return recallsvc.SearchGoodsRequest{}, "", err
+	}
+	req, err := parseSearchGoodsRequest(string(payload), fieldAware)
+	req.Limit = limit
+	return req, mode, err
 }
 
 func marshalSearchGoodsRequest(req recallsvc.SearchGoodsRequest) ([]byte, error) {
