@@ -509,11 +509,9 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 func searchGoodsToolWithMode(tool aichat.Tool) aichat.Tool {
 	tool.Function.Parameters["properties"].(map[string]interface{})["mode"] = map[string]interface{}{
 		"type": "string", "enum": []string{"query", "recommend"},
-		"description": "query: inspect products before an evidence-based clarification; continue Planner without Reply. recommend: retrieve products for recommendation and enter Reply. Omitted values default to recommend for compatibility.",
 	}
 	tool.Function.Parameters["properties"].(map[string]interface{})["limit"] = map[string]interface{}{
 		"type": "integer", "minimum": 1,
-		"description": "Required for query: choose the number of candidates to inspect as needed, independently of the recommendation display count. No application maximum. Ignored for recommend, which always uses its configured candidate/display counts.",
 	}
 	required, _ := tool.Function.Parameters["required"].([]string)
 	tool.Function.Parameters["required"] = append(append([]string(nil), required...), "mode")
@@ -539,7 +537,7 @@ func parseSearchGoodsToolCall(arguments string, fieldAware bool) (recallsvc.Sear
 	if mode == "query" {
 		raw, ok := fields["limit"]
 		if !ok || json.Unmarshal(raw, &limit) != nil || limit <= 0 {
-			return recallsvc.SearchGoodsRequest{}, "", fmt.Errorf("query requires a positive integer limit; choose the query count independently of the recommendation display count")
+			return recallsvc.SearchGoodsRequest{}, "", fmt.Errorf("query requires a positive integer limit")
 		}
 	}
 	delete(fields, "mode")
