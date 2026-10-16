@@ -864,7 +864,39 @@ type CategoryConfig struct {
 	LogResponseBody   bool
 }
 
+// AIShoppingGroundingConfig enables evidence-backed attribute choices for a scene.
+// Omitting it preserves the existing search and reply behavior.
+type AIShoppingGroundingConfig struct {
+	CandidateCountDefault int
+	CandidateCountMax     int
+	Language              string
+	Attributes            []AIShoppingGroundingAttribute
+	ParamFields           map[string]string
+	ParamValueMapping     map[string]map[string][]string
+	MaxAgeSeconds         int
+}
+
+// An attribute describes how catalog values are verified and added to a search.
+// Enumerated attributes share the same dialogue and validation path.
+type AIShoppingGroundingAttribute struct {
+	Name               string
+	Label              string
+	Fields             []string
+	MatchMode          string // exact (default) or prefix, applied to individual field tokens.
+	Options            []AIShoppingAttributeOption
+	UnsupportedPhrases []string
+}
+
+type AIShoppingAttributeOption struct {
+	ID         string
+	Label      string
+	Keywords   []string
+	Values     []string
+	ToolParams map[string][]string
+}
+
 type AIChatConfig struct {
+	GroundingConfig             *AIShoppingGroundingConfig
 	DefaultLanguage             string
 	OutputLanguages             []string
 	PlannerPromptTemplates      map[string]string

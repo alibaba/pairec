@@ -29,12 +29,13 @@ func (b *SessionBlob) recordTurn(query, assistantReply string, intent *searchsug
 
 func (b *SessionBlob) messages(query string) []aichat.Message {
 	messages := []aichat.Message{{Role: "system"}}
-	if len(b.UserQueries) > 0 || b.LastSearch != nil {
+	if len(b.UserQueries) > 0 || b.LastSearch != nil || b.PendingClarification != nil {
 		context := struct {
-			UserQueries      []SessionQuery                 `json:"user_queries"`
-			LastSearch       *searchsuggestion.SearchIntent `json:"last_search,omitempty"`
-			LastSearchTurnID int                            `json:"last_search_turn_id,omitempty"`
-		}{b.UserQueries, b.LastSearch, b.LastSearchTurnID}
+			PendingClarification *pendingClarification          `json:"pending_clarification,omitempty"`
+			UserQueries          []SessionQuery                 `json:"user_queries"`
+			LastSearch           *searchsuggestion.SearchIntent `json:"last_search,omitempty"`
+			LastSearchTurnID     int                            `json:"last_search_turn_id,omitempty"`
+		}{b.PendingClarification, b.UserQueries, b.LastSearch, b.LastSearchTurnID}
 		messages = append(messages,
 			aichat.Message{Role: "user", Content: "Previous session context (JSON):\n" + compactJSON(context)},
 		)
@@ -73,7 +74,7 @@ func (b *SessionBlob) trim(maxTurns, maxTokens int) {
 		b.UserQueries = b.UserQueries[1:]
 	}
 	// Keep the latest query and search snapshot even if either exceeds the budget.
-	size := len(compactJSON(b.LastSearch))
+	size := len(compactJSON(b.LastSearch)) + len(compactJSON(b.PendingClarification))
 	for _, query := range b.UserQueries {
 		size += len(compactJSON(query))
 	}
