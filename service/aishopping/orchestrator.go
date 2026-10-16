@@ -57,11 +57,6 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 	}
 	toolParamsConfigID := chatRecall.ToolParamsConfigID()
 	previousSearch := blob.previousSearchForValidation(toolParamsConfigID)
-	if validPendingClarification(blob.PendingClarification, cfg.raw.GroundingConfig, toolParamsConfigID, time.Now()) {
-		cfg.pendingClarification = blob.PendingClarification
-	} else {
-		blob.PendingClarification = nil
-	}
 	meta := timingMeta{
 		requestId: req.RequestId,
 		uid:       req.Uid,
@@ -154,7 +149,6 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			}
 		}
 	}
-	blob.PendingClarification = loopResult.PendingClarification
 	blob.recordTurn(req.UserText, writer.Content(), loopResult.LastSearch)
 	if loopResult.LastSearch != nil {
 		blob.ToolParamsConfigID = toolParamsConfigID
@@ -166,7 +160,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		return err
 	}
 	directReply := !loopResult.MainReplyFallback && loopResult.LastSearch == nil && loopResult.FinalSearchStatus == finalSearchNotAttempted
-	if coordinator != nil && !directReply && !loopResult.GroundedDirect {
+	if coordinator != nil && !directReply {
 		outcome := coordinator.Collect(loopResult)
 		if outcome.Err != nil {
 			log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=suggestion\tstatus=error\tcode=%s\tretryable=%t\terr=%s",

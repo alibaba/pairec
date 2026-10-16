@@ -20,12 +20,10 @@ import (
 const toolArgumentsLogLimit = 2048
 
 type turnState struct {
-	groundedDirect       bool
-	pendingClarification *pendingClarification
-	indexMap             map[int]string
-	itemToIndex          map[string]int
-	nextIndex            int
-	replyItemIDs         []string
+	indexMap     map[int]string
+	itemToIndex  map[string]int
+	nextIndex    int
+	replyItemIDs []string
 }
 
 type chatRecall interface {
@@ -37,15 +35,13 @@ type chatRecall interface {
 }
 
 type agentLoopResult struct {
-	GroundedDirect       bool
-	PendingClarification *pendingClarification
-	Reply                string
-	IndexMap             map[int]string
-	ReplyItemIDs         []string
-	ReplyAlreadyEmitted  bool
-	MainReplyFallback    bool
-	FinalSearchStatus    finalSearchStatus
-	LastSearch           *searchsuggestion.SearchIntent
+	Reply               string
+	IndexMap            map[int]string
+	ReplyItemIDs        []string
+	ReplyAlreadyEmitted bool
+	MainReplyFallback   bool
+	FinalSearchStatus   finalSearchStatus
+	LastSearch          *searchsuggestion.SearchIntent
 }
 
 type finalSearchStatus string
@@ -74,15 +70,13 @@ type timingMeta struct {
 }
 
 type toolDispatchResult struct {
-	directReply   string
-	clarification bool
-	content       string
-	isSearch      bool
-	operator      string
-	empty         bool
-	hasError      bool
-	search        *finalSearchSnapshot
-	intent        *searchsuggestion.SearchIntent
+	content  string
+	isSearch bool
+	operator string
+	empty    bool
+	hasError bool
+	search   *finalSearchSnapshot
+	intent   *searchsuggestion.SearchIntent
 }
 
 func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, messages []aichat.Message, cfg *chatConfig, rankRuntime *fineRankRuntime, knowledge *knowledgeEvidence, previous *searchsuggestion.SearchIntent, writer *StreamWriter, meta timingMeta, onFinalSearch func(context.Context, *finalSearchSnapshot)) (*agentLoopResult, error) {
@@ -95,15 +89,13 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 	var lastSearch *searchsuggestion.SearchIntent
 	loopResult := func(reply string, emitted, fallback bool) *agentLoopResult {
 		return &agentLoopResult{
-			GroundedDirect:       state.groundedDirect,
-			PendingClarification: state.pendingClarification,
-			Reply:                reply,
-			IndexMap:             state.indexMap,
-			ReplyItemIDs:         append([]string(nil), state.replyItemIDs...),
-			ReplyAlreadyEmitted:  emitted,
-			MainReplyFallback:    fallback,
-			FinalSearchStatus:    finalStatus,
-			LastSearch:           lastSearch,
+			Reply:               reply,
+			IndexMap:            state.indexMap,
+			ReplyItemIDs:        append([]string(nil), state.replyItemIDs...),
+			ReplyAlreadyEmitted: emitted,
+			MainReplyFallback:   fallback,
+			FinalSearchStatus:   finalStatus,
+			LastSearch:          lastSearch,
 		}
 	}
 	if err := writer.EmitStep("analyze_requirement"); err != nil {
@@ -143,16 +135,13 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		if !readyToReply {
 			plannerAttempts++
 			parallelToolCalls := false
-			llmReq.Tools = []aichat.Tool{groundedSearchTool(recall.SearchGoodsTool(), cfg.raw.GroundingConfig)}
+			llmReq.Tools = []aichat.Tool{recall.SearchGoodsTool()}
 			if fieldAwareSearch {
 				temperature := 0.0
 				llmReq.Temperature = &temperature
 			}
 			llmReq.Tools[0].Function.Strict = cfg.raw.PlannerToolStrict
 			llmReq.ToolChoice = cfg.raw.PlannerToolChoice
-			if cfg.raw.GroundingConfig != nil {
-				llmReq.ToolChoice = "required"
-			}
 			llmReq.ParallelToolCalls = &parallelToolCalls
 		}
 		streamer := newReplyStreamer(
@@ -243,13 +232,6 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
 				meta.requestId, meta.uid, meta.sessionId, round, i, toolCall.Function.Name, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
 			toolResult := dispatchTool(ctx, recall, toolCall, state, cfg, rankRuntime, fieldAwareSearch, onFinalSearch != nil, meta, round)
-			if toolResult.directReply != "" {
-				state.groundedDirect = true
-				if !toolResult.clarification {
-					lastSearch = toolResult.intent
-				}
-				return loopResult(toolResult.directReply, false, false), nil
-			}
 			if len(result.ToolCalls) == 1 {
 				lastSearch = toolResult.intent
 				noResults = toolResult.isSearch && !toolResult.hasError && toolResult.empty
@@ -306,7 +288,7 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	if toolCall.Function.Name != "search_goods" {
 		return toolDispatchResult{content: `{"error":"unsupported tool"}`, hasError: true}
 	}
-	req, grounding, err := parseGroundedSearch(toolCall.Function.Arguments, fieldAware, cfg, recall.ToolParamsConfigID())
+	req, err := parseSearchGoodsRequest(toolCall.Function.Arguments, fieldAware)
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_parse\tround=%d\terr=%v\targs=%s",
 			meta.requestId, meta.uid, meta.sessionId, round, err, compactJSONString(toolCall.Function.Arguments, toolArgumentsLogLimit)))
@@ -318,7 +300,6 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 	if fineRank != nil {
 		req.Limit = fineRank.CandidateCount
 	}
-	req.Limit = groundingCandidateLimit(grounding, cfg.raw.GroundingConfig, req.Limit)
 	req.FieldAware = fieldAware
 	req.LogRequest = func(dsl string) {
 		log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=opensearch_recall\tround=%d\tdsl=%s",
@@ -345,18 +326,6 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 		dispatchResult.hasError = true
 		return dispatchResult
 	}
-	rawTotal := result.Total
-	rawReturned := len(result.Hits)
-	if cfg.raw.GroundingConfig != nil {
-		var direct string
-		result, state.pendingClarification, direct = groundSearchResult(result, req, grounding, cfg.raw.GroundingConfig, recall.ToolParamsConfigID())
-		log.Info(fmt.Sprintf("requestId=%s\tmodule=AIShoppingChat\tphase=result_grounding\tmode=%s\trequirements=%s\trawTotal=%d\trawReturned=%d\tverified=%d\tverifiedItemIds=%s\toptions=%s", meta.requestId, grounding.Mode, compactJSON(grounding.Requirements), rawTotal, rawReturned, len(result.Hits), compactJSON(searchResultItemIds(result)), compactJSON(state.pendingClarification)))
-		if direct != "" {
-			dispatchResult.directReply = direct
-			dispatchResult.clarification = grounding.Mode == "clarify"
-			return dispatchResult
-		}
-	}
 	dispatchResult.empty = len(result.Hits) == 0
 	if fineRank != nil {
 		if len(result.Hits) > 1 {
@@ -368,20 +337,11 @@ func dispatchTool(ctx context.Context, recall chatRecall, toolCall aichat.ToolCa
 				result.Hits = rankedHits
 			}
 		}
-	}
-	// Inspect a larger candidate set without expanding the Reply context or cards.
-	if (fineRank != nil || cfg.raw.GroundingConfig != nil) && len(result.Hits) > displayLimit {
-		result.Hits = result.Hits[:displayLimit]
-	}
-	if cfg.raw.GroundingConfig != nil {
-		result.Total = len(result.Hits)
+		if len(result.Hits) > displayLimit {
+			result.Hits = result.Hits[:displayLimit]
+		}
 	}
 	modelResult := annotateSearchResult(result, state, fineRank == nil)
-	if cfg.raw.GroundingConfig != nil {
-		// Keep the existing payload contract; total now counts verified returned items.
-		modelResult["raw_total"] = rawTotal
-		modelResult["verified_returned_count"] = len(result.Hits)
-	}
 	if len(result.DroppedPreferredKeywords) > 0 {
 		modelResult["dropped_preferred_keywords"] = result.DroppedPreferredKeywords
 	}
@@ -466,7 +426,7 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 	}
 	toolCalls := result.ToolCalls
 	if len(toolCalls) == 0 {
-		if cfg.raw.PlannerToolChoice == "required" || cfg.raw.GroundingConfig != nil {
+		if cfg.raw.PlannerToolChoice == "required" {
 			return fmt.Errorf("search_goods is required by tool_choice")
 		}
 		if result.FinishReason != "stop" || strings.TrimSpace(result.Content) == "" {
@@ -483,20 +443,11 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 	if toolCalls[0].Type != "function" {
 		return fmt.Errorf("search_goods tool call type must be function")
 	}
-	req, grounding, err := parseGroundedSearch(toolCalls[0].Function.Arguments, cfg.fieldAware, cfg, recall.ToolParamsConfigID())
+	req, err := parseSearchGoodsRequest(toolCalls[0].Function.Arguments, cfg.fieldAware)
 	if err != nil {
 		return err
 	}
-	validationPrevious := previous
-	if grounding.OptionID != "" {
-		// parseGroundedSearch accepts an option only when its config, age and
-		// complete business search still match the server-verified choice.
-		// Clarification searches are not LastSearch, so retain that captured
-		// search as the source for already validated category values.
-		verifiedPrevious := cloneGroundingSearch(req.SearchGoodsParams)
-		validationPrevious = &verifiedPrevious
-	}
-	if cfg.fieldAware && grounding.OptionID == "" {
+	if cfg.fieldAware {
 		if filler, ok := recall.(interface {
 			FillMissingToolParams(aichat.SearchGoodsParams, *aichat.SearchGoodsParams, recallsvc.ToolParamEvidence) aichat.SearchGoodsParams
 		}); ok {
@@ -507,11 +458,11 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 		return err
 	}
 	if cfg.fieldAware {
-		if err := recall.ValidateToolParamSources(req.SearchGoodsParams, validationPrevious, knowledge); err != nil {
+		if err := recall.ValidateToolParamSources(req.SearchGoodsParams, previous, knowledge); err != nil {
 			return err
 		}
 	}
-	arguments, err := marshalGroundedSearch(req, grounding, cfg.raw.GroundingConfig != nil)
+	arguments, err := marshalSearchGoodsRequest(req)
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,6 @@
 package aishopping
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -22,9 +21,6 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 		return nil, fmt.Errorf("AIChatConfig not found for scene:%s", sceneId)
 	}
 	cfg := normalizeConfig(cloneAIChatConfig(category.AIChatConfig))
-	if err := validateGroundingConfig(cfg.GroundingConfig); err != nil {
-		return nil, err
-	}
 	switch cfg.PlannerToolChoice {
 	case "auto", "required":
 	default:
@@ -38,9 +34,6 @@ func resolveConfig(config *recconf.RecommendConfig, sceneId, language string) (*
 	}
 	if !contains(cfg.OutputLanguages, language) {
 		return nil, fmt.Errorf("language_unsupported:%s", language)
-	}
-	if cfg.GroundingConfig != nil && cfg.GroundingConfig.Language != language {
-		cfg.GroundingConfig = nil
 	}
 	plannerPrompt := promptForLanguage(cfg.PlannerPromptTemplates, language)
 	replyPrompt := promptForLanguage(cfg.ReplyPromptTemplates, language)
@@ -120,12 +113,6 @@ func cloneAIChatConfig(cfg *recconf.AIChatConfig) *recconf.AIChatConfig {
 		return nil
 	}
 	cloned := *cfg
-	if cfg.GroundingConfig != nil {
-		data, _ := json.Marshal(cfg.GroundingConfig)
-		var grounding recconf.AIShoppingGroundingConfig
-		_ = json.Unmarshal(data, &grounding)
-		cloned.GroundingConfig = &grounding
-	}
 	cloned.OutputLanguages = append([]string(nil), cfg.OutputLanguages...)
 	cloned.PlannerPromptTemplates = cloneStringMap(cfg.PlannerPromptTemplates)
 	cloned.ReplyPromptTemplates = cloneStringMap(cfg.ReplyPromptTemplates)
