@@ -234,7 +234,6 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		readyToReply = true
 		roundSearches := make([]*finalSearchSnapshot, 0, 1)
 		roundSearchFailed := false
-		noResults := false
 		lastSearch = nil
 		for i, toolCall := range result.ToolCalls {
 			log.Info(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=tool_call_args\tround=%d\ttoolIndex=%d\ttool=%s\targs=%s",
@@ -249,7 +248,6 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 			}
 			if len(result.ToolCalls) == 1 {
 				lastSearch = toolResult.intent
-				noResults = toolResult.isSearch && !toolResult.hasError && toolResult.empty
 			}
 			if rankRuntime != nil {
 				if err := ctx.Err(); err != nil {
@@ -291,9 +289,6 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 		}
 		if roundSearchFailed && len(result.ToolCalls) == 1 {
 			return loopResult(fallbackText(cfg.raw, cfg.language, "generic"), false, true), nil
-		}
-		if noResults && readyToReply {
-			return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, false), nil
 		}
 	}
 	return loopResult(fallbackText(cfg.raw, cfg.language, "empty_after_tools"), false, true), nil
