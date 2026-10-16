@@ -148,6 +148,8 @@ func runAgentLoop(ctx context.Context, model *aichat.Model, recall chatRecall, m
 				llmReq.Tools[0].Function.Strict = cfg.raw.PlannerToolStrict
 				llmReq.ToolChoice = cfg.raw.PlannerToolChoice
 				llmReq.ParallelToolCalls = &parallelToolCalls
+			} else {
+				llmReq.ToolChoice = "none"
 			}
 		}
 		streamer := newReplyStreamer(
@@ -458,6 +460,9 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 		}
 		return nil
 	}
+	if hasQueryResult {
+		return fmt.Errorf("tool calls are not allowed after query results")
+	}
 	if len(toolCalls) != 1 || toolCalls[0].Function.Name != "search_goods" {
 		return fmt.Errorf("exactly one search_goods call is required")
 	}
@@ -467,7 +472,11 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 	if toolCalls[0].Type != "function" {
 		return fmt.Errorf("search_goods tool call type must be function")
 	}
-	req, mode, err := parseSearchGoodsToolCall(toolCalls[0].Function.Arguments, cfg.fieldAware)
+	arguments, err := normalizeSearchGoodsToolArguments(toolCalls[0].Function.Arguments, searchGoodsToolWithMode(recall.SearchGoodsTool()))
+	if err != nil {
+		return err
+	}
+	req, mode, err := parseSearchGoodsToolCall(arguments, cfg.fieldAware)
 	if err != nil {
 		return err
 	}
@@ -486,22 +495,22 @@ func normalizePlannerResponse(result *aichat.StreamResult, cfg *chatConfig, reca
 			return err
 		}
 	}
-	arguments, err := marshalSearchGoodsRequest(req)
+	payload, err := marshalSearchGoodsRequest(req)
 	if err == nil {
 		var fields map[string]json.RawMessage
-		err = json.Unmarshal(arguments, &fields)
+		err = json.Unmarshal(payload, &fields)
 		if err == nil {
 			fields["mode"], _ = json.Marshal(mode)
 			if mode == "query" {
 				fields["limit"], _ = json.Marshal(req.Limit)
 			}
-			arguments, err = json.Marshal(fields)
+			payload, err = json.Marshal(fields)
 		}
 	}
 	if err != nil {
 		return err
 	}
-	toolCalls[0].Function.Arguments = string(arguments)
+	toolCalls[0].Function.Arguments = string(payload)
 	return nil
 }
 
@@ -516,6 +525,40 @@ func searchGoodsToolWithMode(tool aichat.Tool) aichat.Tool {
 	required, _ := tool.Function.Parameters["required"].([]string)
 	tool.Function.Parameters["required"] = append(append([]string(nil), required...), "mode")
 	return tool
+}
+
+// Only unwrap string-encoded arrays and integers declared by the tool schema.
+// Existing parsers and source validation still reject invalid values.
+func normalizeSearchGoodsToolArguments(arguments string, tool aichat.Tool) (string, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(arguments), &fields); err != nil {
+		return "", err
+	}
+	if fields == nil {
+		return "", fmt.Errorf("search_goods arguments must be an object")
+	}
+	properties, _ := tool.Function.Parameters["properties"].(map[string]interface{})
+	for name, raw := range fields {
+		property, _ := properties[name].(map[string]interface{})
+		var encoded string
+		if json.Unmarshal(raw, &encoded) != nil {
+			continue
+		}
+		switch property["type"] {
+		case "array":
+			var values []string
+			if json.Unmarshal([]byte(encoded), &values) == nil && values != nil {
+				fields[name] = json.RawMessage(encoded)
+			}
+		case "integer":
+			var value int
+			if json.Unmarshal([]byte(encoded), &value) == nil && strings.TrimSpace(encoded) != "null" {
+				fields[name] = json.RawMessage(encoded)
+			}
+		}
+	}
+	payload, err := json.Marshal(fields)
+	return string(payload), err
 }
 
 func parseSearchGoodsToolCall(arguments string, fieldAware bool) (recallsvc.SearchGoodsRequest, string, error) {
