@@ -18,13 +18,13 @@ func (b *SessionBlob) previousSearchForValidation(configID string) *searchsugges
 	return &previous
 }
 
-func (b *SessionBlob) recordTurn(query string, intent *searchsuggestion.SearchIntent) {
+func (b *SessionBlob) recordTurn(query, assistantReply string, intent *searchsuggestion.SearchIntent) {
 	b.TurnCount++
 	if intent != nil {
 		b.LastSearch = intent
 		b.LastSearchTurnID = b.TurnCount
 	}
-	b.UserQueries = append(b.UserQueries, SessionQuery{TurnID: b.TurnCount, Query: query})
+	b.UserQueries = append(b.UserQueries, SessionQuery{TurnID: b.TurnCount, Query: query, AssistantReply: assistantReply})
 }
 
 func (b *SessionBlob) messages(query string) []aichat.Message {

@@ -149,7 +149,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			}
 		}
 	}
-	blob.recordTurn(req.UserText, loopResult.LastSearch)
+	blob.recordTurn(req.UserText, writer.Content(), loopResult.LastSearch)
 	if loopResult.LastSearch != nil {
 		blob.ToolParamsConfigID = toolParamsConfigID
 	}
