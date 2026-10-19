@@ -71,6 +71,8 @@ func Load(config *recconf.RecommendConfig) {
 			recall = NewHologresVectorRecall(conf)
 		} else if conf.RecallType == "HologresVectorRecallV2" {
 			recall = NewHologresVectorRecallV2(conf)
+		} else if conf.RecallType == "HologresRecall" {
+			recall = NewHologresRecall(conf)
 		} else if conf.RecallType == "ItemCollaborativeFilterRecall" {
 			recall = NewItemCollaborativeFilterRecall(conf)
 		} else if conf.RecallType == "UserGroupHotRecall" {

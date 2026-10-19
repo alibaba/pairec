@@ -357,6 +357,7 @@ type RecallConfig struct {
 	Triggers       []TriggerConfig
 
 	HologresVectorConf       HologresVectorConfig
+	HologresRecallConf       HologresRecallConfig
 	BeVectorConf             BeVectorConfig
 	MilvusVectorConf         MilvusVectorConfig
 	UserCollaborativeDaoConf UserCollaborativeDaoConfig
@@ -484,6 +485,15 @@ type OpenSearchConf struct {
 	ItemId         string
 	RequestParams  map[string]any
 	Params         []string
+}
+
+// HologresRecallConfig is used by HologresRecall, Params are the same as OpenSearchConf.Params
+// and bound to $1..$N of Sql.
+type HologresRecallConfig struct {
+	HologresName string
+	Sql          string
+	ItemId       string
+	Params       []string
 }
 
 type BeConfig struct {
