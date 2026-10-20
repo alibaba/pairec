@@ -1,12 +1,62 @@
 package fs
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/api"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 )
+
+// fakeFeatureView only implements GetFields; other methods panic if called.
+type fakeFeatureView struct {
+	domain.FeatureView
+	fields []api.FeatureViewFields
+}
+
+func (f *fakeFeatureView) GetFields() []api.FeatureViewFields { return f.fields }
+
+// newTestCache builds a cache with a live context, as newFeatureViewCache does.
+func newTestCache(conf recconf.FeatureViewCacheConfig) *FeatureViewCache {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &FeatureViewCache{
+		name:            "test",
+		conf:            conf,
+		selectFields:    []string{"*"},
+		refreshInterval: time.Hour,
+		ctx:             ctx,
+		cancel:          cancel,
+	}
+}
+
+func isClosed(c *FeatureViewCache) bool {
+	return c.ctx.Err() != nil
+}
+
+type scanFn = func(ctx context.Context, project *domain.Project, featureView domain.FeatureView, fn func(id string, properties map[string]interface{})) error
+
+// withFakeScan replaces scanAndIterateFeatures for the duration of the test.
+func withFakeScan(t *testing.T, fake scanFn) {
+	t.Helper()
+	original := scanAndIterateFeatures
+	scanAndIterateFeatures = fake
+	t.Cleanup(func() { scanAndIterateFeatures = original })
+}
+
+// fakeScanRows returns a fake scan that delivers rows synchronously and records
+// the scan context it was given.
+func fakeScanRows(rows map[string]map[string]any, ctxs *[]context.Context) scanFn {
+	return func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, fn func(string, map[string]interface{})) error {
+		*ctxs = append(*ctxs, ctx)
+		for id, props := range rows {
+			fn(id, props)
+		}
+		return nil
+	}
+}
 
 // withFreshCacheRegistry swaps the global registry with an empty map for the
 // duration of the test and restores the original afterwards.
@@ -23,30 +73,39 @@ func withFreshCacheRegistry(t *testing.T) {
 	})
 }
 
-func TestFeatureViewCacheStopIsIdempotent(t *testing.T) {
-	cache := &FeatureViewCache{stopCh: make(chan struct{})}
+func TestFeatureViewCacheCloseIsIdempotent(t *testing.T) {
+	cache := newTestCache(recconf.FeatureViewCacheConfig{})
 
-	cache.stop()
-	cache.stop()
+	cache.Close()
+	cache.Close()
 
-	select {
-	case <-cache.stopCh:
-	default:
-		t.Fatal("stop channel is not closed")
+	if !isClosed(cache) {
+		t.Fatal("cache context is not canceled")
 	}
+
+	// A zero-value cache must not panic on Close.
+	(&FeatureViewCache{}).Close()
 }
 
-// TestFetchAllDataKeepsPreviousOnEmptyScan verifies that an empty scan result
+// TestScanAndLoadKeepsPreviousOnEmptyScan verifies that an empty scan result
 // does not wipe a populated cache (which, combined with fail-close filtering,
 // would empty the result set). The previous snapshot and ready state are kept.
-func TestFetchAllDataKeepsPreviousOnEmptyScan(t *testing.T) {
-	c := &FeatureViewCache{name: "test", stopCh: make(chan struct{})}
+func TestScanAndLoadKeepsPreviousOnEmptyScan(t *testing.T) {
+	var ctxs []context.Context
+	withFakeScan(t, fakeScanRows(nil, &ctxs))
+
+	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	defer c.Close()
 	c.itemCache.Store("item-1", &cacheEntry{props: map[string]any{"status": 1}, updatedAt: time.Now().UnixNano()})
 	c.size.Store(1)
 	c.ready.Store(true)
 
-	if err := c.fetchAllData(nil, time.Now().UnixNano()); err != nil {
-		t.Fatalf("fetchAllData(nil) returned error: %v", err)
+	n, err := c.scanAndLoad(nil, nil)
+	if err != nil {
+		t.Fatalf("scanAndLoad returned error: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0 scanned rows, got %d", n)
 	}
 	if _, ok := c.Get("item-1"); !ok {
 		t.Fatal("empty scan wiped previously cached item")
@@ -56,6 +115,240 @@ func TestFetchAllDataKeepsPreviousOnEmptyScan(t *testing.T) {
 	}
 	if !c.Ready() {
 		t.Fatal("empty scan should not clear ready state")
+	}
+}
+
+// TestScanAndLoadReplacesContentAndStopsBatchIterate verifies a full scan loads
+// all rows, prunes items absent from the snapshot, keeps the size in sync, and
+// cancels the SDK iterate goroutine right away for Batch views.
+func TestScanAndLoadReplacesContentAndStopsBatchIterate(t *testing.T) {
+	var ctxs []context.Context
+	withFakeScan(t, fakeScanRows(map[string]map[string]any{
+		"a": {"item_id": "a", "status": 1},
+		"b": {"item_id": "b", "status": 2},
+	}, &ctxs))
+
+	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	defer c.Close()
+	c.itemCache.Store("stale", &cacheEntry{props: map[string]any{}, updatedAt: time.Now().Add(-time.Minute).UnixNano()})
+	c.size.Store(1)
+
+	n, err := c.scanAndLoad(nil, nil)
+	if err != nil {
+		t.Fatalf("scanAndLoad returned error: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("expected 2 scanned rows, got %d", n)
+	}
+	if props, ok := c.Get("b"); !ok || props["status"] != 2 {
+		t.Fatalf("scanned item not cached correctly: %v", props)
+	}
+	if _, ok := c.Get("stale"); ok {
+		t.Fatal("stale item absent from snapshot should be pruned")
+	}
+	if c.Size() != 2 {
+		t.Fatalf("expected size 2, got %d", c.Size())
+	}
+	if len(ctxs) != 1 || ctxs[0].Err() == nil {
+		t.Fatal("batch view iterate context should be canceled after the scan")
+	}
+}
+
+// TestScanAndLoadStreamIterateLifecycle verifies that for Stream views the
+// iterate context of the latest scan stays alive, a new scan cancels the
+// previous one, and Close cancels the current one.
+func TestScanAndLoadStreamIterateLifecycle(t *testing.T) {
+	var ctxs []context.Context
+	withFakeScan(t, fakeScanRows(map[string]map[string]any{"a": {"item_id": "a"}}, &ctxs))
+
+	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	c.stream = true
+
+	if _, err := c.scanAndLoad(nil, nil); err != nil {
+		t.Fatalf("first scan returned error: %v", err)
+	}
+	if ctxs[0].Err() != nil {
+		t.Fatal("stream iterate context should stay alive after the scan")
+	}
+	if _, err := c.scanAndLoad(nil, nil); err != nil {
+		t.Fatalf("second scan returned error: %v", err)
+	}
+	if ctxs[0].Err() == nil {
+		t.Fatal("previous stream iterate context should be canceled by a new scan")
+	}
+	if ctxs[1].Err() != nil {
+		t.Fatal("latest stream iterate context should stay alive")
+	}
+
+	c.Close()
+	if ctxs[1].Err() == nil {
+		t.Fatal("Close should cancel the latest stream iterate context")
+	}
+}
+
+// TestScanAndLoadAppliesIncrementalUpdates verifies that rows delivered by the
+// iterate goroutine after the scan returns are written to the cache, are not
+// counted as snapshot rows, and stop arriving once the cache is closed.
+func TestScanAndLoadAppliesIncrementalUpdates(t *testing.T) {
+	incremental := make(chan struct{})
+	delivered := make(chan struct{})
+	withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, fn func(string, map[string]interface{})) error {
+		fn("a", map[string]any{"item_id": "a", "v": 1})
+		go func() {
+			defer close(delivered)
+			<-incremental
+			if ctx.Err() != nil {
+				return
+			}
+			fn("a", map[string]any{"item_id": "a", "v": 2})
+			fn("b", map[string]any{"item_id": "b", "v": 3})
+		}()
+		return nil
+	})
+
+	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	c.stream = true
+	defer c.Close()
+
+	n, err := c.scanAndLoad(nil, nil)
+	if err != nil {
+		t.Fatalf("scanAndLoad returned error: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 scanned row, got %d", n)
+	}
+	close(incremental)
+	<-delivered
+
+	if props, _ := c.Get("a"); props["v"] != 2 {
+		t.Fatalf("incremental update not applied, got %v", props)
+	}
+	if _, ok := c.Get("b"); !ok {
+		t.Fatal("incrementally added item missing")
+	}
+	if c.Size() != 2 {
+		t.Fatalf("expected size 2, got %d", c.Size())
+	}
+}
+
+// TestScanAndLoadErrorCancelsScanContext verifies a failed scan returns the
+// error, leaves the cache untouched and releases its context.
+func TestScanAndLoadErrorCancelsScanContext(t *testing.T) {
+	var scanCtx context.Context
+	withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, _ func(string, map[string]interface{})) error {
+		scanCtx = ctx
+		return errors.New("scan failed")
+	})
+
+	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	c.stream = true
+	defer c.Close()
+
+	if _, err := c.scanAndLoad(nil, nil); err == nil {
+		t.Fatal("expected scan error")
+	}
+	if scanCtx.Err() == nil {
+		t.Fatal("failed scan context should be canceled")
+	}
+	if c.iterCancel != nil {
+		t.Fatal("failed scan must not replace the stream iterate cancel")
+	}
+}
+
+func TestSelectProperties(t *testing.T) {
+	props := map[string]any{"item_id": "a", "status": 1, "other": 2}
+
+	c := &FeatureViewCache{joinId: "item_id", selectFields: []string{"*"}}
+	if got := c.selectProperties(props); len(got) != 3 {
+		t.Fatalf("select * should keep all fields, got %v", got)
+	}
+
+	c.selectFields = []string{"status", "missing"}
+	got := c.selectProperties(props)
+	if len(got) != 2 || got["item_id"] != "a" || got["status"] != 1 {
+		t.Fatalf("expected join id and selected fields only, got %v", got)
+	}
+}
+
+// TestScanAndLoadRenamesPrimaryKeyToJoinId verifies that, as GetOnlineFeatures
+// does, a primary key named differently from the entity join id is stored under
+// the join id, for both select-all and SelectFields projections, and for rows
+// from the full scan as well as the incremental iterate.
+func TestScanAndLoadRenamesPrimaryKeyToJoinId(t *testing.T) {
+	featureView := &fakeFeatureView{fields: []api.FeatureViewFields{
+		{Name: "pk", IsPrimaryKey: true},
+		{Name: "status"},
+		{Name: "other"},
+	}}
+
+	for _, tc := range []struct {
+		name         string
+		selectFields []string
+		wantLen      int
+	}{
+		{name: "select all", selectFields: []string{"*"}, wantLen: 3},
+		{name: "select fields", selectFields: []string{"status"}, wantLen: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			delivered := make(chan struct{})
+			withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, fn func(string, map[string]interface{})) error {
+				fn("a", map[string]any{"pk": "a", "status": 1, "other": 2})
+				go func() {
+					defer close(delivered)
+					fn("b", map[string]any{"pk": "b", "status": 3, "other": 4})
+				}()
+				return nil
+			})
+
+			c := newTestCache(recconf.FeatureViewCacheConfig{})
+			c.joinId = "item_id"
+			c.selectFields = tc.selectFields
+			c.stream = true
+			defer c.Close()
+
+			if _, err := c.scanAndLoad(nil, featureView); err != nil {
+				t.Fatalf("scanAndLoad returned error: %v", err)
+			}
+			<-delivered
+
+			for _, id := range []string{"a", "b"} {
+				props, ok := c.Get(id)
+				if !ok {
+					t.Fatalf("item %s missing", id)
+				}
+				if props["item_id"] != id {
+					t.Fatalf("item %s: join id not set, got %v", id, props)
+				}
+				if _, ok := props["pk"]; ok {
+					t.Fatalf("item %s: primary key field should be renamed, got %v", id, props)
+				}
+				if len(props) != tc.wantLen {
+					t.Fatalf("item %s: expected %d fields, got %v", id, tc.wantLen, props)
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizeJoinId(t *testing.T) {
+	// Primary key already named as the join id: kept as is.
+	c := &FeatureViewCache{joinId: "item_id"}
+	got := c.normalizeJoinId("a", "item_id", map[string]any{"item_id": "a", "status": 1})
+	if len(got) != 2 || got["item_id"] != "a" {
+		t.Fatalf("same-name primary key should be kept, got %v", got)
+	}
+
+	// Unknown primary key name: join id is added, nothing is deleted.
+	got = c.normalizeJoinId("a", "", map[string]any{"pk": "a"})
+	if got["item_id"] != "a" || got["pk"] != "a" {
+		t.Fatalf("unknown primary key should only add join id, got %v", got)
+	}
+
+	// No join id (entity not found): properties unchanged.
+	c = &FeatureViewCache{}
+	got = c.normalizeJoinId("a", "pk", map[string]any{"pk": "a"})
+	if len(got) != 1 || got["pk"] != "a" {
+		t.Fatalf("empty join id should leave properties unchanged, got %v", got)
 	}
 }
 
@@ -91,11 +384,9 @@ func TestLoadFeatureViewCachesKeepsExistingWhenReplacementFails(t *testing.T) {
 	withFreshCacheRegistry(t)
 
 	name := "item_status_cache"
-	oldCache := &FeatureViewCache{
-		conf:   recconf.FeatureViewCacheConfig{FeatureStoreViewName: "old_view", RefreshIntervalMinutes: 60},
-		stopCh: make(chan struct{}),
-	}
+	oldCache := newTestCache(recconf.FeatureViewCacheConfig{FeatureStoreViewName: "old_view", RefreshIntervalMinutes: 60})
 	featureViewCaches[name] = oldCache
+	defer oldCache.Close()
 
 	config := &recconf.RecommendConfig{
 		FeatureViewCacheConfs: map[string]recconf.FeatureViewCacheConfig{
@@ -109,10 +400,8 @@ func TestLoadFeatureViewCachesKeepsExistingWhenReplacementFails(t *testing.T) {
 	if featureViewCaches[name] != oldCache {
 		t.Fatal("existing cache was replaced after replacement failure")
 	}
-	select {
-	case <-oldCache.stopCh:
+	if isClosed(oldCache) {
 		t.Fatal("existing cache was stopped after replacement failure")
-	default:
 	}
 }
 
@@ -120,18 +409,11 @@ func TestLoadFeatureViewCachesReplacesThenStopsExisting(t *testing.T) {
 	withFreshCacheRegistry(t)
 
 	name := "item_status_cache"
-	oldCache := &FeatureViewCache{
-		conf:   recconf.FeatureViewCacheConfig{FeatureStoreViewName: "old_view"},
-		stopCh: make(chan struct{}),
-	}
+	oldCache := newTestCache(recconf.FeatureViewCacheConfig{FeatureStoreViewName: "old_view"})
 	featureViewCaches[name] = oldCache
 
-	newCache := &FeatureViewCache{
-		conf:            recconf.FeatureViewCacheConfig{FeatureStoreViewName: "new_view"},
-		stopCh:          make(chan struct{}),
-		refreshInterval: time.Hour,
-	}
-	defer newCache.stop()
+	newCache := newTestCache(recconf.FeatureViewCacheConfig{FeatureStoreViewName: "new_view"})
+	defer newCache.Close()
 
 	config := &recconf.RecommendConfig{
 		FeatureViewCacheConfs: map[string]recconf.FeatureViewCacheConfig{
@@ -145,9 +427,7 @@ func TestLoadFeatureViewCachesReplacesThenStopsExisting(t *testing.T) {
 	if featureViewCaches[name] != newCache {
 		t.Fatal("new cache was not published")
 	}
-	select {
-	case <-oldCache.stopCh:
-	default:
+	if !isClosed(oldCache) {
 		t.Fatal("existing cache was not stopped after replacement")
 	}
 }
@@ -159,12 +439,9 @@ func TestLoadFeatureViewCachesDoesNotBlockReadersDuringBuild(t *testing.T) {
 	withFreshCacheRegistry(t)
 
 	name := "item_status_cache"
-	existing := &FeatureViewCache{
-		conf:   recconf.FeatureViewCacheConfig{FeatureStoreViewName: "old_view"},
-		stopCh: make(chan struct{}),
-	}
+	existing := newTestCache(recconf.FeatureViewCacheConfig{FeatureStoreViewName: "old_view"})
 	featureViewCaches[name] = existing
-	defer existing.stop()
+	defer existing.Close()
 
 	buildStarted := make(chan struct{})
 	releaseBuild := make(chan struct{})
@@ -180,12 +457,7 @@ func TestLoadFeatureViewCachesDoesNotBlockReadersDuringBuild(t *testing.T) {
 		loadFeatureViewCachesWithFactory(config, func(string, recconf.FeatureViewCacheConfig) (*FeatureViewCache, error) {
 			close(buildStarted)
 			<-releaseBuild // simulate a slow initData (full scan)
-			c := &FeatureViewCache{
-				conf:            recconf.FeatureViewCacheConfig{FeatureStoreViewName: "new_view"},
-				stopCh:          make(chan struct{}),
-				refreshInterval: time.Hour,
-			}
-			return c, nil
+			return newTestCache(recconf.FeatureViewCacheConfig{FeatureStoreViewName: "new_view"}), nil
 		})
 	}()
 
@@ -207,4 +479,7 @@ func TestLoadFeatureViewCachesDoesNotBlockReadersDuringBuild(t *testing.T) {
 
 	close(releaseBuild)
 	<-loadDone
+	if c, err := GetFeatureViewCache(name); err == nil {
+		c.Close()
+	}
 }

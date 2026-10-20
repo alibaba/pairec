@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,6 +11,8 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/datasource/featuredb/fdbserverpb"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 )
 
 var (
@@ -30,6 +33,16 @@ const notReadyRetryInterval = 30 * time.Second
 // interval. Any configured value below it (including unset/<=0) is clamped up to
 // this minimum, so a full scan never runs more often than once per hour.
 const minRefreshIntervalMinutes = 60
+
+// scanRetryTimes and scanRetryInterval bound the retries of a single full scan.
+const (
+	scanRetryTimes    = 5
+	scanRetryInterval = 10 * time.Second
+)
+
+// scanAndIterateFeatures is the SDK full scan + incremental iterate entry. It is
+// a variable so tests can replace it.
+var scanAndIterateFeatures = fdbserverpb.ScanAndIterateFeatures
 
 type featureViewCacheFactory func(string, recconf.FeatureViewCacheConfig) (*FeatureViewCache, error)
 
@@ -94,7 +107,7 @@ func loadFeatureViewCachesWithFactory(config *recconf.RecommendConfig, factory f
 	defer featureViewCacheMu.Unlock()
 	for name, c := range created {
 		if old, ok := featureViewCaches[name]; ok {
-			old.stop()
+			old.Close()
 		}
 		featureViewCaches[name] = c
 		c.start()
@@ -102,7 +115,7 @@ func loadFeatureViewCachesWithFactory(config *recconf.RecommendConfig, factory f
 	}
 	for name, c := range featureViewCaches {
 		if !activeNames[name] {
-			c.stop()
+			c.Close()
 			delete(featureViewCaches, name)
 			log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=removed (no longer in config)", name))
 		}
@@ -119,8 +132,9 @@ type cacheEntry struct {
 }
 
 // FeatureViewCache is a local materialized view of a FeatureStore FeatureView.
-// Data is loaded via scan on startup and refreshed periodically.
-// Stream-type views also receive incremental updates via iterate.
+// Data is loaded via ScanAndIterateFeatures on startup and refreshed periodically.
+// Stream-type views also receive incremental updates from the SDK iterate
+// goroutine of the latest successful scan.
 type FeatureViewCache struct {
 	name            string
 	fsClient        *FSClient
@@ -131,12 +145,16 @@ type FeatureViewCache struct {
 	itemCache       sync.Map     // itemId(string) -> *cacheEntry
 	size            atomic.Int64 // current cache size
 	ready           atomic.Bool  // true after the first successful full load
-	ch              chan string  // iterate channel for Stream type
 	lastScanTime    time.Time
 	refreshInterval time.Duration
-	stopCh          chan struct{} // signal to stop background goroutines
-	stopOnce        sync.Once
-	stream          bool
+	// ctx is the parent of every scan/iterate context; Close cancels it, which
+	// stops the refresh loop, pending scan retries and all SDK iterate goroutines.
+	ctx    context.Context
+	cancel context.CancelFunc
+	// iterCancel stops the SDK iterate goroutine of the latest successful scan.
+	// Only accessed by initData and then loopRefresh, which run sequentially.
+	iterCancel context.CancelFunc
+	stream     bool
 }
 
 // JoinId returns the feature entity join id field name of the cached view.
@@ -216,6 +234,7 @@ func newFeatureViewCache(name string, conf recconf.FeatureViewCacheConfig) (*Fea
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	cache := &FeatureViewCache{
 		name:            name,
 		fsClient:        fsclient,
@@ -223,27 +242,16 @@ func newFeatureViewCache(name string, conf recconf.FeatureViewCacheConfig) (*Fea
 		joinId:          joinId,
 		selectFields:    selectFields,
 		conf:            conf,
-		ch:              make(chan string, 1000),
 		refreshInterval: time.Duration(refreshMinutes) * time.Minute,
 		stream:          featureView.GetType() == "Stream",
-		stopCh:          make(chan struct{}),
-	}
-
-	// For Stream views attach the iterate consumer BEFORE the initial scan:
-	// ScanAndIterateData starts an SDK producer goroutine that blocks once c.ch's
-	// buffer fills, so a consumer must already be draining it during the
-	// (possibly minutes-long) initial full load. Every error return above happens
-	// before the struct is built, so this cannot orphan a goroutine.
-	if cache.stream {
-		go cache.loopIterateData()
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 
 	// Config errors (client/view missing) already failed fast above. A data-plane
 	// error during the initial load is logged and the instance is still published
-	// in a not-ready state so that:
-	//   - Stream views keep a consumer for the SDK iterate goroutine's channel,
-	//     avoiding a goroutine and FeatureDB snapshot leak;
-	//   - the DAO can resolve the cache by name without panicking at startup.
+	// in a not-ready state so that the DAO can resolve the cache by name without
+	// panicking at startup.
 	// loopRefresh retries at notReadyRetryInterval until the first success, and
 	// consumers fail open while Ready() is false.
 	if err := cache.initData(); err != nil {
@@ -260,145 +268,181 @@ func (c *FeatureViewCache) configEqual(conf recconf.FeatureViewCacheConfig) bool
 }
 
 // start launches the periodic refresh loop; it is called after the instance is
-// published. The Stream iterate consumer is started earlier in
-// newFeatureViewCache so that it drains c.ch during the initial scan.
+// published.
 func (c *FeatureViewCache) start() {
 	go c.loopRefresh()
 }
 
-func (c *FeatureViewCache) stop() {
-	c.stopOnce.Do(func() {
-		close(c.stopCh)
-	})
+// Close cancels the cache context, stopping the refresh loop, any pending scan
+// retry and the SDK iterate goroutines. It is idempotent; cached data stays
+// readable but is no longer updated.
+func (c *FeatureViewCache) Close() {
+	if c.cancel != nil {
+		c.cancel()
+	}
 }
 
 // initData performs the initial full scan and data load.
 func (c *FeatureViewCache) initData() error {
-	featureView := c.fsClient.GetProject().GetFeatureView(c.viewName)
-	if featureView == nil {
-		return fmt.Errorf("featureView not found: %s", c.viewName)
-	}
-
-	// Capture the scan start before the (possibly retried) snapshot scan: entries
-	// streamed in at or after this instant are newer than the snapshot and must
-	// survive the prune in fetchAllData.
-	scanStart := time.Now().UnixNano()
-	var (
-		ids []string
-		err error
-	)
-	for i := 0; i < 5; i++ {
-		if featureView.GetType() == "Batch" {
-			ids, err = featureView.ScanAndIterateData("", nil)
-		} else {
-			ids, err = featureView.ScanAndIterateData("", c.ch)
-		}
-		if err == nil {
-			break
-		}
-		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan retry %d\terror=%v", c.name, i+1, err))
-		time.Sleep(10 * time.Second)
-	}
+	n, err := c.scanWithRetry()
 	if err != nil {
-		return fmt.Errorf("scan failed after retries: %w", err)
+		return err
 	}
 	// Only advance lastScanTime after a successful scan, so a failed init never
 	// suppresses the next refresh attempt.
 	c.lastScanTime = time.Now()
-
-	log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan completed\tids=%d", c.name, len(ids)))
-	if err := c.fetchAllData(ids, scanStart); err != nil {
-		return err
-	}
 	// Only mark ready when the view actually has data; an empty view stays
 	// not-ready so consumers fail open instead of filtering every item.
-	if len(ids) > 0 {
+	if n > 0 {
 		c.ready.Store(true)
 	}
 	return nil
 }
 
-// fetchAllData loads properties for all given IDs via GetOnlineFeatures and
-// replaces the cache content. Items not in the new ID list are removed.
-func (c *FeatureViewCache) fetchAllData(ids []string, scanStartNano int64) error {
-	if len(ids) == 0 {
+// scanWithRetry runs scanAndLoad up to scanRetryTimes times and returns the
+// number of scanned rows. It gives up as soon as the cache is closed.
+func (c *FeatureViewCache) scanWithRetry() (int, error) {
+	var err error
+	for i := 0; i < scanRetryTimes; i++ {
+		project := c.fsClient.GetProject()
+		featureView := project.GetFeatureView(c.viewName)
+		if featureView == nil {
+			return 0, fmt.Errorf("featureView not found: %s", c.viewName)
+		}
+		var n int
+		if n, err = c.scanAndLoad(project, featureView); err == nil {
+			return n, nil
+		}
+		if ctxErr := c.ctx.Err(); ctxErr != nil {
+			return 0, ctxErr
+		}
+		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan retry %d\terror=%v", c.name, i+1, err))
+		if i == scanRetryTimes-1 {
+			break
+		}
+		timer := time.NewTimer(scanRetryInterval)
+		select {
+		case <-c.ctx.Done():
+			timer.Stop()
+			return 0, c.ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return 0, fmt.Errorf("scan failed after retries: %w", err)
+}
+
+// scanAndLoad runs one ScanAndIterateFeatures full scan, writes every scanned
+// row into the cache and prunes items absent from the scan. The SDK keeps an
+// iterate goroutine running after the scan: for Stream views it applies
+// incremental updates and replaces the previous scan's iterate goroutine, for
+// Batch views it is stopped right away. It returns the number of scanned rows.
+func (c *FeatureViewCache) scanAndLoad(project *domain.Project, featureView domain.FeatureView) (int, error) {
+	start := time.Now()
+	// Entries written at/after scanStart (by this scan or by a still running
+	// iterate goroutine) are newer than the snapshot and must survive the prune.
+	scanStart := start.UnixNano()
+	var (
+		mu       sync.Mutex
+		scanDone bool
+		newIds   = make(map[string]bool)
+	)
+	scanCtx, scanCancel := context.WithCancel(c.ctx)
+	primaryKey := primaryKeyName(featureView)
+	err := scanAndIterateFeatures(scanCtx, project, featureView, func(id string, properties map[string]interface{}) {
+		c.store(id, c.normalizeJoinId(id, primaryKey, properties))
+		// The same callback is invoked later by the iterate goroutine; only rows
+		// delivered by the synchronous full scan belong to the snapshot.
+		mu.Lock()
+		if !scanDone {
+			newIds[id] = true
+		}
+		mu.Unlock()
+	})
+	mu.Lock()
+	scanDone = true
+	mu.Unlock()
+	if err != nil {
+		scanCancel()
+		return 0, err
+	}
+	if c.stream {
+		if c.iterCancel != nil {
+			c.iterCancel()
+		}
+		c.iterCancel = scanCancel
+	} else {
+		scanCancel()
+	}
+
+	if len(newIds) == 0 {
 		// Never wipe a populated cache on an empty scan: it is more likely a
 		// transient FeatureDB glitch or an unproduced view than a legitimate
 		// "all items removed" signal. Keep the previous snapshot; ready is left
 		// unchanged so consumers keep serving last-known-good data (or fail open
 		// if this was the initial, still-empty load).
 		log.Warning(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan returned empty ids, keep previous cache\tsize=%d", c.name, c.size.Load()))
-		return nil
+		return 0, nil
 	}
 
-	start := time.Now()
-	featureView := c.fsClient.GetProject().GetFeatureView(c.viewName)
+	c.pruneStale(newIds, scanStart)
+	log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan completed\tids=%d\tsize=%d\tcost=%d",
+		c.name, len(newIds), c.size.Load(), utils.CostTime(start)))
+	return len(newIds), nil
+}
+
+// primaryKeyName returns the primary key field name of the feature view, or ""
+// when it cannot be determined.
+func primaryKeyName(featureView domain.FeatureView) string {
 	if featureView == nil {
-		return fmt.Errorf("featureView not found: %s", c.viewName)
+		return ""
 	}
-	featureEntity := c.fsClient.GetProject().GetFeatureEntity(featureView.GetFeatureEntityName())
-	if featureEntity == nil {
-		return fmt.Errorf("featureEntity not found: %s", featureView.GetFeatureEntityName())
-	}
-
-	newIds := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		newIds[id] = true
-	}
-
-	var cacheSize atomic.Int64
-	var fetchErr error
-	var fetchErrOnce sync.Once
-	var wg sync.WaitGroup
-	concurrencyCh := make(chan int, 5)
-	batchSize := 200
-
-	for i := 0; i < len(ids); i += batchSize {
-		end := i + batchSize
-		if end > len(ids) {
-			end = len(ids)
+	for _, field := range featureView.GetFields() {
+		if field.IsPrimaryKey {
+			return field.Name
 		}
-
-		wg.Add(1)
-		concurrencyCh <- 1
-		go func(batchIds []string) {
-			defer wg.Done()
-			defer func() { <-concurrencyCh }()
-
-			joinIds := make([]any, 0, len(batchIds))
-			for _, id := range batchIds {
-				joinIds = append(joinIds, id)
-			}
-			features, err := featureView.GetOnlineFeatures(joinIds, c.selectFields, map[string]string{})
-			if err != nil {
-				fetchErrOnce.Do(func() {
-					fetchErr = err
-				})
-				return
-			}
-			for _, featureMap := range features {
-				itemId := utils.ToString(featureMap[featureEntity.FeatureEntityJoinid], "")
-				if itemId != "" {
-					c.itemCache.Store(itemId, &cacheEntry{props: featureMap, updatedAt: start.UnixNano()})
-					cacheSize.Add(1)
-				}
-			}
-		}(ids[i:end])
 	}
-	wg.Wait()
-	if fetchErr != nil {
-		return fmt.Errorf("GetOnlineFeatures failed: %w", fetchErr)
+	return ""
+}
+
+// normalizeJoinId stores the primary key value under the entity join id and
+// drops the primary key field when its name differs, matching the properties
+// returned by GetOnlineFeatures.
+func (c *FeatureViewCache) normalizeJoinId(id, primaryKey string, properties map[string]any) map[string]any {
+	if c.joinId == "" {
+		return properties
 	}
+	properties[c.joinId] = id
+	if primaryKey != "" && primaryKey != c.joinId {
+		delete(properties, primaryKey)
+	}
+	return properties
+}
 
-	// Remove items absent from the new scan snapshot, but preserve entries the
-	// Stream consumer wrote at/after the scan started (newer than the snapshot,
-	// not deletions).
-	c.pruneStale(newIds, scanStartNano)
+// store writes one row into the cache. It is called by both the full scan and
+// the Stream incremental iterate.
+func (c *FeatureViewCache) store(id string, properties map[string]any) {
+	entry := &cacheEntry{props: c.selectProperties(properties), updatedAt: time.Now().UnixNano()}
+	if _, loaded := c.itemCache.Swap(id, entry); !loaded {
+		c.size.Add(1)
+	}
+}
 
-	c.size.Store(cacheSize.Load())
-	log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=fetchAllData completed\tsize=%d\tcost=%d",
-		c.name, cacheSize.Load(), utils.CostTime(start)))
-	return nil
+// selectProperties keeps only the configured select fields plus the join id,
+// or all fields when SelectFields is "*".
+func (c *FeatureViewCache) selectProperties(properties map[string]any) map[string]any {
+	if len(c.selectFields) == 0 || (len(c.selectFields) == 1 && c.selectFields[0] == "*") {
+		return properties
+	}
+	selected := make(map[string]any, len(c.selectFields)+1)
+	if v, ok := properties[c.joinId]; ok {
+		selected[c.joinId] = v
+	}
+	for _, f := range c.selectFields {
+		if v, ok := properties[f]; ok {
+			selected[f] = v
+		}
+	}
+	return selected
 }
 
 // pruneStale deletes cache entries that are absent from the latest scan snapshot
@@ -414,77 +458,13 @@ func (c *FeatureViewCache) pruneStale(newIds map[string]bool, scanStartNano int6
 		if entry, ok := val.(*cacheEntry); ok && entry.updatedAt >= scanStartNano {
 			return true
 		}
-		c.itemCache.Delete(key)
+		// CompareAndDelete keeps an entry concurrently replaced by the iterate
+		// goroutine after the check above.
+		if c.itemCache.CompareAndDelete(key, val) {
+			c.size.Add(-1)
+		}
 		return true
 	})
-}
-
-// fetchBatchData loads properties for a batch of IDs and adds them to the cache
-// (used for incremental updates from Stream iterate).
-func (c *FeatureViewCache) fetchBatchData(ids []string) {
-	if len(ids) == 0 {
-		return
-	}
-
-	featureView := c.fsClient.GetProject().GetFeatureView(c.viewName)
-	if featureView == nil {
-		return
-	}
-	featureEntity := c.fsClient.GetProject().GetFeatureEntity(featureView.GetFeatureEntityName())
-	if featureEntity == nil {
-		return
-	}
-
-	joinIds := make([]any, 0, len(ids))
-	for _, id := range ids {
-		joinIds = append(joinIds, id)
-	}
-	features, err := featureView.GetOnlineFeatures(joinIds, c.selectFields, map[string]string{})
-	if err != nil {
-		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=fetchBatchData error\terror=%v", c.name, err))
-		return
-	}
-	nowNano := time.Now().UnixNano()
-	for _, featureMap := range features {
-		itemId := utils.ToString(featureMap[featureEntity.FeatureEntityJoinid], "")
-		if itemId != "" {
-			if _, loaded := c.itemCache.Swap(itemId, &cacheEntry{props: featureMap, updatedAt: nowNano}); !loaded {
-				c.size.Add(1)
-			}
-		}
-	}
-}
-
-// loopIterateData consumes incremental IDs from the Stream iterate channel
-// and immediately loads their latest properties into the cache.
-func (c *FeatureViewCache) loopIterateData() {
-	for {
-		select {
-		case <-c.stopCh:
-			return
-		case id, ok := <-c.ch:
-			if !ok {
-				return
-			}
-
-			ids := []string{id}
-		drain:
-			for {
-				select {
-				case <-c.stopCh:
-					return
-				case id, ok := <-c.ch:
-					if !ok {
-						return
-					}
-					ids = append(ids, id)
-				default:
-					break drain
-				}
-			}
-			c.fetchBatchData(ids)
-		}
-	}
 }
 
 // loopRefresh periodically re-scans the FeatureView and replaces cache content.
@@ -496,7 +476,7 @@ func (c *FeatureViewCache) loopRefresh() {
 			interval = notReadyRetryInterval
 		}
 		select {
-		case <-c.stopCh:
+		case <-c.ctx.Done():
 			return
 		case <-time.After(interval):
 		}
@@ -506,39 +486,18 @@ func (c *FeatureViewCache) loopRefresh() {
 			continue
 		}
 
-		featureView := c.fsClient.GetProject().GetFeatureView(c.viewName)
-		if featureView == nil {
-			log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=featureView not found: %s", c.name, c.viewName))
-			continue
-		}
-
-		// Capture scan start before the snapshot scan so entries streamed in
-		// afterwards survive the prune in fetchAllData.
-		scanStart := time.Now().UnixNano()
-		var (
-			ids []string
-			err error
-		)
-		for i := 0; i < 5; i++ {
-			ids, err = featureView.ScanAndIterateData("", nil)
-			if err == nil {
-				break
-			}
-			time.Sleep(10 * time.Second)
-		}
+		n, err := c.scanWithRetry()
 		if err != nil {
+			if c.ctx.Err() != nil {
+				return
+			}
 			log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=refresh scan failed: %v", c.name, err))
-			continue
-		}
-
-		if err := c.fetchAllData(ids, scanStart); err != nil {
-			log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=refresh data failed: %v", c.name, err))
 			continue
 		}
 		// Advance lastScanTime and mark ready only after a successful, non-empty
 		// refresh, so a failed or empty attempt is retried on the next tick.
 		c.lastScanTime = time.Now()
-		if len(ids) > 0 {
+		if n > 0 {
 			c.ready.Store(true)
 		}
 		log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=refresh completed\tsize=%d", c.name, c.size.Load()))
