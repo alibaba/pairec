@@ -284,37 +284,33 @@ func (c *FeatureViewCache) Close() {
 
 // initData performs the initial full scan and data load.
 func (c *FeatureViewCache) initData() error {
-	n, err := c.scanWithRetry()
-	if err != nil {
+	if err := c.scanWithRetry(); err != nil {
 		return err
 	}
-	// Only advance lastScanTime after a successful scan, so a failed init never
-	// suppresses the next refresh attempt.
+	// Only advance lastScanTime and mark ready after a successful scan, so a
+	// failed init never suppresses the next refresh attempt. A successful empty
+	// scan is a valid snapshot: consumers then treat every item as a cache miss,
+	// the same as querying the empty view directly.
 	c.lastScanTime = time.Now()
-	// Only mark ready when the view actually has data; an empty view stays
-	// not-ready so consumers fail open instead of filtering every item.
-	if n > 0 {
-		c.ready.Store(true)
-	}
+	c.ready.Store(true)
 	return nil
 }
 
-// scanWithRetry runs scanAndLoad up to scanRetryTimes times and returns the
-// number of scanned rows. It gives up as soon as the cache is closed.
-func (c *FeatureViewCache) scanWithRetry() (int, error) {
+// scanWithRetry runs scanAndLoad up to scanRetryTimes times. It gives up as
+// soon as the cache is closed.
+func (c *FeatureViewCache) scanWithRetry() error {
 	var err error
 	for i := 0; i < scanRetryTimes; i++ {
 		project := c.fsClient.GetProject()
 		featureView := project.GetFeatureView(c.viewName)
 		if featureView == nil {
-			return 0, fmt.Errorf("featureView not found: %s", c.viewName)
+			return fmt.Errorf("featureView not found: %s", c.viewName)
 		}
-		var n int
-		if n, err = c.scanAndLoad(project, featureView); err == nil {
-			return n, nil
+		if err = c.scanAndLoad(project, featureView); err == nil {
+			return nil
 		}
 		if ctxErr := c.ctx.Err(); ctxErr != nil {
-			return 0, ctxErr
+			return ctxErr
 		}
 		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan retry %d\terror=%v", c.name, i+1, err))
 		if i == scanRetryTimes-1 {
@@ -324,19 +320,19 @@ func (c *FeatureViewCache) scanWithRetry() (int, error) {
 		select {
 		case <-c.ctx.Done():
 			timer.Stop()
-			return 0, c.ctx.Err()
+			return c.ctx.Err()
 		case <-timer.C:
 		}
 	}
-	return 0, fmt.Errorf("scan failed after retries: %w", err)
+	return fmt.Errorf("scan failed after retries: %w", err)
 }
 
 // scanAndLoad runs one ScanAndIterateFeatures full scan, writes every scanned
 // row into the cache and prunes items absent from the scan. The SDK keeps an
 // iterate goroutine running after the scan: for Stream views it applies
 // incremental updates and replaces the previous scan's iterate goroutine, for
-// Batch views it is stopped right away. It returns the number of scanned rows.
-func (c *FeatureViewCache) scanAndLoad(project *domain.Project, featureView domain.FeatureView) (int, error) {
+// Batch views it is stopped right away.
+func (c *FeatureViewCache) scanAndLoad(project *domain.Project, featureView domain.FeatureView) error {
 	start := time.Now()
 	// Entries written at/after scanStart (by this scan or by a still running
 	// iterate goroutine) are newer than the snapshot and must survive the prune.
@@ -363,7 +359,7 @@ func (c *FeatureViewCache) scanAndLoad(project *domain.Project, featureView doma
 	mu.Unlock()
 	if err != nil {
 		scanCancel()
-		return 0, err
+		return err
 	}
 	if c.stream {
 		if c.iterCancel != nil {
@@ -374,20 +370,16 @@ func (c *FeatureViewCache) scanAndLoad(project *domain.Project, featureView doma
 		scanCancel()
 	}
 
-	if len(newIds) == 0 {
-		// Never wipe a populated cache on an empty scan: it is more likely a
-		// transient FeatureDB glitch or an unproduced view than a legitimate
-		// "all items removed" signal. Keep the previous snapshot; ready is left
-		// unchanged so consumers keep serving last-known-good data (or fail open
-		// if this was the initial, still-empty load).
-		log.Warning(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan returned empty ids, keep previous cache\tsize=%d", c.name, c.size.Load()))
-		return 0, nil
-	}
-
+	// A successful empty scan is a valid snapshot (scan failures are returned as
+	// errors by the SDK), so it prunes like any other scan; only entries streamed
+	// in after the scan started survive.
 	c.pruneStale(newIds, scanStart)
+	if len(newIds) == 0 {
+		log.Warning(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan returned empty ids\tsize=%d", c.name, c.size.Load()))
+	}
 	log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=scan completed\tids=%d\tsize=%d\tcost=%d",
 		c.name, len(newIds), c.size.Load(), utils.CostTime(start)))
-	return len(newIds), nil
+	return nil
 }
 
 // primaryKeyName returns the primary key field name of the feature view, or ""
@@ -486,20 +478,17 @@ func (c *FeatureViewCache) loopRefresh() {
 			continue
 		}
 
-		n, err := c.scanWithRetry()
-		if err != nil {
+		if err := c.scanWithRetry(); err != nil {
 			if c.ctx.Err() != nil {
 				return
 			}
 			log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\terror=refresh scan failed: %v", c.name, err))
 			continue
 		}
-		// Advance lastScanTime and mark ready only after a successful, non-empty
-		// refresh, so a failed or empty attempt is retried on the next tick.
+		// Advance lastScanTime and mark ready only after a successful refresh, so
+		// a failed attempt is retried on the next tick.
 		c.lastScanTime = time.Now()
-		if n > 0 {
-			c.ready.Store(true)
-		}
+		c.ready.Store(true)
 		log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=refresh completed\tsize=%d", c.name, c.size.Load()))
 	}
 }

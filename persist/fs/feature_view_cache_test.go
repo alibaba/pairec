@@ -87,34 +87,87 @@ func TestFeatureViewCacheCloseIsIdempotent(t *testing.T) {
 	(&FeatureViewCache{}).Close()
 }
 
-// TestScanAndLoadKeepsPreviousOnEmptyScan verifies that an empty scan result
-// does not wipe a populated cache (which, combined with fail-close filtering,
-// would empty the result set). The previous snapshot and ready state are kept.
-func TestScanAndLoadKeepsPreviousOnEmptyScan(t *testing.T) {
-	var ctxs []context.Context
-	withFakeScan(t, fakeScanRows(nil, &ctxs))
-
+// TestScanAndLoadEmptyScanIsValidSnapshot verifies that a successful empty scan
+// is applied like any other snapshot: entries written before the scan are
+// pruned and the size drops, while entries streamed in after the scan started
+// survive.
+func TestScanAndLoadEmptyScanIsValidSnapshot(t *testing.T) {
 	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	c.stream = true
 	defer c.Close()
-	c.itemCache.Store("item-1", &cacheEntry{props: map[string]any{"status": 1}, updatedAt: time.Now().UnixNano()})
+	c.itemCache.Store("item-1", &cacheEntry{props: map[string]any{"status": 1}, updatedAt: time.Now().Add(-time.Minute).UnixNano()})
 	c.size.Store(1)
 	c.ready.Store(true)
 
-	n, err := c.scanAndLoad(nil, nil)
-	if err != nil {
+	withFakeScan(t, func(context.Context, *domain.Project, domain.FeatureView, func(string, map[string]interface{})) error {
+		// Simulate the previous iterate goroutine writing during the scan.
+		c.store("streamed", map[string]any{"status": 2})
+		return nil
+	})
+
+	if err := c.scanAndLoad(nil, nil); err != nil {
 		t.Fatalf("scanAndLoad returned error: %v", err)
 	}
-	if n != 0 {
-		t.Fatalf("expected 0 scanned rows, got %d", n)
+	if _, ok := c.Get("item-1"); ok {
+		t.Fatal("empty scan should prune items written before the scan")
 	}
-	if _, ok := c.Get("item-1"); !ok {
-		t.Fatal("empty scan wiped previously cached item")
+	if _, ok := c.Get("streamed"); !ok {
+		t.Fatal("item streamed in after the scan started must be preserved")
 	}
 	if c.Size() != 1 {
-		t.Fatalf("expected size preserved as 1, got %d", c.Size())
+		t.Fatalf("expected size 1, got %d", c.Size())
+	}
+}
+
+// TestInitDataEmptyViewIsReady verifies that an initial empty scan marks the
+// cache ready, so consumers filter with cache-miss semantics instead of failing
+// open forever and loopRefresh does not keep rescanning every 30s.
+func TestInitDataEmptyViewIsReady(t *testing.T) {
+	var ctxs []context.Context
+	withFakeScan(t, fakeScanRows(nil, &ctxs))
+
+	project := &domain.Project{}
+	project.FeatureViewMap.Store("view", &fakeFeatureView{})
+	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	c.fsClient = &FSClient{project: project}
+	c.viewName = "view"
+	defer c.Close()
+
+	if err := c.initData(); err != nil {
+		t.Fatalf("initData returned error: %v", err)
 	}
 	if !c.Ready() {
-		t.Fatal("empty scan should not clear ready state")
+		t.Fatal("successful empty initial scan should mark the cache ready")
+	}
+	if c.lastScanTime.IsZero() {
+		t.Fatal("successful scan should advance lastScanTime")
+	}
+}
+
+// TestInitDataFailureStaysNotReady verifies a failed initial scan leaves the
+// cache not ready, and that Close interrupts the scan retries.
+func TestInitDataFailureStaysNotReady(t *testing.T) {
+	project := &domain.Project{}
+	project.FeatureViewMap.Store("view", &fakeFeatureView{})
+	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	c.fsClient = &FSClient{project: project}
+	c.viewName = "view"
+
+	attempts := 0
+	withFakeScan(t, func(context.Context, *domain.Project, domain.FeatureView, func(string, map[string]interface{})) error {
+		attempts++
+		c.Close()
+		return errors.New("scan failed")
+	})
+
+	if err := c.initData(); err == nil {
+		t.Fatal("expected initData error")
+	}
+	if attempts != 1 {
+		t.Fatalf("Close should stop retries, got %d attempts", attempts)
+	}
+	if c.Ready() {
+		t.Fatal("failed initial scan must not mark the cache ready")
 	}
 }
 
@@ -133,12 +186,8 @@ func TestScanAndLoadReplacesContentAndStopsBatchIterate(t *testing.T) {
 	c.itemCache.Store("stale", &cacheEntry{props: map[string]any{}, updatedAt: time.Now().Add(-time.Minute).UnixNano()})
 	c.size.Store(1)
 
-	n, err := c.scanAndLoad(nil, nil)
-	if err != nil {
+	if err := c.scanAndLoad(nil, nil); err != nil {
 		t.Fatalf("scanAndLoad returned error: %v", err)
-	}
-	if n != 2 {
-		t.Fatalf("expected 2 scanned rows, got %d", n)
 	}
 	if props, ok := c.Get("b"); !ok || props["status"] != 2 {
 		t.Fatalf("scanned item not cached correctly: %v", props)
@@ -164,13 +213,13 @@ func TestScanAndLoadStreamIterateLifecycle(t *testing.T) {
 	c := newTestCache(recconf.FeatureViewCacheConfig{})
 	c.stream = true
 
-	if _, err := c.scanAndLoad(nil, nil); err != nil {
+	if err := c.scanAndLoad(nil, nil); err != nil {
 		t.Fatalf("first scan returned error: %v", err)
 	}
 	if ctxs[0].Err() != nil {
 		t.Fatal("stream iterate context should stay alive after the scan")
 	}
-	if _, err := c.scanAndLoad(nil, nil); err != nil {
+	if err := c.scanAndLoad(nil, nil); err != nil {
 		t.Fatalf("second scan returned error: %v", err)
 	}
 	if ctxs[0].Err() == nil {
@@ -187,8 +236,7 @@ func TestScanAndLoadStreamIterateLifecycle(t *testing.T) {
 }
 
 // TestScanAndLoadAppliesIncrementalUpdates verifies that rows delivered by the
-// iterate goroutine after the scan returns are written to the cache, are not
-// counted as snapshot rows, and stop arriving once the cache is closed.
+// iterate goroutine after the scan returns are written to the cache.
 func TestScanAndLoadAppliesIncrementalUpdates(t *testing.T) {
 	incremental := make(chan struct{})
 	delivered := make(chan struct{})
@@ -210,12 +258,8 @@ func TestScanAndLoadAppliesIncrementalUpdates(t *testing.T) {
 	c.stream = true
 	defer c.Close()
 
-	n, err := c.scanAndLoad(nil, nil)
-	if err != nil {
+	if err := c.scanAndLoad(nil, nil); err != nil {
 		t.Fatalf("scanAndLoad returned error: %v", err)
-	}
-	if n != 1 {
-		t.Fatalf("expected 1 scanned row, got %d", n)
 	}
 	close(incremental)
 	<-delivered
@@ -244,7 +288,7 @@ func TestScanAndLoadErrorCancelsScanContext(t *testing.T) {
 	c.stream = true
 	defer c.Close()
 
-	if _, err := c.scanAndLoad(nil, nil); err == nil {
+	if err := c.scanAndLoad(nil, nil); err == nil {
 		t.Fatal("expected scan error")
 	}
 	if scanCtx.Err() == nil {
@@ -306,7 +350,7 @@ func TestScanAndLoadRenamesPrimaryKeyToJoinId(t *testing.T) {
 			c.stream = true
 			defer c.Close()
 
-			if _, err := c.scanAndLoad(nil, featureView); err != nil {
+			if err := c.scanAndLoad(nil, featureView); err != nil {
 				t.Fatalf("scanAndLoad returned error: %v", err)
 			}
 			<-delivered
