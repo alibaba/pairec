@@ -1,6 +1,6 @@
 module github.com/alibaba/pairec/v2
 
-go 1.24.0
+go 1.24.4
 
 require (
 	github.com/ClickHouse/clickhouse-go v1.5.4
@@ -34,7 +34,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/tidwall/gjson v1.14.3
 	github.com/tsuna/gohbase v0.0.0-20200414231402-ae5d5a2cd032
-	golang.org/x/exp v0.0.0-20240525044651-4c93da0ed11d
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	gonum.org/v1/gonum v0.12.0
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.36.11
@@ -51,7 +51,8 @@ require (
 	github.com/golang/geo v0.0.0-20251029182131-33017506d313
 	github.com/google/uuid v1.3.0
 	github.com/mmcloughlin/geohash v0.10.0
-	go.uber.org/automaxprocs v1.5.2
+	github.com/nikolalohinski/gonja/v2 v2.9.1
+	go.uber.org/automaxprocs v1.6.0
 )
 
 require (
@@ -65,6 +66,7 @@ require (
 	github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
@@ -129,7 +131,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/net v0.46.1-0.20251013234738-63d1a5100f82
 	golang.org/x/sys v0.37.0
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/text v0.30.0
 	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	modernc.org/b v1.0.0 // indirect

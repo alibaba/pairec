@@ -356,21 +356,22 @@ type RecallConfig struct {
 	CacheTime      int // cache time by seconds
 	Triggers       []TriggerConfig
 
-	HologresVectorConf       HologresVectorConfig
-	HologresRecallConf       HologresRecallConfig
-	BeVectorConf             BeVectorConfig
-	MilvusVectorConf         MilvusVectorConfig
-	UserCollaborativeDaoConf UserCollaborativeDaoConfig
-	ItemCollaborativeDaoConf ItemCollaborativeDaoConfig
-	EnableMultipleItemId     bool
-	MultipleItemIdDelimiter  string
-	User2ItemDaoConf         User2ItemDaoConfig
-	UserTopicDaoConf         UserTopicDaoConfig
-	DaoConf                  DaoConfig
-	VectorDaoConf            VectorDaoConfig
-	ColdStartDaoConf         ColdStartDaoConfig
-	RealTimeUser2ItemDaoConf RealTimeUser2ItemDaoConfig
-	UserFeatureConfs         []FeatureLoadConfig // get user features
+	HologresVectorConf                 HologresVectorConfig
+	HologresRecallConf                 HologresRecallConfig
+	HologresJinjaSqlTemplateRecallConf HologresJinjaSqlTemplateRecallConfig
+	BeVectorConf                       BeVectorConfig
+	MilvusVectorConf                   MilvusVectorConfig
+	UserCollaborativeDaoConf           UserCollaborativeDaoConfig
+	ItemCollaborativeDaoConf           ItemCollaborativeDaoConfig
+	EnableMultipleItemId               bool
+	MultipleItemIdDelimiter            string
+	User2ItemDaoConf                   User2ItemDaoConfig
+	UserTopicDaoConf                   UserTopicDaoConfig
+	DaoConf                            DaoConfig
+	VectorDaoConf                      VectorDaoConfig
+	ColdStartDaoConf                   ColdStartDaoConfig
+	RealTimeUser2ItemDaoConf           RealTimeUser2ItemDaoConfig
+	UserFeatureConfs                   []FeatureLoadConfig // get user features
 
 	// be recall config
 	BeConf         BeConfig
@@ -494,6 +495,14 @@ type HologresRecallConfig struct {
 	Sql          string
 	ItemId       string
 	Params       []string
+}
+
+// HologresJinjaSqlTemplateRecallConfig is used by HologresJinjaSqlTemplateRecall, SqlTemplate is a jinja template
+// rendered by gonja for each request, {{ bind(value) }} binds the value as a query parameter.
+type HologresJinjaSqlTemplateRecallConfig struct {
+	HologresName string
+	SqlTemplate  string
+	ItemId       string
 }
 
 type BeConfig struct {
