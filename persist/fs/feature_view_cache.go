@@ -111,7 +111,7 @@ func loadFeatureViewCachesWithFactory(config *recconf.RecommendConfig, factory f
 		}
 		featureViewCaches[name] = c
 		c.start()
-		log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=initialized", name))
+		log.Info(fmt.Sprintf("module=FeatureViewCache\tname=%s\tview=%s\ttype=%s\tfields=%d\tmsg=initialized", name, c.viewName, c.viewType, c.fieldCount))
 	}
 	for name, c := range featureViewCaches {
 		if !activeNames[name] {
@@ -139,6 +139,8 @@ type FeatureViewCache struct {
 	name            string
 	fsClient        *FSClient
 	viewName        string
+	viewType        string // FeatureView type from FeatureStore metadata, e.g. Batch or Stream
+	fieldCount      int    // number of fields defined on the FeatureView
 	joinId          string // feature entity join id field name, e.g. item_id
 	selectFields    []string
 	conf            recconf.FeatureViewCacheConfig
@@ -231,15 +233,18 @@ func newFeatureViewCache(name string, conf recconf.FeatureViewCacheConfig) (*Fea
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	viewType := featureView.GetType()
 	cache := &FeatureViewCache{
 		name:            name,
 		fsClient:        fsclient,
 		viewName:        conf.FeatureStoreViewName,
+		viewType:        viewType,
+		fieldCount:      len(featureView.GetFields()),
 		joinId:          joinId,
 		selectFields:    selectFields,
 		conf:            conf,
 		refreshInterval: time.Duration(refreshMinutes) * time.Minute,
-		stream:          featureView.GetType() == "Stream",
+		stream:          viewType == "Stream",
 		ctx:             ctx,
 		cancel:          cancel,
 	}
