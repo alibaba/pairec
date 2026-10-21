@@ -1,6 +1,7 @@
 package feature
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -12,6 +13,7 @@ import (
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/file"
 	"github.com/expr-lang/expr/vm"
 )
 
@@ -236,13 +238,23 @@ type ExprNormalizer struct {
 	prog       *vm.Program
 	expression string
 	vars       []string
+	embedding  *fsEmbedding
 }
 
 func NewExprNormalizer(expression string) *ExprNormalizer {
 	normalizer := &ExprNormalizer{expression: expression}
 
 	options := append([]expr.Option{expr.AllowUndefinedVariables()}, utils.ExprFunctions()...)
-	if program, err := expr.Compile(expression, options...); err != nil {
+	embedding := &fsEmbedding{}
+	options = append(options, expr.Function("fsEmbedding", embedding.call, new(func(string, string, any, int) []float32)), expr.Patch(embedding))
+	program, err := expr.Compile(expression, options...)
+	if embedding.models != nil {
+		normalizer.embedding = embedding
+	}
+	if err == nil {
+		err = embedding.err
+	}
+	if err != nil {
 		log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\terr=%v", expression, err))
 	} else {
 		normalizer.prog = program
@@ -252,6 +264,9 @@ func NewExprNormalizer(expression string) *ExprNormalizer {
 }
 func (n *ExprNormalizer) Apply(value interface{}) interface{} {
 	if n.prog == nil {
+		if n.embedding != nil {
+			return nil
+		}
 		return ""
 	}
 
@@ -259,9 +274,24 @@ func (n *ExprNormalizer) Apply(value interface{}) interface{} {
 		if result, err := expr.Run(n.prog, params); err == nil {
 			return result
 		} else {
+			if n.embedding != nil {
+				if !errors.Is(err, errSkipFSEmbedding) {
+					// Avoid dumping user parameters or expression snippets on this path.
+					message := err.Error()
+					var exprErr *file.Error
+					if errors.As(err, &exprErr) {
+						message = exprErr.Message
+					}
+					log.Error(fmt.Sprintf("event=FSEmbedding\terror=%s", message))
+				}
+				return nil
+			}
 			log.Error(fmt.Sprintf("event=ExprNormalizer\texpression=%s\tparams={%s}\terror=%v", n.expression, describeExprParams(n.vars, params), err))
 		}
 	}
 
+	if n.embedding != nil {
+		return nil
+	}
 	return ""
 }
