@@ -16,6 +16,14 @@ import (
 
 var errSkipFSEmbedding = errors.New("empty embedding input")
 
+// createFSEmbeddings is a variable so tests can replace the remote SDK request.
+var createFSEmbeddings = func(ctx context.Context, model *domain.LLMConfig, text string) ([][]float32, error) {
+	if model.ModelType == domain.LLMModelTypeTextEmbedding {
+		return model.CreateTextEmbeddings(ctx, []string{text})
+	}
+	return model.CreateMultiModalEmbeddings(ctx, []domain.MultiModalContent{{Text: text}})
+}
+
 // Models are prepared before publishing the feature configuration, then read only.
 type fsEmbedding struct {
 	models map[[2]string]*domain.LLMConfig
@@ -113,13 +121,7 @@ func (e *fsEmbedding) call(args ...any) (any, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(args[3].(int))*time.Millisecond)
 	defer cancel()
-	var vectors [][]float32
-	var err error
-	if model.ModelType == domain.LLMModelTypeTextEmbedding {
-		vectors, err = model.CreateTextEmbeddings(ctx, []string{text})
-	} else {
-		vectors, err = model.CreateMultiModalEmbeddings(ctx, []domain.MultiModalContent{{Text: text}})
-	}
+	vectors, err := createFSEmbeddings(ctx, model, text)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("fsEmbedding model %q/%q: %w", key[0], key[1], ctx.Err())
