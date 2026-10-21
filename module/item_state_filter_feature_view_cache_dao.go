@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -96,7 +97,6 @@ func (d *ItemStateFilterFeatureViewCacheDao) Filter(user *User, items []*Item, c
 			}
 		}
 
-		item.AddProperties(properties)
 		// Consistent with ItemStateFilterFeatureStoreDao: when a generated query
 		// key is used and the entity join id is item_id, the cached join id value
 		// equals the generated key, so AddProperties would overwrite the item's
@@ -104,13 +104,14 @@ func (d *ItemStateFilterFeatureViewCacheDao) Filter(user *User, items []*Item, c
 		// stages observe the same value as the FeatureStore adapter.
 		restoreItemId := found && d.generateUserProgram != nil && joinId == "item_id"
 		if restoreItemId {
-			item.AddProperty(joinId, string(item.Id))
+			properties = maps.Clone(properties)
+			properties[joinId] = string(item.Id)
 		}
+
+		item.AddProperties(properties)
 
 		if d.transFunc != nil {
 			d.transFunc(user, item, ctx)
-			properties = item.GetProperties()
-		} else if restoreItemId {
 			properties = item.GetProperties()
 		}
 

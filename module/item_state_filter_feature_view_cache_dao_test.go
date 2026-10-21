@@ -121,6 +121,7 @@ func TestItemStateFilterFeatureViewCacheDaoRestoresGeneratedItemId(t *testing.T)
 		cache:               cache,
 		generateUserProgram: prog,
 		filterParam: NewFilterParamWithConfig([]recconf.FilterParamConfig{
+			{Name: "item_id", Domain: "item", Operator: "equal", Type: "string", Value: "item-1"},
 			{Name: "status", Domain: "item", Operator: "equal", Type: "int", Value: 1},
 		}),
 	}
@@ -132,5 +133,76 @@ func TestItemStateFilterFeatureViewCacheDaoRestoresGeneratedItemId(t *testing.T)
 	}
 	if got := item.StringProperty("item_id"); got != "item-1" {
 		t.Fatalf("expected item_id restored to real id %q, got %q", "item-1", got)
+	}
+	if got := cache.data["gen_item-1"]["item_id"]; got != "gen_item-1" {
+		t.Fatalf("cached item_id must remain unchanged, got %v", got)
+	}
+}
+
+func TestItemStateFilterFeatureViewCacheDaoIsolatesFilterProperties(t *testing.T) {
+	prog, err := expr.Compile(`"gen_" + item.item_id`, expr.AllowUndefinedVariables())
+	if err != nil {
+		t.Fatalf("compile expr failed: %v", err)
+	}
+	for _, tc := range []struct {
+		name        string
+		operator    string
+		value       int
+		cacheStatus bool
+		transform   bool
+		wantCount   int
+	}{
+		{name: "missing status must not use original item property", operator: "equal", value: 1, wantCount: 0},
+		{name: "missing status remains null", operator: "is_null", wantCount: 1},
+		{name: "cached status overrides original item property", operator: "equal", value: 1, cacheStatus: true, wantCount: 0},
+		{name: "transformation uses complete item properties", operator: "equal", value: 2, transform: true, wantCount: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			properties := map[string]any{"item_id": "gen_item-1"}
+			if tc.cacheStatus {
+				properties["status"] = 0
+			}
+			cache := &fakeFeatureViewCache{
+				joinId: "item_id",
+				ready:  true,
+				data:   map[string]map[string]any{"gen_item-1": properties},
+			}
+			dao := &ItemStateFilterFeatureViewCacheDao{
+				cache:               cache,
+				generateUserProgram: prog,
+				filterParam: NewFilterParamWithConfig([]recconf.FilterParamConfig{
+					{Name: "item_id", Domain: "item", Operator: "equal", Type: "string", Value: "item-1"},
+					{Name: "status", Domain: "item", Operator: tc.operator, Type: "int", Value: tc.value},
+				}),
+			}
+			transformed := false
+			if tc.transform {
+				dao.transFunc = func(_ *User, item *Item, _ *recommendcontext.RecommendContext) {
+					transformed = true
+					if item.StringProperty("item_id") != "item-1" || item.GetProperty("status") != 1 {
+						t.Fatalf("transformation received unexpected item properties: %v", item.GetProperties())
+					}
+					item.AddProperty("status", 2)
+				}
+			}
+			item := NewItemWithProperty("item-1", map[string]any{"status": 1})
+			result := dao.Filter(NewUser("user-1"), []*Item{item}, recommendcontext.NewRecommendContext())
+			if len(result) != tc.wantCount {
+				t.Fatalf("expected %d items, got %d", tc.wantCount, len(result))
+			}
+			if transformed != tc.transform {
+				t.Fatalf("transformation called = %v, want %v", transformed, tc.transform)
+			}
+			if got := item.StringProperty("item_id"); got != "item-1" {
+				t.Fatalf("item_id was not restored, got %q", got)
+			}
+			if properties["item_id"] != "gen_item-1" {
+				t.Fatalf("cached item_id was modified: %v", properties)
+			}
+			status, ok := properties["status"]
+			if ok != tc.cacheStatus || (ok && status != 0) {
+				t.Fatalf("cached status was modified: %v", properties)
+			}
+		})
 	}
 }
