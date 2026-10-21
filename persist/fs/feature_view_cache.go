@@ -225,13 +225,9 @@ func newFeatureViewCache(name string, conf recconf.FeatureViewCacheConfig) (*Fea
 		refreshMinutes = minRefreshIntervalMinutes
 	}
 
-	selectFields := []string{"*"}
-	if conf.SelectFields != "" && conf.SelectFields != "*" {
-		fields := strings.Split(conf.SelectFields, ",")
-		selectFields = make([]string, 0, len(fields))
-		for _, f := range fields {
-			selectFields = append(selectFields, strings.TrimSpace(f))
-		}
+	selectFields := parseSelectFields(conf.SelectFields)
+	if err := validateSelectFields(featureView, selectFields); err != nil {
+		return nil, fmt.Errorf("feature view:%s, %w", conf.FeatureStoreViewName, err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -258,6 +254,51 @@ func newFeatureViewCache(name string, conf recconf.FeatureViewCacheConfig) (*Fea
 		log.Error(fmt.Sprintf("module=FeatureViewCache\tname=%s\tmsg=initial load failed, serving degraded and retrying in background\terror=%v", name, err))
 	}
 	return cache, nil
+}
+
+// parseSelectFields splits the comma separated SelectFields config, skipping
+// empty items. It returns []string{"*"} when no field is configured.
+func parseSelectFields(conf string) []string {
+	selectFields := make([]string, 0)
+	for _, f := range strings.Split(conf, ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			selectFields = append(selectFields, f)
+		}
+	}
+	if len(selectFields) == 0 {
+		return []string{"*"}
+	}
+	return selectFields
+}
+
+// validateSelectFields checks the select fields against the feature view with
+// the same rules as the SDK scan, so a misconfigured field fails fast instead
+// of failing every scan: "*" and the primary key are always accepted, any
+// other name must be an encoded field of the view (partition fields are not,
+// unless they are also the event time field).
+func validateSelectFields(featureView domain.FeatureView, selectFields []string) error {
+	fields := make(map[string]bool)
+	primaryKey := ""
+	for _, field := range featureView.GetFields() {
+		if field.IsEventTime {
+			fields[field.Name] = true
+		} else if field.IsPartition {
+			continue
+		} else if field.IsPrimaryKey {
+			primaryKey = field.Name
+		} else {
+			fields[field.Name] = true
+		}
+	}
+	for _, name := range selectFields {
+		if name == "*" || name == primaryKey {
+			continue
+		}
+		if !fields[name] {
+			return fmt.Errorf("select field:%s not found in the feature view fields", name)
+		}
+	}
+	return nil
 }
 
 func (c *FeatureViewCache) configEqual(conf recconf.FeatureViewCacheConfig) bool {
@@ -344,7 +385,7 @@ func (c *FeatureViewCache) scanAndLoad(project *domain.Project, featureView doma
 	)
 	scanCtx, scanCancel := context.WithCancel(c.ctx)
 	primaryKey := primaryKeyName(featureView)
-	err := scanAndIterateFeatures(scanCtx, project, featureView, func(id string, properties map[string]interface{}) {
+	err := scanAndIterateFeatures(scanCtx, project, featureView, c.selectFields, func(id string, properties map[string]interface{}) {
 		c.store(id, c.normalizeJoinId(id, primaryKey, properties))
 		// The same callback is invoked later by the iterate goroutine; only rows
 		// delivered by the synchronous full scan belong to the snapshot.
@@ -411,30 +452,12 @@ func (c *FeatureViewCache) normalizeJoinId(id, primaryKey string, properties map
 }
 
 // store writes one row into the cache. It is called by both the full scan and
-// the Stream incremental iterate.
+// the Stream incremental iterate. Field selection is done by the SDK scan.
 func (c *FeatureViewCache) store(id string, properties map[string]any) {
-	entry := &cacheEntry{props: c.selectProperties(properties), updatedAt: time.Now().UnixNano()}
+	entry := &cacheEntry{props: properties, updatedAt: time.Now().UnixNano()}
 	if _, loaded := c.itemCache.Swap(id, entry); !loaded {
 		c.size.Add(1)
 	}
-}
-
-// selectProperties keeps only the configured select fields plus the join id,
-// or all fields when SelectFields is "*".
-func (c *FeatureViewCache) selectProperties(properties map[string]any) map[string]any {
-	if len(c.selectFields) == 0 || (len(c.selectFields) == 1 && c.selectFields[0] == "*") {
-		return properties
-	}
-	selected := make(map[string]any, len(c.selectFields)+1)
-	if v, ok := properties[c.joinId]; ok {
-		selected[c.joinId] = v
-	}
-	for _, f := range c.selectFields {
-		if v, ok := properties[f]; ok {
-			selected[f] = v
-		}
-	}
-	return selected
 }
 
 // pruneStale deletes cache entries that are absent from the latest scan snapshot

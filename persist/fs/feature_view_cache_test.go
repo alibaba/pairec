@@ -3,6 +3,7 @@ package fs
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func isClosed(c *FeatureViewCache) bool {
 	return c.ctx.Err() != nil
 }
 
-type scanFn = func(ctx context.Context, project *domain.Project, featureView domain.FeatureView, fn func(id string, properties map[string]interface{})) error
+type scanFn = func(ctx context.Context, project *domain.Project, featureView domain.FeatureView, selectFields []string, fn func(id string, properties map[string]interface{})) error
 
 // withFakeScan replaces scanAndIterateFeatures for the duration of the test.
 func withFakeScan(t *testing.T, fake scanFn) {
@@ -49,7 +50,7 @@ func withFakeScan(t *testing.T, fake scanFn) {
 // fakeScanRows returns a fake scan that delivers rows synchronously and records
 // the scan context it was given.
 func fakeScanRows(rows map[string]map[string]any, ctxs *[]context.Context) scanFn {
-	return func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, fn func(string, map[string]interface{})) error {
+	return func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, _ []string, fn func(string, map[string]interface{})) error {
 		*ctxs = append(*ctxs, ctx)
 		for id, props := range rows {
 			fn(id, props)
@@ -99,7 +100,7 @@ func TestScanAndLoadEmptyScanIsValidSnapshot(t *testing.T) {
 	c.size.Store(1)
 	c.ready.Store(true)
 
-	withFakeScan(t, func(context.Context, *domain.Project, domain.FeatureView, func(string, map[string]interface{})) error {
+	withFakeScan(t, func(context.Context, *domain.Project, domain.FeatureView, []string, func(string, map[string]interface{})) error {
 		// Simulate the previous iterate goroutine writing during the scan.
 		c.store("streamed", map[string]any{"status": 2})
 		return nil
@@ -154,7 +155,7 @@ func TestInitDataFailureStaysNotReady(t *testing.T) {
 	c.viewName = "view"
 
 	attempts := 0
-	withFakeScan(t, func(context.Context, *domain.Project, domain.FeatureView, func(string, map[string]interface{})) error {
+	withFakeScan(t, func(context.Context, *domain.Project, domain.FeatureView, []string, func(string, map[string]interface{})) error {
 		attempts++
 		c.Close()
 		return errors.New("scan failed")
@@ -240,7 +241,7 @@ func TestScanAndLoadStreamIterateLifecycle(t *testing.T) {
 func TestScanAndLoadAppliesIncrementalUpdates(t *testing.T) {
 	incremental := make(chan struct{})
 	delivered := make(chan struct{})
-	withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, fn func(string, map[string]interface{})) error {
+	withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, _ []string, fn func(string, map[string]interface{})) error {
 		fn("a", map[string]any{"item_id": "a", "v": 1})
 		go func() {
 			defer close(delivered)
@@ -279,7 +280,7 @@ func TestScanAndLoadAppliesIncrementalUpdates(t *testing.T) {
 // error, leaves the cache untouched and releases its context.
 func TestScanAndLoadErrorCancelsScanContext(t *testing.T) {
 	var scanCtx context.Context
-	withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, _ func(string, map[string]interface{})) error {
+	withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, _ []string, _ func(string, map[string]interface{})) error {
 		scanCtx = ctx
 		return errors.New("scan failed")
 	})
@@ -299,18 +300,74 @@ func TestScanAndLoadErrorCancelsScanContext(t *testing.T) {
 	}
 }
 
-func TestSelectProperties(t *testing.T) {
-	props := map[string]any{"item_id": "a", "status": 1, "other": 2}
+// TestScanAndLoadPassesSelectFields verifies the configured select fields are
+// passed to the SDK scan and the returned properties are cached as is.
+func TestScanAndLoadPassesSelectFields(t *testing.T) {
+	var got []string
+	withFakeScan(t, func(_ context.Context, _ *domain.Project, _ domain.FeatureView, selectFields []string, fn func(string, map[string]interface{})) error {
+		got = selectFields
+		fn("a", map[string]any{"item_id": "a", "status": 1})
+		return nil
+	})
 
-	c := &FeatureViewCache{joinId: "item_id", selectFields: []string{"*"}}
-	if got := c.selectProperties(props); len(got) != 3 {
-		t.Fatalf("select * should keep all fields, got %v", got)
+	c := newTestCache(recconf.FeatureViewCacheConfig{})
+	c.joinId = "item_id"
+	c.selectFields = []string{"status"}
+	defer c.Close()
+
+	if err := c.scanAndLoad(nil, nil); err != nil {
+		t.Fatalf("scanAndLoad returned error: %v", err)
 	}
+	if len(got) != 1 || got[0] != "status" {
+		t.Fatalf("select fields not passed to the scan, got %v", got)
+	}
+	if props, _ := c.Get("a"); len(props) != 2 || props["item_id"] != "a" || props["status"] != 1 {
+		t.Fatalf("scanned properties not cached as is, got %v", props)
+	}
+}
 
-	c.selectFields = []string{"status", "missing"}
-	got := c.selectProperties(props)
-	if len(got) != 2 || got["item_id"] != "a" || got["status"] != 1 {
-		t.Fatalf("expected join id and selected fields only, got %v", got)
+func TestParseSelectFields(t *testing.T) {
+	for _, tc := range []struct {
+		conf string
+		want []string
+	}{
+		{conf: "", want: []string{"*"}},
+		{conf: "*", want: []string{"*"}},
+		{conf: " , ,", want: []string{"*"}},
+		{conf: "status", want: []string{"status"}},
+		{conf: " status ,, other,", want: []string{"status", "other"}},
+	} {
+		if got := parseSelectFields(tc.conf); !reflect.DeepEqual(got, tc.want) {
+			t.Fatalf("parseSelectFields(%q) = %v, want %v", tc.conf, got, tc.want)
+		}
+	}
+}
+
+func TestValidateSelectFields(t *testing.T) {
+	featureView := &fakeFeatureView{fields: []api.FeatureViewFields{
+		{Name: "pk", IsPrimaryKey: true},
+		{Name: "status"},
+		{Name: "ds", IsPartition: true},
+		{Name: "event_time", IsPartition: true, IsEventTime: true},
+	}}
+
+	for _, tc := range []struct {
+		name         string
+		selectFields []string
+		wantErr      bool
+	}{
+		{name: "select all", selectFields: []string{"*"}},
+		{name: "primary key", selectFields: []string{"pk"}},
+		{name: "known fields", selectFields: []string{"status", "event_time"}},
+		{name: "unknown field", selectFields: []string{"status", "missing"}, wantErr: true},
+		{name: "partition field", selectFields: []string{"ds"}, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateSelectFields(featureView, tc.selectFields)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateSelectFields(%v) error = %v, wantErr %v", tc.selectFields, err, tc.wantErr)
+			}
+		})
 	}
 }
 
@@ -335,11 +392,27 @@ func TestScanAndLoadRenamesPrimaryKeyToJoinId(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			delivered := make(chan struct{})
-			withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, fn func(string, map[string]interface{})) error {
-				fn("a", map[string]any{"pk": "a", "status": 1, "other": 2})
+			// Like the SDK, the fake always returns the primary key plus the
+			// selected fields.
+			row := func(pk string, status, other int, selectFields []string) map[string]any {
+				all := map[string]any{"status": status, "other": other}
+				props := map[string]any{"pk": pk}
+				for _, f := range selectFields {
+					if f == "*" {
+						for k, v := range all {
+							props[k] = v
+						}
+					} else if v, ok := all[f]; ok {
+						props[f] = v
+					}
+				}
+				return props
+			}
+			withFakeScan(t, func(ctx context.Context, _ *domain.Project, _ domain.FeatureView, selectFields []string, fn func(string, map[string]interface{})) error {
+				fn("a", row("a", 1, 2, selectFields))
 				go func() {
 					defer close(delivered)
-					fn("b", map[string]any{"pk": "b", "status": 3, "other": 4})
+					fn("b", row("b", 3, 4, selectFields))
 				}()
 				return nil
 			})
