@@ -536,6 +536,7 @@ type RecallEngineParam struct {
 	DiversityParam         string
 	CustomParams           map[string]interface{}
 	TriggerLimit           int
+	IVFNprobePct           float32
 	Timeout                int          // per-way recall timeout in milliseconds, 0 means no per-way timeout
 	VersionId              string       // item vector table version
 	UserEmbeddingVersionId string       // user vector table version
