@@ -83,3 +83,42 @@ func TestParseUserDefineConfs(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestFeatureCacheConfigValidation(t *testing.T) {
+	for _, conf := range []FeatureCacheConfig{{CacheSize: 1}, {CacheSize: 10, CacheTime: 600}} {
+		if err := conf.Validate(); err != nil {
+			t.Fatalf("valid cache policy rejected: %v", err)
+		}
+	}
+	for _, conf := range []FeatureCacheConfig{{}, {CacheSize: -1}, {CacheSize: 1, CacheTime: -1}} {
+		if err := conf.Validate(); err == nil {
+			t.Fatalf("invalid cache policy accepted: %+v", conf)
+		}
+	}
+}
+
+func TestFeatureCacheRequirements(t *testing.T) {
+	conf := SceneFeatureConfig{FeatureLoadConfs: []FeatureLoadConfig{{FeatureDaoConf: FeatureDaoConfig{
+		DaoConfig:        DaoConfig{AdapterType: DataSource_Type_FeatureStore, FeatureStoreName: "fs"},
+		FeatureCacheName: "shared",
+	}}}}
+	modules := (RecommendConfig{FeatureStoreConfs: map[string]FeatureStoreConfig{"fs": {}}}).GetModules()
+	if err := conf.Requirements().Check(modules); err == nil {
+		t.Fatal("missing shared cache reference was accepted")
+	}
+	modules = (RecommendConfig{
+		FeatureStoreConfs: map[string]FeatureStoreConfig{"fs": {}},
+		FeatureCacheConfs: map[string]FeatureCacheConfig{"shared": {CacheSize: 10}},
+	}).GetModules()
+	if err := conf.Requirements().Check(modules); err != nil {
+		t.Fatal(err)
+	}
+	results, err := CheckRecommendConfig(`{"FeatureCacheConfs":{"shared":{"CacheSize":0}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := ModuleIndex{Type: FeatureCacheConfig{}.ModuleType(), Name: "shared"}
+	if results[index] == nil || len(results[index].Issues) == 0 {
+		t.Fatal("invalid named cache is not reported by config checking")
+	}
+}
