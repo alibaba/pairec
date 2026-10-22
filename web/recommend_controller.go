@@ -22,12 +22,13 @@ const (
 )
 
 type RecommendParam struct {
-	SceneId  string                 `json:"scene_id"`
-	Category string                 `json:"category"`
-	Uid      string                 `json:"uid"`  // user id
-	Size     int                    `json:"size"` // get recommend items size
-	Debug    bool                   `json:"debug"`
-	Features map[string]interface{} `json:"features"`
+	SceneId   string                 `json:"scene_id"`
+	Category  string                 `json:"category"`
+	Uid       string                 `json:"uid"`  // user id
+	Size      int                    `json:"size"` // get recommend items size
+	Debug     bool                   `json:"debug"`
+	Features  map[string]interface{} `json:"features"`
+	RequestId string                 `json:"request_id"`
 }
 
 func (r *RecommendParam) GetParameter(name string) interface{} {
@@ -53,9 +54,10 @@ type RecommendResponse struct {
 	Items []*ItemData `json:"items"`
 }
 type ItemData struct {
-	ItemId     string `json:"item_id"`
-	ItemType   string `json:"item_type"`
-	RetrieveId string `json:"retrieve_id"`
+	ItemId     string  `json:"item_id"`
+	ItemType   string  `json:"item_type"`
+	Score      float64 `json:"score"`
+	RetrieveId string  `json:"retrieve_id"`
 }
 
 func (r *RecommendResponse) ToString() string {
@@ -82,11 +84,11 @@ func (c *RecommendController) Process(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.RequestId = utils.UUID()
-	c.LogRequestBegin(r)
 	if err := c.CheckParameter(); err != nil {
 		c.SendError(w, ERROR_PARAMETER_CODE, err.Error())
 		return
 	}
+	c.LogRequestBegin(r)
 	c.doProcess(w, r)
 	c.End = time.Now()
 	c.LogRequestEnd(r)
@@ -94,6 +96,9 @@ func (c *RecommendController) Process(w http.ResponseWriter, r *http.Request) {
 func (r *RecommendController) CheckParameter() error {
 	if err := json.Unmarshal(r.RequestBody, &r.param); err != nil {
 		return err
+	}
+	if r.param.RequestId != "" {
+		r.RequestId = r.param.RequestId
 	}
 
 	if len(r.param.Uid) == 0 {
@@ -124,6 +129,7 @@ func (c *RecommendController) doProcess(w http.ResponseWriter, r *http.Request) 
 		idata := &ItemData{
 			ItemId:     string(item.Id),
 			ItemType:   item.ItemType,
+			Score:      item.Score,
 			RetrieveId: item.RetrieveId,
 		}
 
