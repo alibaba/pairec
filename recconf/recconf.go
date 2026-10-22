@@ -65,6 +65,7 @@ type RecommendConfig struct {
 	LindormConfs              map[string]LindormConfig
 	GraphConfs                map[string]GraphConfig
 	FeatureStoreConfs         map[string]FeatureStoreConfig
+	FeatureViewCacheConfs     map[string]FeatureViewCacheConfig
 	KafkaConfs                map[string]KafkaConfig
 	SlsConfs                  map[string]SlsConfig
 	DatahubConfs              map[string]DatahubConfig
@@ -157,6 +158,9 @@ type DaoConfig struct {
 	FeatureStoreModelName  string
 	FeatureStoreEntityName string
 	FeatureStoreViewName   string
+
+	// feature view cache
+	FeatureViewCacheName string // reference to FeatureViewCacheConfs key; when set, read from local scan cache
 
 	// graph
 	GraphName  string
@@ -778,6 +782,12 @@ type FeatureStoreConfig struct {
 	HologresPort      int
 	HologresUsername  string
 	HologresPassword  string
+}
+type FeatureViewCacheConfig struct {
+	FeatureStoreName       string // reference to FeatureStoreConfs key
+	FeatureStoreViewName   string // FeatureView name in the FeatureStore project
+	SelectFields           string // comma-separated fields to cache, "*" for all
+	RefreshIntervalMinutes int    // full re-scan interval (default 60)
 }
 type KafkaConfig struct {
 	BootstrapServers string
