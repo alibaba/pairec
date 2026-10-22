@@ -60,6 +60,9 @@ func (conf RecallConfig) Requirements() Requirements {
 	addDaoRequirements(conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.SqlDaoConfig.DaoConfig, requirements)
 	addDaoRequirements(conf.VectorDaoConf.DaoConfig, requirements)
 	for _, featureConf := range conf.UserFeatureConfs {
+		if featureConf.FeatureDaoConf.FeatureCacheName != "" {
+			requirements.Add(FeatureCacheConfig{}.ModuleType(), featureConf.FeatureDaoConf.FeatureCacheName)
+		}
 		addDaoRequirements(featureConf.FeatureDaoConf.DaoConfig, requirements)
 	}
 	if conf.GraphConf.GraphName != "" {
@@ -138,6 +141,9 @@ func (conf GeneralRankConfig) Requirements() Requirements {
 	requirements := newRequirements()
 
 	for _, loadConf := range conf.FeatureLoadConfs {
+		if loadConf.FeatureDaoConf.FeatureCacheName != "" {
+			requirements.Add(FeatureCacheConfig{}.ModuleType(), loadConf.FeatureDaoConf.FeatureCacheName)
+		}
 		addDaoRequirements(loadConf.FeatureDaoConf.DaoConfig, requirements)
 	}
 
@@ -152,6 +158,9 @@ func (conf SceneFeatureConfig) Requirements() Requirements {
 	requirements := newRequirements()
 
 	for _, loadConf := range conf.FeatureLoadConfs {
+		if loadConf.FeatureDaoConf.FeatureCacheName != "" {
+			requirements.Add(FeatureCacheConfig{}.ModuleType(), loadConf.FeatureDaoConf.FeatureCacheName)
+		}
 		addDaoRequirements(loadConf.FeatureDaoConf.DaoConfig, requirements)
 	}
 
