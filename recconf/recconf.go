@@ -526,14 +526,16 @@ type RecallEngineParam struct {
 	UserRealtimeEmbeddingTrigger UserRealtimeEmbeddingTriggerConfig // get user feature and invoke eas model, get item embedding sink to be
 	UserEmbeddingO2OTrigger      UserEmbeddingO2OTriggerConfig
 
-	ItemIdName      string
-	TriggerIdName   string
-	RecallTableName string
-	DiversityParam  string
-	CustomParams    map[string]interface{}
-	TriggerLimit    int
-	Timeout         int          // per-way recall timeout in milliseconds, 0 means no per-way timeout
-	Item2XConf      Item2XConfig // aggregate item triggers to item property(x) triggers, empty XKey means disabled
+	ItemIdName             string
+	TriggerIdName          string
+	RecallTableName        string
+	DiversityParam         string
+	CustomParams           map[string]interface{}
+	TriggerLimit           int
+	Timeout                int          // per-way recall timeout in milliseconds, 0 means no per-way timeout
+	VersionId              string       // item vector table version
+	UserEmbeddingVersionId string       // user vector table version
+	Item2XConf             Item2XConfig // aggregate item triggers to item property(x) triggers, empty XKey means disabled
 }
 
 // Item2XConfig aggregates item level trigger weights into item property(x) level triggers.
@@ -963,6 +965,9 @@ type FilterConfig struct {
 	Conditions                []FilterParamConfig
 	SnakeType                 string
 
+	// RRF (Reciprocal Rank Fusion) multi-recall fusion config, used in RRFusionFilter
+	RRFConf RRFConfig
+
 	ConditionFilterConfs struct {
 		FilterConfs []struct {
 			Conditions []FilterParamConfig
@@ -1097,6 +1102,19 @@ type AdjustCountConfig struct {
 	Expression string
 	Weight     int
 }
+
+// RRFConfig defines the RRF fusion parameters.
+type RRFConfig struct {
+	K             float64
+	DefaultWeight float64
+	Rules         []RRFRule
+}
+
+// RRFRule defines a single recall path used by RRFusionFilter.
+type RRFRule struct {
+	RecallName string
+	Weight     float64
+}
 type CallBackConfig struct {
 	DataSource      DataSourceConfig
 	RankConf        RankConfig
@@ -1105,6 +1123,10 @@ type CallBackConfig struct {
 	ItemSize        int
 	ItemSizeRate    int
 	UseUserFeatures bool
+	// DebugLevel is the debug_level sent to the easyrec processor, it defaults
+	// to 3 when not set. Set it to 6 to let the processor write the feature log
+	// on its own side, in that case DataSource can be left empty.
+	DebugLevel int
 }
 type EmbeddingConfig struct {
 	DataSource DataSourceConfig
@@ -1197,6 +1219,17 @@ type FeatureLogConfig struct {
 	KafKaName    string
 	UserFeatures string
 	ItemFeatures string
+
+	// FeatureStoreName is required when OutputType=featurestore,
+	// it is the name of FeatureStoreConfs
+	FeatureStoreName string
+	// FeatureStoreViewName is required when OutputType=featurestore,
+	// feature logs are written to this feature view of FeatureDB via fs sdk direct write
+	FeatureStoreViewName string
+	// LogItems is only used when OutputType=featurestore,
+	// when enabled, all item infos are merged into one record in the single feature log,
+	// default is false which means item infos are not logged
+	LogItems bool
 
 	SplitUserItemLogs bool
 }

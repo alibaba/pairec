@@ -136,10 +136,13 @@ func (p *TrafficControlSort) Sort(sortData *SortData) error {
 
 	// 如果服务启动时，没有加载成功，这里再次尝试
 	var allControllersMap map[string]*PIDController
-	if len(p.controllersMap) == 0 {
+	p.controllerLock.RLock()
+	controllersMap := p.controllersMap
+	p.controllerLock.RUnlock()
+	if len(controllersMap) == 0 {
 		allControllersMap = p.loadTrafficControllersMap()
 	} else {
-		allControllersMap = p.controllersMap
+		allControllersMap = controllersMap
 	}
 
 	validControllersMap := filterValidControllers(ctx, user, experimentParams, allControllersMap)
@@ -777,8 +780,12 @@ func (p *TrafficControlSort) loadTrafficControllersMap() map[string]*PIDControll
 
 	tasks := experimentClient.ListTrafficControlTasks(runEnv)
 	if len(tasks) == 0 {
+		controllerMap := make(map[string]*PIDController)
+		p.controllerLock.Lock()
+		p.controllersMap = controllerMap
+		p.controllerLock.Unlock()
 		log.Info(fmt.Sprintf("module=TrafficControlSort\tthere are no running tasks."))
-		return nil
+		return controllerMap
 	}
 	oldControllerMap := make(map[string]*PIDController, 0)
 	p.controllerLock.RLock()

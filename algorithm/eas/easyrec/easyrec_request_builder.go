@@ -243,18 +243,7 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{intVal}}
 			}
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			uintVal := rv.Uint()
-			switch {
-			case uintVal <= math.MaxInt32:
-				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_IntFeature{int32(uintVal)}}
-			case uintVal <= math.MaxInt64:
-				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_LongFeature{int64(uintVal)}}
-			default:
-				// PBFeature has no unsigned type; a uint value above int64 range
-				// would wrap around to a negative number if cast to int64.
-				// Encode it as a string to preserve the exact value.
-				b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_StringFeature{strconv.FormatUint(uintVal, 10)}}
-			}
+			b.request.UserFeatures[k] = unsignedFeature(rv.Uint())
 		case reflect.Float32:
 			b.request.UserFeatures[k] = &PBFeature{Value: &PBFeature_FloatFeature{float32(rv.Float())}}
 		case reflect.Float64:
@@ -265,6 +254,36 @@ func (b *EasyrecRequestBuilder) AddUserFeature(k string, v interface{}) {
 			// Unsupported feature type (struct, map, slice, pointer, bool, typed-nil, ...).
 			// Keep the old no-op behavior instead of writing a meaningless string value.
 		}
+	}
+}
+
+// unsignedFeature encodes an unsigned integer, which PBFeature has no native
+// type for. It maps to IntFeature or LongFeature while the value fits, and to a
+// StringFeature above int64 range, where a cast to int64 would wrap around to a
+// negative number. Encoding it as a string preserves the exact digits.
+func unsignedFeature(uintVal uint64) *PBFeature {
+	switch {
+	case uintVal <= math.MaxInt32:
+		return &PBFeature{Value: &PBFeature_IntFeature{int32(uintVal)}}
+	case uintVal <= math.MaxInt64:
+		return &PBFeature{Value: &PBFeature_LongFeature{int64(uintVal)}}
+	default:
+		return &PBFeature{Value: &PBFeature_StringFeature{strconv.FormatUint(uintVal, 10)}}
+	}
+}
+
+// listFeature builds one PBFeature for a per item or per context value, where
+// every input must yield exactly one feature to keep the list aligned with the
+// item order. The concrete type switch of AddItemFeature and AddContextFeature
+// has no uint case, so an unsigned value is encoded here the same way
+// AddUserFeature does; any other unsupported value, including nil, keeps the old
+// empty StringFeature behavior.
+func listFeature(v interface{}) *PBFeature {
+	switch rv := reflect.ValueOf(v); rv.Kind() {
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return unsignedFeature(rv.Uint())
+	default:
+		return &PBFeature{Value: &PBFeature_StringFeature{""}}
 	}
 }
 
@@ -485,7 +504,7 @@ func (b *EasyrecRequestBuilder) AddContextFeature(key string, features []interfa
 			}
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_DoubleLists{DoubleLists: &DoubleLists{Lists: values}}})
 		default:
-			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_StringFeature{""}})
+			contextFeatures.Features = append(contextFeatures.Features, listFeature(f))
 		}
 	}
 
@@ -657,7 +676,7 @@ func (b *EasyrecRequestBuilder) AddItemFeature(key string, features []interface{
 			}
 			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_DoubleLists{DoubleLists: &DoubleLists{Lists: values}}})
 		default:
-			contextFeatures.Features = append(contextFeatures.Features, &PBFeature{Value: &PBFeature_StringFeature{""}})
+			contextFeatures.Features = append(contextFeatures.Features, listFeature(f))
 		}
 	}
 

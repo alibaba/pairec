@@ -9,7 +9,9 @@ import (
 )
 
 type TriggerResult struct {
+	Queries           [][]float32
 	TriggerItem       string
+	Version           string
 	DistinctParam     string
 	DistinctParamName string
 }
