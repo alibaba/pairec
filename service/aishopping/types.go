@@ -48,8 +48,9 @@ type SessionBlob struct {
 }
 
 type SessionQuery struct {
-	TurnID int    `json:"turn_id"`
-	Query  string `json:"query"`
+	TurnID         int    `json:"turn_id"`
+	Query          string `json:"query"`
+	AssistantReply string `json:"assistant_reply,omitempty"`
 }
 
 type chatConfig struct {
