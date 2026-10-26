@@ -43,7 +43,7 @@ require (
 require (
 	fortio.org/assert v1.2.1
 	github.com/alibabacloud-go/opensearch-util v1.0.1
-	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.4.1-0.20261021013937-c78ecdec5c98
+	github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.4.1-0.20261026060921-146b7f341c29
 	github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260920031109-2a051209f8e3
 	github.com/aliyun/credentials-go v1.4.8
 	github.com/apache/calcite-avatica-go/v5 v5.0.0
@@ -129,7 +129,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/net v0.46.1-0.20251013234738-63d1a5100f82
 	golang.org/x/sys v0.37.0
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/text v0.30.0
 	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	modernc.org/b v1.0.0 // indirect
