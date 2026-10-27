@@ -256,7 +256,8 @@ type FeatureDaoConfig struct {
 	LoadFromCacheFeaturesName string
 
 	// FeatureCacheName references a process-wide, on-demand cache in FeatureCacheConfs.
-	// When set, the named policy takes precedence over CacheSize and CacheTime.
+	// The named definition owns the data source, fields, options and cache policy.
+	// FeatureAppendKey and duplicate data-source settings are not supported.
 	FeatureCacheName string
 
 	// CacheSize cache featrue data size
@@ -789,11 +790,18 @@ type FeatureStoreConfig struct {
 	HologresPassword  string
 }
 
-// FeatureCacheConfig defines the policy of a named, on-demand feature cache.
-// Data sources and selected fields remain in each FeatureDaoConfig.
+// FeatureCacheConfig defines the data source and policy of an on-demand cache.
+// Scene DAOs reference its name and provide only lookup keys and destinations.
 type FeatureCacheConfig struct {
-	CacheSize int
-	CacheTime int // Expiration after write in seconds; zero defaults to 3600.
+	FeatureStoreName       string
+	FeatureStore           string // user or item; immutable for a name across reloads.
+	FeatureStoreViewName   string
+	FeatureStoreModelName  string
+	FeatureStoreEntityName string
+	SelectFields           string // View projection; model fields come from its definition.
+	FeatureStoreOptions    FeatureStoreOptionsConfig
+	CacheSize              int
+	CacheTime              int // Expiration after write in seconds; zero defaults to 3600.
 }
 
 type FeatureViewCacheConfig struct {

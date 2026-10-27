@@ -62,8 +62,9 @@ func (conf RecallConfig) Requirements() Requirements {
 	for _, featureConf := range conf.UserFeatureConfs {
 		if featureConf.FeatureDaoConf.FeatureCacheName != "" {
 			requirements.Add(FeatureCacheConfig{}.ModuleType(), featureConf.FeatureDaoConf.FeatureCacheName)
+		} else {
+			addDaoRequirements(featureConf.FeatureDaoConf.DaoConfig, requirements)
 		}
-		addDaoRequirements(featureConf.FeatureDaoConf.DaoConfig, requirements)
 	}
 	if conf.GraphConf.GraphName != "" {
 		requirements.Add(GraphConfig{}.ModuleType(), conf.GraphConf.GraphName)
@@ -143,8 +144,9 @@ func (conf GeneralRankConfig) Requirements() Requirements {
 	for _, loadConf := range conf.FeatureLoadConfs {
 		if loadConf.FeatureDaoConf.FeatureCacheName != "" {
 			requirements.Add(FeatureCacheConfig{}.ModuleType(), loadConf.FeatureDaoConf.FeatureCacheName)
+		} else {
+			addDaoRequirements(loadConf.FeatureDaoConf.DaoConfig, requirements)
 		}
-		addDaoRequirements(loadConf.FeatureDaoConf.DaoConfig, requirements)
 	}
 
 	for _, algoName := range conf.RankConf.RankAlgoList {
@@ -160,8 +162,9 @@ func (conf SceneFeatureConfig) Requirements() Requirements {
 	for _, loadConf := range conf.FeatureLoadConfs {
 		if loadConf.FeatureDaoConf.FeatureCacheName != "" {
 			requirements.Add(FeatureCacheConfig{}.ModuleType(), loadConf.FeatureDaoConf.FeatureCacheName)
+		} else {
+			addDaoRequirements(loadConf.FeatureDaoConf.DaoConfig, requirements)
 		}
-		addDaoRequirements(loadConf.FeatureDaoConf.DaoConfig, requirements)
 	}
 
 	return requirements
@@ -188,6 +191,12 @@ func (conf SceneSortConfig) Requirements() Requirements {
 		requirements.Add(FilterConfig{}.ModuleType(), name)
 	}
 
+	return requirements
+}
+
+func (conf FeatureCacheConfig) Requirements() Requirements {
+	requirements := newRequirements()
+	requirements.Add(FeatureStoreConfig{}.ModuleType(), conf.FeatureStoreName)
 	return requirements
 }
 

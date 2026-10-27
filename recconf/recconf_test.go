@@ -1,6 +1,7 @@
 package recconf
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -85,22 +86,60 @@ func TestParseUserDefineConfs(t *testing.T) {
 }
 
 func TestFeatureCacheConfigValidation(t *testing.T) {
-	for _, conf := range []FeatureCacheConfig{{CacheSize: 1}, {CacheSize: 10, CacheTime: 600}} {
+	view := FeatureCacheConfig{FeatureStoreName: "fs", FeatureStore: "user", FeatureStoreViewName: "view", CacheSize: 10}
+	model := FeatureCacheConfig{FeatureStoreName: "fs", FeatureStore: "user", FeatureStoreModelName: "model", FeatureStoreEntityName: "entity", CacheSize: 10}
+	for _, conf := range []FeatureCacheConfig{view, model} {
 		if err := conf.Validate(); err != nil {
-			t.Fatalf("valid cache policy rejected: %v", err)
+			t.Fatalf("valid definition rejected: %v", err)
 		}
 	}
-	for _, conf := range []FeatureCacheConfig{{}, {CacheSize: -1}, {CacheSize: 1, CacheTime: -1}} {
+	for _, change := range []func(*FeatureCacheConfig){
+		func(c *FeatureCacheConfig) { c.FeatureStoreName = "" },
+		func(c *FeatureCacheConfig) { c.FeatureStore = "" },
+		func(c *FeatureCacheConfig) { c.FeatureStore = "other" },
+		func(c *FeatureCacheConfig) { c.FeatureStoreViewName = "" },
+		func(c *FeatureCacheConfig) { c.FeatureStoreModelName = "model" },
+		func(c *FeatureCacheConfig) { c.FeatureStoreEntityName = "entity" },
+		func(c *FeatureCacheConfig) { c.CacheSize = 0 },
+		func(c *FeatureCacheConfig) { c.CacheTime = -1 },
+		func(c *FeatureCacheConfig) { c.FeatureStore = "item"; c.FeatureStoreOptions.DlrmHSTU = true },
+	} {
+		conf := view
+		change(&conf)
 		if err := conf.Validate(); err == nil {
-			t.Fatalf("invalid cache policy accepted: %+v", conf)
+			t.Fatalf("invalid definition accepted: %+v", conf)
 		}
+	}
+	for _, change := range []func(*FeatureCacheConfig){
+		func(c *FeatureCacheConfig) { c.FeatureStoreEntityName = "" },
+		func(c *FeatureCacheConfig) { c.SelectFields = "age" },
+		func(c *FeatureCacheConfig) { c.SelectFields = "*" },
+	} {
+		conf := model
+		change(&conf)
+		if err := conf.Validate(); err == nil {
+			t.Fatalf("invalid model definition accepted: %+v", conf)
+		}
+	}
+}
+
+func TestFeatureCacheDefinitionJSON(t *testing.T) {
+	var conf RecommendConfig
+	err := json.Unmarshal([]byte(`{"FeatureCacheConfs":{"shared":{"FeatureStoreName":"fs","FeatureStore":"user","FeatureStoreViewName":"view","SelectFields":"age","FeatureStoreOptions":{"DlrmHSTU":true},"CacheSize":10,"CacheTime":600}}}`), &conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := conf.FeatureCacheConfs["shared"]
+	if cache.FeatureStoreName != "fs" || cache.FeatureStoreViewName != "view" || cache.SelectFields != "age" || !cache.FeatureStoreOptions.DlrmHSTU {
+		t.Fatalf("cache source was not parsed: %+v", cache)
 	}
 }
 
 func TestFeatureCacheRequirements(t *testing.T) {
 	conf := SceneFeatureConfig{FeatureLoadConfs: []FeatureLoadConfig{{FeatureDaoConf: FeatureDaoConfig{
-		DaoConfig:        DaoConfig{AdapterType: DataSource_Type_FeatureStore, FeatureStoreName: "fs"},
+		DaoConfig:        DaoConfig{AdapterType: DataSource_Type_FeatureStore},
 		FeatureCacheName: "shared",
+		FeatureStore:     "user",
 	}}}}
 	modules := (RecommendConfig{FeatureStoreConfs: map[string]FeatureStoreConfig{"fs": {}}}).GetModules()
 	if err := conf.Requirements().Check(modules); err == nil {
@@ -108,10 +147,18 @@ func TestFeatureCacheRequirements(t *testing.T) {
 	}
 	modules = (RecommendConfig{
 		FeatureStoreConfs: map[string]FeatureStoreConfig{"fs": {}},
-		FeatureCacheConfs: map[string]FeatureCacheConfig{"shared": {CacheSize: 10}},
+		FeatureCacheConfs: map[string]FeatureCacheConfig{"shared": {FeatureStoreName: "fs", FeatureStore: "user", FeatureStoreViewName: "view", CacheSize: 10}},
 	}).GetModules()
 	if err := conf.Requirements().Check(modules); err != nil {
 		t.Fatal(err)
+	}
+	cache := FeatureCacheConfig{FeatureStoreName: "fs", FeatureStore: "user", FeatureStoreViewName: "view", CacheSize: 10}
+	if err := cache.Requirements().Check(modules); err != nil {
+		t.Fatal(err)
+	}
+	delete(modules, ModuleIndex{Type: FeatureStoreConfig{}.ModuleType(), Name: "fs"})
+	if err := cache.Requirements().Check(modules); err == nil {
+		t.Fatal("cache data-source dependency was not checked")
 	}
 	results, err := CheckRecommendConfig(`{"FeatureCacheConfs":{"shared":{"CacheSize":0}}}`)
 	if err != nil {

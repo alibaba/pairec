@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 )
 
 var (
@@ -24,7 +25,31 @@ type FeatureCache struct {
 	entries map[string]*list.Element
 	recency list.List
 	conf    recconf.FeatureCacheConfig
+	client  *FSClient
 	closed  bool
+}
+
+// Config returns the immutable definition belonging to this cache generation.
+func (c *FeatureCache) Config() recconf.FeatureCacheConfig { return c.conf }
+
+// Project resolves SDK metadata through the existing client, without keeping
+// view or model objects across requests. Close does not close the shared client.
+func (c *FeatureCache) Project() *domain.Project { return c.client.GetProject() }
+
+func (c *FeatureCache) configMatches(conf recconf.FeatureCacheConfig) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return !c.closed && c.conf == conf
+}
+
+func normalizeFeatureCacheConfig(conf recconf.FeatureCacheConfig) recconf.FeatureCacheConfig {
+	if conf.CacheTime == 0 {
+		conf.CacheTime = 3600
+	}
+	if conf.FeatureStoreViewName != "" && conf.SelectFields == "" {
+		conf.SelectFields = "*"
+	}
+	return conf
 }
 
 type featureCacheEntry struct {
@@ -42,14 +67,56 @@ func newFeatureCache(name string, conf recconf.FeatureCacheConfig) (*FeatureCach
 	if err := conf.Validate(); err != nil {
 		return nil, fmt.Errorf("feature cache %q: %w", name, err)
 	}
-	if conf.CacheTime == 0 {
-		conf.CacheTime = 3600
+	conf = normalizeFeatureCacheConfig(conf)
+	client, err := GetFeatureStoreClient(conf.FeatureStoreName)
+	if err != nil {
+		return nil, err
 	}
-	return &FeatureCache{conf: conf, entries: make(map[string]*list.Element)}, nil
+	project := client.GetProject()
+	if project == nil {
+		return nil, fmt.Errorf("feature store project is unavailable, name:%s", conf.FeatureStoreName)
+	}
+	if conf.FeatureStoreViewName != "" {
+		view := project.GetFeatureView(conf.FeatureStoreViewName)
+		if view == nil {
+			return nil, fmt.Errorf("feature view not found(%s)", conf.FeatureStoreViewName)
+		}
+		if project.GetFeatureEntity(view.GetFeatureEntityName()) == nil {
+			return nil, fmt.Errorf("feature entity not found(%s)", view.GetFeatureEntityName())
+		}
+	} else {
+		model := project.GetModel(conf.FeatureStoreModelName)
+		if model == nil {
+			return nil, fmt.Errorf("model not found(%s)", conf.FeatureStoreModelName)
+		}
+		if project.GetFeatureEntity(conf.FeatureStoreEntityName) == nil {
+			return nil, fmt.Errorf("feature entity not found(%s)", conf.FeatureStoreEntityName)
+		}
+		// The SDK accepts only entities participating in the model's views,
+		// not every entity in its project. Validate before publishing a source.
+		entityInModel := false
+		for _, feature := range model.Features {
+			view := project.GetFeatureView(feature.FeatureViewName)
+			if view == nil {
+				return nil, fmt.Errorf("model feature view not found(%s)", feature.FeatureViewName)
+			}
+			if view.GetFeatureEntityName() == conf.FeatureStoreEntityName {
+				entityInModel = true
+				break
+			}
+		}
+		if !entityInModel {
+			return nil, fmt.Errorf("feature entity %s does not belong to model %s", conf.FeatureStoreEntityName, conf.FeatureStoreModelName)
+		}
+		if conf.FeatureStore == "user" && model.GetLabelTable() == nil {
+			return nil, fmt.Errorf("label table not found(%s)", conf.FeatureStoreModelName)
+		}
+	}
+	return &FeatureCache{conf: conf, client: client, entries: make(map[string]*list.Element)}, nil
 }
 
-// LoadFeatureCaches publishes named policies before feature DAOs are built.
-// Invalid policies leave the current registry intact.
+// LoadFeatureCaches publishes validated source definitions and policies before
+// feature DAOs are built. Invalid definitions leave the registry intact.
 func LoadFeatureCaches(config *recconf.RecommendConfig) {
 	if err := loadFeatureCachesWithFactory(config, newFeatureCache); err != nil {
 		panic(err)
@@ -68,10 +135,7 @@ func loadFeatureCachesWithFactory(config *recconf.RecommendConfig, factory featu
 		if err := conf.Validate(); err != nil {
 			return fmt.Errorf("feature cache %q: %w", name, err)
 		}
-		if conf.CacheTime == 0 {
-			conf.CacheTime = 3600
-		}
-		policies[name] = conf
+		policies[name] = normalizeFeatureCacheConfig(conf)
 	}
 
 	featureCachesMu.RLock()
@@ -81,10 +145,16 @@ func loadFeatureCachesWithFactory(config *recconf.RecommendConfig, factory featu
 	}
 	featureCachesMu.RUnlock()
 
+	for name, conf := range policies {
+		if old := previous[name]; old != nil && old.conf.FeatureStore != conf.FeatureStore {
+			return fmt.Errorf("feature cache %q cannot change user/item scope; use a new cache name", name)
+		}
+	}
+
 	next := make(map[string]*FeatureCache, len(policies))
 	created := make([]*FeatureCache, 0, len(policies))
 	for name, conf := range policies {
-		if old := previous[name]; old != nil && old.conf == conf {
+		if old := previous[name]; old != nil && old.configMatches(conf) {
 			next[name] = old
 			continue
 		}

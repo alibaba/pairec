@@ -1,8 +1,6 @@
 package module
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -17,22 +15,31 @@ import (
 // FeatureFeatureStoreDao and its private cache remain unchanged.
 type SharedFeatureFeatureStoreDao struct {
 	*FeatureBaseDao
-	conf    recconf.FeatureDaoConfig
-	project func() *domain.Project
+	cacheName string
+	initial   sharedFeatureCache
+	resolve   func(string) (sharedFeatureCache, error)
 }
 
 var _ FeatureDao = (*SharedFeatureFeatureStoreDao)(nil)
 
+// The instance supplies both cache operations and its immutable source snapshot.
+// The narrow interface also permits isolated DAO tests without SDK servers.
+type sharedFeatureCache interface {
+	Config() recconf.FeatureCacheConfig
+	Project() *domain.Project
+	Get(string) (map[string]any, bool)
+	Put(string, map[string]any)
+	PutIfAbsent(string, map[string]any)
+}
+
 func NewSharedFeatureFeatureStoreDao(conf recconf.FeatureDaoConfig) *SharedFeatureFeatureStoreDao {
-	validateSharedFeatureConfig(conf)
-	if _, err := fs.GetFeatureCache(conf.FeatureCacheName); err != nil {
-		panic(err)
-	}
-	client, err := fs.GetFeatureStoreClient(conf.FeatureStoreName)
-	if err != nil {
-		panic(err)
-	}
-	return newSharedFeatureFeatureStoreDao(conf, client.GetProject)
+	return newSharedFeatureFeatureStoreDao(conf, func(name string) (sharedFeatureCache, error) {
+		c, err := fs.GetFeatureCache(name)
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
+	})
 }
 
 func validateSharedFeatureConfig(conf recconf.FeatureDaoConfig) {
@@ -42,15 +49,32 @@ func validateSharedFeatureConfig(conf recconf.FeatureDaoConfig) {
 	if conf.AdapterType != recconf.DataSource_Type_FeatureStore {
 		panic("FeatureCacheName is only supported by the featurestore adapter")
 	}
+	if conf.FeatureAppendKey != "" {
+		panic("FeatureAppendKey cannot be used with FeatureCacheName")
+	}
+	if conf.FeatureStore != Feature_Store_User && conf.FeatureStore != Feature_Store_Item {
+		panic("shared FeatureStore must be user or item")
+	}
 	if conf.FeatureStore == Feature_Store_User && conf.FeatureType == Feature_Type_Sequence {
-		panic("shared FeatureStore sequence_feature loading is not implemented; use the view/model path")
+		panic("shared sequence_feature loading is not implemented; use the view/model path")
+	}
+	if conf.FeatureStoreName != "" || conf.FeatureStoreViewName != "" || conf.FeatureStoreModelName != "" || conf.FeatureStoreEntityName != "" || conf.UserSelectFields != "" || conf.ItemSelectFields != "" || conf.FeatureStoreOptions != (recconf.FeatureStoreOptionsConfig{}) {
+		panic("shared data source, fields and options must be configured in FeatureCacheConfs")
 	}
 }
 
-func newSharedFeatureFeatureStoreDao(conf recconf.FeatureDaoConfig, project func() *domain.Project) *SharedFeatureFeatureStoreDao {
+func newSharedFeatureFeatureStoreDao(conf recconf.FeatureDaoConfig, resolve func(string) (sharedFeatureCache, error)) *SharedFeatureFeatureStoreDao {
+	validateSharedFeatureConfig(conf)
+	c, err := resolve(conf.FeatureCacheName)
+	if err != nil {
+		panic(err)
+	}
+	if c.Config().FeatureStore != conf.FeatureStore {
+		panic("FeatureStore does not match the named cache definition")
+	}
 	baseConf := conf
 	baseConf.CacheSize = 0
-	return &SharedFeatureFeatureStoreDao{FeatureBaseDao: NewFeatureBaseDao(&baseConf), conf: conf, project: project}
+	return &SharedFeatureFeatureStoreDao{FeatureBaseDao: NewFeatureBaseDao(&baseConf), cacheName: conf.FeatureCacheName, initial: c, resolve: resolve}
 }
 
 func sharedFeatureFields(fields string) []string {
@@ -58,41 +82,6 @@ func sharedFeatureFields(fields string) []string {
 		return []string{"*"}
 	}
 	return strings.Split(fields, ",")
-}
-
-// Only inputs that affect the actual SDK query participate in its namespace.
-// JSON framing prevents delimiter collisions and SHA-256 bounds cache key size.
-func sharedFeatureCacheKey(conf recconf.FeatureDaoConfig, path, key string, appendKeys []string) string {
-	namespace := struct {
-		Store, Path, View, Model, Entity, Scope string
-		Fields                                  []string
-		DlrmHSTU                                bool
-	}{Store: conf.FeatureStoreName, Path: path, Scope: conf.FeatureStore}
-	if path == "view" {
-		namespace.View = conf.FeatureStoreViewName
-		if conf.FeatureStore == Feature_Store_User {
-			namespace.Fields = sharedFeatureFields(conf.UserSelectFields)
-			namespace.DlrmHSTU = conf.FeatureStoreOptions.DlrmHSTU
-		} else {
-			namespace.Fields = sharedFeatureFields(conf.ItemSelectFields)
-		}
-	} else {
-		namespace.Model, namespace.Entity = conf.FeatureStoreModelName, conf.FeatureStoreEntityName
-		if path == "model" && conf.FeatureStore == Feature_Store_User {
-			namespace.DlrmHSTU = conf.FeatureStoreOptions.DlrmHSTU
-		}
-	}
-	data, _ := json.Marshal(namespace)
-	signature := fmt.Sprintf("%x", sha256.Sum256(data))
-	entry := struct {
-		Namespace, Key string
-		AppendKeys     []string
-	}{Namespace: signature, Key: key}
-	if path == "aggregated" {
-		entry.AppendKeys = appendKeys
-	}
-	data, _ = json.Marshal(entry)
-	return fmt.Sprintf("%x", sha256.Sum256(data))
 }
 
 func (d *SharedFeatureFeatureStoreDao) FeatureFetch(user *User, items []*Item, ctx *reccontext.RecommendContext) {
@@ -103,19 +92,29 @@ func (d *SharedFeatureFeatureStoreDao) FeatureFetch(user *User, items []*Item, c
 	}()
 	// Resolve exactly once per invocation. A late write must not populate a
 	// newly loaded instance with data fetched under the previous policy.
-	c, _ := fs.GetFeatureCache(d.conf.FeatureCacheName)
+	c, resolveErr := d.resolve(d.cacheName)
+	source := c
+	if resolveErr != nil {
+		c = nil
+		source = d.initial // Direct read for an active DAO whose name was removed.
+	}
+	conf := source.Config()
+	if conf.FeatureStore != d.featureStore {
+		log.Error(fmt.Sprintf("requestId=%s\tmodule=SharedFeatureFeatureStoreDao\terror=cache scope changed", ctx.RecommendId))
+		return
+	}
 	var err error
 	if d.featureStore == Feature_Store_User {
-		err = d.userFeatureFetch(user, ctx, c)
+		err = d.userFeatureFetch(user, ctx, c, conf, source.Project)
 	} else {
-		err = d.itemsFeatureFetch(items, ctx, c)
+		err = d.itemsFeatureFetch(items, ctx, c, conf, source.Project)
 	}
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=SharedFeatureFeatureStoreDao\terror=%v", ctx.RecommendId, err))
 	}
 }
 
-func (d *SharedFeatureFeatureStoreDao) userFeatureFetch(user *User, ctx *reccontext.RecommendContext, c *fs.FeatureCache) error {
+func (d *SharedFeatureFeatureStoreDao) userFeatureFetch(user *User, ctx *reccontext.RecommendContext, c sharedFeatureCache, conf recconf.FeatureCacheConfig, getProject func() *domain.Project) error {
 	parts := strings.Split(d.featureKey, ":")
 	if len(parts) < 2 {
 		return fmt.Errorf("featureKey error(%s)", d.featureKey)
@@ -124,53 +123,39 @@ func (d *SharedFeatureFeatureStoreDao) userFeatureFetch(user *User, ctx *reccont
 	if key == "" {
 		return fmt.Errorf("property not found(%s)", parts[1])
 	}
-	var appendKeys []string
-	if d.featureAppendKey != "" {
-		parts := strings.Split(d.featureAppendKey, ":")
-		if len(parts) < 2 {
-			return fmt.Errorf("featureAppendKey error(%s)", d.featureAppendKey)
-		}
-		var err error
-		appendKeys, err = user.ListStringProperty(parts[1])
-		if err != nil {
-			return err
-		}
-	}
-
-	if d.conf.FeatureStoreViewName != "" {
-		cacheKey := sharedFeatureCacheKey(d.conf, "view", key, nil)
-		return d.loadSharedUser(user, ctx, c, cacheKey, nil, func() (map[string]any, error) {
-			view := d.project().GetFeatureView(d.conf.FeatureStoreViewName)
+	if conf.FeatureStoreViewName != "" {
+		return d.loadSharedUser(user, ctx, c, key, nil, func() (map[string]any, error) {
+			view := getProject().GetFeatureView(conf.FeatureStoreViewName)
 			if view == nil {
-				return nil, fmt.Errorf("feature view not found(%s)", d.conf.FeatureStoreViewName)
+				return nil, fmt.Errorf("feature view not found(%s)", conf.FeatureStoreViewName)
 			}
-			features, err := view.GetOnlineFeaturesWithOptions([]any{key}, sharedFeatureFields(d.conf.UserSelectFields), nil,
-				domain.FeatureViewOptions{DlrmHSTU: d.conf.FeatureStoreOptions.DlrmHSTU})
+			features, err := view.GetOnlineFeaturesWithOptions([]any{key}, sharedFeatureFields(conf.SelectFields), nil,
+				domain.FeatureViewOptions{DlrmHSTU: conf.FeatureStoreOptions.DlrmHSTU})
 			if err != nil {
 				return nil, err
 			}
 			if len(features) == 0 {
-				return nil, fmt.Errorf("get features empty, view:%s", d.conf.FeatureStoreViewName)
+				return nil, fmt.Errorf("get features empty, view:%s", conf.FeatureStoreViewName)
 			}
 			return features[0], nil
 		})
 	}
 
-	project := d.project()
-	model := project.GetModel(d.conf.FeatureStoreModelName)
+	project := getProject()
+	model := project.GetModel(conf.FeatureStoreModelName)
 	if model == nil {
-		return fmt.Errorf("model not found(%s)", d.conf.FeatureStoreModelName)
+		return fmt.Errorf("model not found(%s)", conf.FeatureStoreModelName)
 	}
 	labelTable := model.GetLabelTable()
 	if labelTable == nil {
 		return fmt.Errorf("label table not found(%s)", model.LabelDatasourceTable)
 	}
-	entity := project.GetFeatureEntity(d.conf.FeatureStoreEntityName)
+	entity := project.GetFeatureEntity(conf.FeatureStoreEntityName)
 	if entity == nil {
-		return fmt.Errorf("feature entity not found(%s)", d.conf.FeatureStoreEntityName)
+		return fmt.Errorf("feature entity not found(%s)", conf.FeatureStoreEntityName)
 	}
 	policy := &sharedModelPolicy{modelFields: make(map[string]bool), labelFields: make(map[string]bool),
-		labelPriority: model.GetLabelPriorityLevel(), aggregated: len(appendKeys) > 0}
+		labelPriority: model.GetLabelPriorityLevel()}
 	for _, name := range labelTable.GetFeatureNames() {
 		policy.labelFields[name] = true
 	}
@@ -181,28 +166,9 @@ func (d *SharedFeatureFeatureStoreDao) userFeatureFetch(user *User, ctx *reccont
 		}
 		policy.modelFields[name] = true
 	}
-	path := "model"
-	if policy.aggregated {
-		path = "aggregated"
-	}
-	cacheKey := sharedFeatureCacheKey(d.conf, path, key, appendKeys)
-	return d.loadSharedUser(user, ctx, c, cacheKey, policy, func() (map[string]any, error) {
-		if policy.aggregated {
-			keys := []any{key}
-			for _, appendKey := range appendKeys {
-				keys = append(keys, appendKey)
-			}
-			features, err := model.GetOnlineFeaturesWithAggregatedSequence(key, keys, d.conf.FeatureStoreEntityName)
-			if err != nil {
-				return nil, err
-			}
-			if len(features) == 0 {
-				return nil, fmt.Errorf("get aggregated features empty")
-			}
-			return features, nil
-		}
+	return d.loadSharedUser(user, ctx, c, key, policy, func() (map[string]any, error) {
 		features, err := model.GetOnlineFeaturesWithEntityWithOptions(map[string][]any{entity.FeatureEntityJoinid: {key}},
-			d.conf.FeatureStoreEntityName, domain.ModelOptions{DlrmHSTU: d.conf.FeatureStoreOptions.DlrmHSTU})
+			conf.FeatureStoreEntityName, domain.ModelOptions{DlrmHSTU: conf.FeatureStoreOptions.DlrmHSTU})
 		if err != nil {
 			return nil, err
 		}
@@ -217,7 +183,6 @@ type sharedModelPolicy struct {
 	modelFields   map[string]bool
 	labelFields   map[string]bool
 	labelPriority int
-	aggregated    bool
 }
 
 func (p *sharedModelPolicy) deletedFields(contextFeatures map[string]any) []string {
@@ -240,18 +205,15 @@ func (p *sharedModelPolicy) merge(features map[string]any, contextFeatures map[s
 			}
 		}
 	}
-	// The legacy aggregated path does not backfill missing model-only fields.
-	if !p.aggregated {
-		for _, name := range deleted {
-			if _, exists := features[name]; !exists {
-				features[name] = contextFeatures[name]
-			}
+	for _, name := range deleted {
+		if _, exists := features[name]; !exists {
+			features[name] = contextFeatures[name]
 		}
 	}
 }
 
 // loadSharedUser keeps request-specific deletion and merging outside the cache.
-func (d *SharedFeatureFeatureStoreDao) loadSharedUser(user *User, ctx *reccontext.RecommendContext, c *fs.FeatureCache,
+func (d *SharedFeatureFeatureStoreDao) loadSharedUser(user *User, ctx *reccontext.RecommendContext, c sharedFeatureCache,
 	key string, policy *sharedModelPolicy, load func() (map[string]any, error)) error {
 	contextFeatures, _ := ctx.GetParameter("features").(map[string]any)
 	var deleted []string
@@ -259,7 +221,11 @@ func (d *SharedFeatureFeatureStoreDao) loadSharedUser(user *User, ctx *reccontex
 		deleted = policy.deletedFields(contextFeatures)
 		user.DeleteProperties(deleted)
 	}
-	features, hit := c.Get(key)
+	var features map[string]any
+	var hit bool
+	if c != nil {
+		features, hit = c.Get(key)
+	}
 	if !hit {
 		raw, err := load()
 		if err != nil {
@@ -268,7 +234,9 @@ func (d *SharedFeatureFeatureStoreDao) loadSharedUser(user *User, ctx *reccontex
 		if raw == nil {
 			return fmt.Errorf("get features empty")
 		}
-		c.Put(key, raw)
+		if c != nil {
+			c.Put(key, raw)
+		}
 		features = fs.CloneFeatureProperties(raw)
 	}
 	if policy != nil {
@@ -285,7 +253,7 @@ func (d *SharedFeatureFeatureStoreDao) loadSharedUser(user *User, ctx *reccontex
 	return nil
 }
 
-func (d *SharedFeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, ctx *reccontext.RecommendContext, c *fs.FeatureCache) error {
+func (d *SharedFeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, ctx *reccontext.RecommendContext, c sharedFeatureCache, conf recconf.FeatureCacheConfig, getProject func() *domain.Project) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -298,7 +266,7 @@ func (d *SharedFeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, ctx *rec
 		field = parts[1]
 	}
 	path := "model"
-	if d.conf.FeatureStoreViewName != "" {
+	if conf.FeatureStoreViewName != "" {
 		path = "view"
 	}
 	key2Items := make(map[string][]*Item, len(items))
@@ -308,12 +276,14 @@ func (d *SharedFeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, ctx *rec
 		if field != "item:id" {
 			key = item.StringProperty(field)
 		}
-		if features, hit := c.Get(sharedFeatureCacheKey(d.conf, path, key, nil)); hit {
-			item.AddProperties(features)
-			if ctx.Debug {
-				item.AddProperty("__debug_cache_hit__", true)
+		if c != nil {
+			if features, hit := c.Get(key); hit {
+				item.AddProperties(features)
+				if ctx.Debug {
+					item.AddProperty("__debug_cache_hit__", true)
+				}
+				continue
 			}
-			continue
 		}
 		if _, exists := key2Items[key]; !exists {
 			keys = append(keys, key)
@@ -324,16 +294,16 @@ func (d *SharedFeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, ctx *rec
 		return nil
 	}
 
-	project := d.project()
+	project := getProject()
 	var features []map[string]any
 	var joinID string
 	var err error
 	if path == "view" {
-		view := project.GetFeatureView(d.conf.FeatureStoreViewName)
+		view := project.GetFeatureView(conf.FeatureStoreViewName)
 		if view == nil {
-			return fmt.Errorf("feature view not found(%s)", d.conf.FeatureStoreViewName)
+			return fmt.Errorf("feature view not found(%s)", conf.FeatureStoreViewName)
 		}
-		features, err = view.GetOnlineFeatures(keys, sharedFeatureFields(d.conf.ItemSelectFields), nil)
+		features, err = view.GetOnlineFeatures(keys, sharedFeatureFields(conf.SelectFields), nil)
 		if err != nil {
 			return err
 		}
@@ -343,15 +313,15 @@ func (d *SharedFeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, ctx *rec
 		}
 		joinID = entity.FeatureEntityJoinid
 	} else {
-		entity := project.GetFeatureEntity(d.conf.FeatureStoreEntityName)
+		entity := project.GetFeatureEntity(conf.FeatureStoreEntityName)
 		if entity == nil {
-			return fmt.Errorf("feature entity not found(%s)", d.conf.FeatureStoreEntityName)
+			return fmt.Errorf("feature entity not found(%s)", conf.FeatureStoreEntityName)
 		}
-		model := project.GetModel(d.conf.FeatureStoreModelName)
+		model := project.GetModel(conf.FeatureStoreModelName)
 		if model == nil {
-			return fmt.Errorf("model not found(%s)", d.conf.FeatureStoreModelName)
+			return fmt.Errorf("model not found(%s)", conf.FeatureStoreModelName)
 		}
-		features, err = model.GetOnlineFeaturesWithEntity(map[string][]any{entity.FeatureEntityJoinid: keys}, d.conf.FeatureStoreEntityName)
+		features, err = model.GetOnlineFeaturesWithEntity(map[string][]any{entity.FeatureEntityJoinid: keys}, conf.FeatureStoreEntityName)
 		if err != nil {
 			return err
 		}
@@ -370,14 +340,16 @@ func (d *SharedFeatureFeatureStoreDao) itemsFeatureFetch(items []*Item, ctx *rec
 			continue
 		}
 		found[key] = true
-		c.Put(sharedFeatureCacheKey(d.conf, path, key, nil), row)
+		if c != nil {
+			c.Put(key, row)
+		}
 		for _, item := range consumers {
 			item.AddProperties(fs.CloneFeatureProperties(row))
 		}
 	}
 	for key := range key2Items {
-		if !found[key] {
-			c.PutIfAbsent(sharedFeatureCacheKey(d.conf, path, key, nil), map[string]any{})
+		if !found[key] && c != nil {
+			c.PutIfAbsent(key, map[string]any{})
 		}
 	}
 	return nil

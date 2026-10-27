@@ -8,17 +8,45 @@ import (
 	"time"
 
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/api"
+	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
 )
+
+type featureCacheTestView struct{ domain.FeatureView }
+
+func (*featureCacheTestView) GetFeatureEntityName() string      { return "entity" }
+func (*featureCacheTestView) Offline2Online(name string) string { return name }
 
 func freshFeatureCaches(t *testing.T) {
 	t.Helper()
 	LoadFeatureCaches(&recconf.RecommendConfig{})
-	t.Cleanup(func() { LoadFeatureCaches(&recconf.RecommendConfig{}) })
+	project := &domain.Project{FeatureEntityMap: map[string]*domain.FeatureEntity{
+		"entity":    {FeatureEntity: &api.FeatureEntity{FeatureEntityJoinid: "uid"}},
+		"unrelated": {FeatureEntity: &api.FeatureEntity{FeatureEntityJoinid: "other_uid"}},
+	}}
+	project.FeatureViewMap.Store("view", &featureCacheTestView{})
+	project.FeatureViewMap.Store("new_view", &featureCacheTestView{})
+	project.ModelMap.Store("model", domain.NewModel(&api.Model{Features: []*api.ModelFeatures{{FeatureViewName: "view", Name: "age"}}}, project, domain.NewLabelTable(&api.LabelTable{})))
+	project.ModelMap.Store("empty_model", domain.NewModel(&api.Model{}, project, domain.NewLabelTable(&api.LabelTable{})))
+	fsInstancesMu.Lock()
+	previous := fsInstances
+	fsInstances = map[string]*FSClient{"test_cache_fs": {project: project}}
+	fsInstancesMu.Unlock()
+	t.Cleanup(func() {
+		LoadFeatureCaches(&recconf.RecommendConfig{})
+		fsInstancesMu.Lock()
+		fsInstances = previous
+		fsInstancesMu.Unlock()
+	})
+}
+
+func featureCacheDefinition(size, ttl int) recconf.FeatureCacheConfig {
+	return recconf.FeatureCacheConfig{FeatureStoreName: "test_cache_fs", FeatureStore: "user", FeatureStoreViewName: "view", CacheSize: size, CacheTime: ttl}
 }
 
 func featureCacheConfig(size, ttl int) *recconf.RecommendConfig {
 	return &recconf.RecommendConfig{FeatureCacheConfs: map[string]recconf.FeatureCacheConfig{
-		"shared": {CacheSize: size, CacheTime: ttl},
+		"shared": featureCacheDefinition(size, ttl),
 	}}
 }
 
@@ -75,7 +103,7 @@ func TestFeatureCacheBuildFailureIsAtomic(t *testing.T) {
 	old := mustFeatureCache(t, "shared")
 	old.Put("x", map[string]any{"v": 1})
 	conf := featureCacheConfig(20, 20)
-	conf.FeatureCacheConfs["new"] = recconf.FeatureCacheConfig{CacheSize: 10}
+	conf.FeatureCacheConfs["new"] = featureCacheDefinition(10, 0)
 	var created []*FeatureCache
 	err := loadFeatureCachesWithFactory(conf, func(name string, conf recconf.FeatureCacheConfig) (*FeatureCache, error) {
 		if len(created) == 1 {
@@ -293,7 +321,8 @@ func TestFeatureCacheConcurrentReloadAndClose(t *testing.T) {
 }
 
 func TestFeatureCacheExpires(t *testing.T) {
-	c, err := newFeatureCache("ttl", recconf.FeatureCacheConfig{CacheSize: 10, CacheTime: 1})
+	freshFeatureCaches(t)
+	c, err := newFeatureCache("ttl", featureCacheDefinition(10, 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,8 +337,163 @@ func TestFeatureCacheExpires(t *testing.T) {
 	}
 }
 
+func TestFeatureCacheDefinitionReload(t *testing.T) {
+	freshFeatureCaches(t)
+	config := featureCacheConfig(10, 60)
+	LoadFeatureCaches(config)
+	old := mustFeatureCache(t, "shared")
+	old.Put("u", map[string]any{"age": 18})
+	conf := config.FeatureCacheConfs["shared"]
+	conf.SelectFields = "*"
+	config.FeatureCacheConfs["shared"] = conf
+	LoadFeatureCaches(config)
+	if mustFeatureCache(t, "shared") != old {
+		t.Fatal("equivalent definition discarded data")
+	}
+	conf.FeatureStoreViewName = "new_view"
+	config.FeatureCacheConfs["shared"] = conf
+	LoadFeatureCaches(config)
+	current := mustFeatureCache(t, "shared")
+	if current == old {
+		t.Fatal("changed definition reused old cache")
+	}
+	if _, ok := current.Get("u"); ok {
+		t.Fatal("new source contains old data")
+	}
+	if old.Config().FeatureStoreViewName != "view" || current.Config().FeatureStoreViewName != "new_view" {
+		t.Fatal("generation definitions are not immutable")
+	}
+	old.Put("late", map[string]any{"age": 99})
+	if _, ok := current.Get("late"); ok {
+		t.Fatal("late write polluted replacement")
+	}
+	conf.FeatureStore = "item"
+	config.FeatureCacheConfs["shared"] = conf
+	if err := loadFeatureCachesWithFactory(config, newFeatureCache); err == nil {
+		t.Fatal("user/item scope changed for an existing name")
+	}
+	if mustFeatureCache(t, "shared") != current {
+		t.Fatal("rejected definition mutated registry")
+	}
+}
+
+func TestFeatureCacheChangedReadDefinitionResetsEntries(t *testing.T) {
+	for _, change := range []func(*recconf.FeatureCacheConfig){
+		func(c *recconf.FeatureCacheConfig) { c.FeatureStoreViewName = "new_view" },
+		func(c *recconf.FeatureCacheConfig) { c.SelectFields = "age" },
+		func(c *recconf.FeatureCacheConfig) { c.FeatureStoreOptions.DlrmHSTU = true },
+		func(c *recconf.FeatureCacheConfig) {
+			c.FeatureStoreViewName = ""
+			c.FeatureStoreModelName = "model"
+			c.FeatureStoreEntityName = "entity"
+		},
+	} {
+		func() {
+			freshFeatureCaches(t)
+			config := featureCacheConfig(10, 60)
+			LoadFeatureCaches(config)
+			old := mustFeatureCache(t, "shared")
+			old.Put("u", map[string]any{"age": 18})
+			conf := config.FeatureCacheConfs["shared"]
+			change(&conf)
+			config.FeatureCacheConfs["shared"] = conf
+			LoadFeatureCaches(config)
+			current := mustFeatureCache(t, "shared")
+			if current == old {
+				t.Fatal("changed read definition did not rebuild cache")
+			}
+			if _, ok := current.Get("u"); ok {
+				t.Fatal("changed read definition reused cached data")
+			}
+		}()
+	}
+}
+
+func TestFeatureCacheConfigurationSnapshotIsIndependent(t *testing.T) {
+	freshFeatureCaches(t)
+	c, err := newFeatureCache("snapshot", featureCacheDefinition(10, 60))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	conf := c.Config()
+	conf.FeatureStoreViewName = "changed"
+	if c.Config().FeatureStoreViewName != "view" || c.Project() == nil {
+		t.Fatal("configuration snapshot changed the instance")
+	}
+}
+
+func TestFeatureCacheInvalidMetadataDoesNotPublish(t *testing.T) {
+	freshFeatureCaches(t)
+	LoadFeatureCaches(featureCacheConfig(10, 60))
+	old := mustFeatureCache(t, "shared")
+	for _, change := range []func(*recconf.FeatureCacheConfig){
+		func(c *recconf.FeatureCacheConfig) { c.FeatureStoreName = "missing" },
+		func(c *recconf.FeatureCacheConfig) {
+			c.FeatureStoreViewName = ""
+			c.FeatureStoreModelName = "model"
+			c.FeatureStoreEntityName = "missing"
+		},
+	} {
+		conf := featureCacheDefinition(10, 60)
+		change(&conf)
+		config := featureCacheConfig(10, 60)
+		config.FeatureCacheConfs["shared"] = conf
+		if err := loadFeatureCachesWithFactory(config, newFeatureCache); err == nil {
+			t.Fatal("invalid metadata was accepted")
+		}
+		if mustFeatureCache(t, "shared") != old {
+			t.Fatal("invalid metadata changed registry")
+		}
+	}
+}
+
+func TestFeatureCacheRejectsEntityOutsideModel(t *testing.T) {
+	freshFeatureCaches(t)
+	config := featureCacheConfig(10, 60)
+	LoadFeatureCaches(config)
+	old := mustFeatureCache(t, "shared")
+	old.Put("u", map[string]any{"age": 18})
+	for _, scope := range []string{"user", "item"} {
+		for _, source := range []struct{ model, entity string }{
+			{"model", "unrelated"}, {"empty_model", "entity"},
+		} {
+			conf := featureCacheDefinition(10, 60)
+			conf.FeatureStore = scope
+			conf.FeatureStoreViewName = ""
+			conf.FeatureStoreModelName, conf.FeatureStoreEntityName = source.model, source.entity
+			c, err := newFeatureCache("bad_source", conf)
+			if err == nil {
+				c.Close()
+				t.Errorf("accepted entity %s outside model %s", source.entity, source.model)
+			}
+			if scope == "user" {
+				config.FeatureCacheConfs["shared"] = conf
+				if err := loadFeatureCachesWithFactory(config, newFeatureCache); err == nil {
+					t.Error("invalid model/entity source was published")
+				}
+				if mustFeatureCache(t, "shared") != old {
+					t.Fatal("failed source validation replaced old cache")
+				}
+				if data, ok := old.Get("u"); !ok || data["age"] != 18 {
+					t.Fatal("failed source validation closed old cache")
+				}
+			}
+		}
+	}
+	conf := featureCacheDefinition(10, 60)
+	conf.FeatureStoreViewName = ""
+	conf.FeatureStoreModelName, conf.FeatureStoreEntityName = "model", "entity"
+	c, err := newFeatureCache("valid_model", conf)
+	if err != nil {
+		t.Fatalf("valid model/entity rejected: %v", err)
+	}
+	c.Close()
+}
+
 func TestFeatureCachePositiveIsVisibleAtCapacity(t *testing.T) {
-	c, err := newFeatureCache("full", recconf.FeatureCacheConfig{CacheSize: 1, CacheTime: 60})
+	freshFeatureCaches(t)
+	c, err := newFeatureCache("full", featureCacheDefinition(1, 60))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +510,8 @@ func TestFeatureCachePositiveIsVisibleAtCapacity(t *testing.T) {
 }
 
 func TestFeatureCacheCapacityAndLRU(t *testing.T) {
-	c, err := newFeatureCache("bounded", recconf.FeatureCacheConfig{CacheSize: 2, CacheTime: 60})
+	freshFeatureCaches(t)
+	c, err := newFeatureCache("bounded", featureCacheDefinition(2, 60))
 	if err != nil {
 		t.Fatal(err)
 	}
