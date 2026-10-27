@@ -125,7 +125,7 @@ func TestFeatureCacheInvalidConfigDoesNotMutateRegistry(t *testing.T) {
 	}
 }
 
-func TestFeatureCacheIsolatesTypedValues(t *testing.T) {
+func TestFeatureCacheIsolatesTopLevelProperties(t *testing.T) {
 	freshFeatureCaches(t)
 	LoadFeatureCaches(featureCacheConfig(10, 10))
 	c := mustFeatureCache(t, "shared")
@@ -141,20 +141,78 @@ func TestFeatureCacheIsolatesTypedValues(t *testing.T) {
 	}
 	expected := CloneFeatureProperties(input)
 	c.Put("u", input)
-	input["ids"].([]int64)[0] = 1
-	input["weights"].(map[int64][]float64)[3][0] = 99
-	input["nested"].([]any)[0].(map[string]any)["value"].([]string)[0] = "changed"
+	input["ids"] = []int64{1}
+	input["weights"] = map[int64][]float64{3: {99}}
+	input["nested"] = []any{"changed"}
+	input["added"] = true
 	got, ok := c.Get("u")
 	if !ok || !reflect.DeepEqual(got, expected) {
 		t.Fatalf("write did not isolate values: %#v", got)
 	}
-	got["embedding"].([]float32)[0] = 9
-	got["weights"].(map[int64][]float64)[3][0] = 10
-	got["nested"].([]any)[0].(map[string]any)["value"].([]string)[0] = "read"
+	got["embedding"] = []float32{9}
+	got["weights"] = map[int64][]float64{3: {10}}
+	got["nested"] = []any{"read"}
 	delete(got, "ids")
 	next, _ := c.Get("u")
 	if !reflect.DeepEqual(next, expected) {
 		t.Fatalf("read did not isolate values: %#v", next)
+	}
+}
+
+func TestCloneFeaturePropertiesSharesReadOnlyNestedValues(t *testing.T) {
+	ids := []int64{9007199254740993}
+	embedding := []float32{1, 2}
+	weights := map[string]float64{"a": 0.5}
+	input := map[string]any{"ids": ids, "embedding": embedding, "weights": weights}
+	cloned := CloneFeatureProperties(input)
+	if &cloned["ids"].([]int64)[0] != &ids[0] || &cloned["embedding"].([]float32)[0] != &embedding[0] {
+		t.Fatal("read-only sequences and embeddings must not be copied")
+	}
+	if reflect.ValueOf(cloned["weights"]).Pointer() != reflect.ValueOf(weights).Pointer() {
+		t.Fatal("read-only nested maps must not be copied")
+	}
+	cloned["ids"] = []int64{7}
+	delete(cloned, "embedding")
+	if input["ids"].([]int64)[0] != 9007199254740993 || len(input["embedding"].([]float32)) != 2 {
+		t.Fatal("top-level replacement changed the source map")
+	}
+}
+
+func TestCloneFeaturePropertiesNilAndEmpty(t *testing.T) {
+	if CloneFeatureProperties(nil) != nil {
+		t.Fatal("nil map must remain nil")
+	}
+	input := map[string]any{}
+	cloned := CloneFeatureProperties(input)
+	if cloned == nil {
+		t.Fatal("empty map must remain non-nil")
+	}
+	cloned["added"] = 1
+	if len(input) != 0 {
+		t.Fatal("empty map was not cloned")
+	}
+}
+
+func BenchmarkCloneFeatureProperties(b *testing.B) {
+	for _, size := range []int{128, 16384} {
+		name := "small"
+		if size == 16384 {
+			name = "large"
+		}
+		b.Run(name, func(b *testing.B) {
+			properties := map[string]any{
+				"uid": "u", "embedding": make([]float32, size), "sequence": make([]int64, size),
+			}
+			b.ReportAllocs()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					cloned := CloneFeatureProperties(properties)
+					if len(cloned) != 3 {
+						b.Error("invalid clone")
+					}
+				}
+			})
+		})
 	}
 }
 

@@ -3,7 +3,7 @@ package fs
 import (
 	"container/list"
 	"fmt"
-	"reflect"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -127,7 +127,8 @@ func GetFeatureCache(name string) (*FeatureCache, error) {
 	return nil, fmt.Errorf("feature cache not found, name:%s", name)
 }
 
-// Get returns a request-owned copy. A retired instance behaves like a miss.
+// Get returns a copy of the top-level map; nested values must remain read-only.
+// A retired instance behaves like a miss.
 func (c *FeatureCache) Get(key string) (map[string]any, bool) {
 	if c == nil {
 		return nil, false
@@ -145,7 +146,7 @@ func (c *FeatureCache) Get(key string) (map[string]any, bool) {
 	return CloneFeatureProperties(entry.properties), true
 }
 
-// Put retains a cache-owned copy, never a request's mutable feature values.
+// Put retains its own top-level map. Callers must not mutate nested values.
 func (c *FeatureCache) Put(key string, value map[string]any) {
 	if c == nil {
 		return
@@ -214,50 +215,9 @@ func (c *FeatureCache) Close() {
 	}
 }
 
-// CloneFeatureProperties recursively copies the maps and slices returned by
-// the SDK, preserving concrete numeric types, map keys and typed nil values.
+// CloneFeatureProperties copies the top-level map. Nested maps and slices are
+// shared read-only; consumers may replace properties but must not mutate values
+// in place. Concrete value types and typed nil values are preserved.
 func CloneFeatureProperties(properties map[string]any) map[string]any {
-	if properties == nil {
-		return nil
-	}
-	return cloneFeatureValue(reflect.ValueOf(properties)).Interface().(map[string]any)
-}
-
-func cloneFeatureValue(v reflect.Value) reflect.Value {
-	switch v.Kind() {
-	case reflect.Interface:
-		if v.IsNil() {
-			return reflect.Zero(v.Type())
-		}
-		copy := reflect.New(v.Type()).Elem()
-		copy.Set(cloneFeatureValue(v.Elem()))
-		return copy
-	case reflect.Map:
-		if v.IsNil() {
-			return reflect.Zero(v.Type())
-		}
-		copy := reflect.MakeMapWithSize(v.Type(), v.Len())
-		iter := v.MapRange()
-		for iter.Next() {
-			copy.SetMapIndex(iter.Key(), cloneFeatureValue(iter.Value()))
-		}
-		return copy
-	case reflect.Slice:
-		if v.IsNil() {
-			return reflect.Zero(v.Type())
-		}
-		copy := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
-		for i := 0; i < v.Len(); i++ {
-			copy.Index(i).Set(cloneFeatureValue(v.Index(i)))
-		}
-		return copy
-	case reflect.Array:
-		copy := reflect.New(v.Type()).Elem()
-		for i := 0; i < v.Len(); i++ {
-			copy.Index(i).Set(cloneFeatureValue(v.Index(i)))
-		}
-		return copy
-	default:
-		return v
-	}
+	return maps.Clone(properties)
 }

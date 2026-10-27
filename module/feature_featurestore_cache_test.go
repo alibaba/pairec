@@ -119,7 +119,7 @@ func TestSharedFeatureViewReusesAcrossDAOs(t *testing.T) {
 	user := NewUser("u")
 	user.AddProperty("uid", "u")
 	first.FeatureFetch(user, nil, sharedFeatureContext(nil))
-	user.GetProperty("ids").([]int64)[0] = 99
+	user.AddProperty("ids", []int64{99})
 	next := NewUser("u")
 	next.AddProperty("uid", "u")
 	second.FeatureFetch(next, nil, sharedFeatureContext(nil))
@@ -211,7 +211,7 @@ func TestSharedModelContextFeaturesAreRequestLocal(t *testing.T) {
 				} else if user.GetProperty("fallback") != value {
 					t.Fatal("normal path lost fallback")
 				}
-				user.GetProperty("ids").([]int64)[0] = 99
+				user.AddProperty("ids", []int64{99})
 			}
 			if reads != 1 {
 				t.Fatalf("expected cache hit, reads=%d", reads)
@@ -247,9 +247,9 @@ func TestSharedItemsPartialHitsAndNegativeCache(t *testing.T) {
 	if items[0].GetProperty("ids").([]int64)[0] != 1 || items[1].GetProperty("ids").([]int64)[0] != 2 {
 		t.Fatal("item features were not delivered")
 	}
-	items[1].GetProperty("ids").([]int64)[0] = 99
+	items[1].AddProperty("ids", []int64{99})
 	if items[2].GetProperty("ids").([]int64)[0] != 2 {
-		t.Fatal("items share nested values")
+		t.Fatal("replacing an item's property changed another item's property")
 	}
 	dao.FeatureFetch(nil, []*Item{NewItem("missing"), NewItem("b")}, sharedFeatureContext(nil))
 	if view.calls.Load() != 1 {
@@ -320,7 +320,7 @@ func TestSharedFeatureConcurrentConsumers(t *testing.T) {
 			if user.GetProperty("ids").([]int64)[0] != 1 {
 				t.Error("polluted data")
 			}
-			user.GetProperty("ids").([]int64)[0] = 99
+			user.AddProperty("ids", []int64{99})
 		}()
 	}
 	wg.Wait()
