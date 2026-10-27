@@ -66,6 +66,7 @@ type RecommendConfig struct {
 	GraphConfs                map[string]GraphConfig
 	FeatureStoreConfs         map[string]FeatureStoreConfig
 	FeatureViewCacheConfs     map[string]FeatureViewCacheConfig
+	FeatureCacheConfs         map[string]FeatureCacheConfig
 	KafkaConfs                map[string]KafkaConfig
 	SlsConfs                  map[string]SlsConfig
 	DatahubConfs              map[string]DatahubConfig
@@ -253,6 +254,11 @@ type FeatureDaoConfig struct {
 	// LoadFromCacheFeaturesName load features from user cacheFeatures map
 	// Only valid when FeatureStore = user
 	LoadFromCacheFeaturesName string
+
+	// FeatureCacheName references a process-wide, on-demand cache in FeatureCacheConfs.
+	// The named definition owns the data source, fields, options and cache policy.
+	// FeatureAppendKey and duplicate data-source settings are not supported.
+	FeatureCacheName string
 
 	// CacheSize cache featrue data size
 	CacheSize int
@@ -783,6 +789,21 @@ type FeatureStoreConfig struct {
 	HologresUsername  string
 	HologresPassword  string
 }
+
+// FeatureCacheConfig defines the data source and policy of an on-demand cache.
+// Scene DAOs reference its name and provide only lookup keys and destinations.
+type FeatureCacheConfig struct {
+	FeatureStoreName       string
+	FeatureStore           string // user or item; immutable for a name across reloads.
+	FeatureStoreViewName   string
+	FeatureStoreModelName  string
+	FeatureStoreEntityName string
+	SelectFields           string // View projection; model fields come from its definition.
+	FeatureStoreOptions    FeatureStoreOptionsConfig
+	CacheSize              int
+	CacheTime              int // Expiration after write in seconds; zero defaults to 3600.
+}
+
 type FeatureViewCacheConfig struct {
 	FeatureStoreName       string // reference to FeatureStoreConfs key
 	FeatureStoreViewName   string // FeatureView name in the FeatureStore project
