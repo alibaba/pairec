@@ -19,7 +19,6 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
-	"github.com/goburrow/cache"
 )
 
 type PIDController struct {
@@ -39,7 +38,8 @@ type PIDController struct {
 	integralThreshold float64                     // 激活积分项的误差阈值，通常设为目标值的10%-20%
 	errDiscount       float64                     // err discount
 	errThreshold      float64                     // 变速积分阈值, 初始值设为目标值的20%-30%; 快速响应系统：较大阈值; 慢速系统：较小阈值
-	memberCache       cache.Cache
+
+	itemExprNilWarnOnce sync.Once // warn only once when the item expression is missing
 
 	userExprProg *vm.Program // the compiled expression of valid user
 	itemExprProg *vm.Program // the compiled expression of candidate items
@@ -62,13 +62,6 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 		freezeMinutes:     conf.FreezeMinutes,
 		minExpTraffic:     conf.MinExpTraffic,
 	}
-	if conf.MembershipCacheSeconds > 0 {
-		controller.memberCache = cache.New(cache.WithMaximumSize(100000),
-			cache.WithExpireAfterWrite(time.Second*time.Duration(conf.MembershipCacheSeconds)))
-	} else {
-		controller.memberCache = cache.New(cache.WithMaximumSize(100000),
-			cache.WithExpireAfterWrite(time.Second*time.Duration(60)))
-	}
 	if conf.DefaultKi == 0 {
 		controller.ki = 10.0
 	}
@@ -89,7 +82,7 @@ func NewPIDController(task *model.TrafficControlTask, target *model.TrafficContr
 	}
 	controller.GenerateItemExpress()
 	controller.GenerateUserExpress()
-	log.Info(fmt.Sprintf("module=PIDController\tnew PID controller:\t[taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s]", controller.task.TrafficControlTaskId, controller.task.Name, controller.target.TrafficControlTargetId, controller.target.Name))
+	log.Info(fmt.Sprintf("module=PIDController\tnew PID controller:\t%s", trafficIdentity(controller.task.TrafficControlTaskId, controller.target.TrafficControlTargetId, controller.target.Name)))
 	return &controller
 }
 
@@ -100,7 +93,7 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 	isPercentageTask := p.task.ControlType == constants.TrafficControlTaskControlTypePercent
 	lastMeasurement := status.GetLastMeasurement()
 	if isPercentageTask && lastMeasurement > 1.0 {
-		ctx.LogError(fmt.Sprintf("module=PIDController\tinvalid traffic percentage [taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s]\tvalue=%f", p.task.TrafficControlTaskId, p.task.Name, p.target.TrafficControlTargetId, p.target.Name, lastMeasurement))
+		ctx.LogError(fmt.Sprintf("module=PIDController\t%s\tinvalid traffic percentage\tvalue=%f", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), lastMeasurement))
 		return 0, 0
 	}
 
@@ -109,7 +102,9 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 	} else {
 		value, enabled := p.getControlTargetAimValue()
 		if !enabled {
-			ctx.LogDebug(fmt.Sprintf("module=PIDController\t[taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s]\tdisable", p.task.TrafficControlTaskId, p.task.Name, p.target.TrafficControlTargetId, p.target.Name))
+			if ctx.Debug {
+				ctx.LogDebug(fmt.Sprintf("module=PIDController\t%s\tdisable", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name)))
+			}
 			return 0, value
 		}
 		if value < 1 {
@@ -123,12 +118,16 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 		// 调控类型为保量，并且当前时刻目标已达成的情况下，alpha值直接返回 0
 		if isPercentageTask {
 			if lastMeasurement >= (aimValue / 100) {
-				ctx.LogDebug(fmt.Sprintf("module=PIDController\t[taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s]\texpId=%s, traffic data=%.2f, aim value=%v ,control target achieved, return directly", p.task.TrafficControlTaskId, p.task.Name, p.target.TrafficControlTargetId, p.target.Name, expId, lastMeasurement, aimValue))
+				if ctx.Debug {
+					ctx.LogDebug(fmt.Sprintf("module=PIDController\t%s\texp_id=%s, report_traffic=%.2f, aim_value=%v ,control target achieved, return directly", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), expId, lastMeasurement, aimValue))
+				}
 				return 0, aimValue
 			}
 		} else {
 			if lastMeasurement >= aimValue {
-				ctx.LogDebug(fmt.Sprintf("module=PIDController\t[taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s]\titem=%s, traffic data=%.2f, aim value=%v, control target achieved, return directly", p.task.TrafficControlTaskId, p.task.Name, p.target.TrafficControlTargetId, p.target.Name, itemId, lastMeasurement, aimValue))
+				if ctx.Debug {
+					ctx.LogDebug(fmt.Sprintf("module=PIDController\t%s\titem_id=%s, report_traffic=%.2f, aim_value=%v, control target achieved, return directly", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), itemId, lastMeasurement, aimValue))
+				}
 				return 0, aimValue
 			}
 		}
@@ -138,14 +137,18 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 		if p.target.ToleranceValue != 0 {
 			if isInToleranceRange(lastMeasurement, aimValue/100, float64(p.target.ToleranceValue)) {
 				// when current input is between `controlAimValue` and `controlAimValue+SetVale Range`, turn off controller
-				ctx.LogDebug(fmt.Sprintf("module=PIDController\t[taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s]\texpId=%s, between slack interval, control target achieved, return directly", p.task.TrafficControlTaskId, p.task.Name, p.target.TrafficControlTargetId, p.target.Name, expId))
+				if ctx.Debug {
+					ctx.LogDebug(fmt.Sprintf("module=PIDController\t%s\texp_id=%s, between slack interval, control target achieved, return directly", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), expId))
+				}
 				return 0, aimValue
 			}
 		}
 	} else {
 		if p.target.ToleranceValue != 0 {
 			if isInToleranceRange(lastMeasurement, aimValue, float64(p.target.ToleranceValue)) {
-				ctx.LogDebug(fmt.Sprintf("module=PIDController\t[taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s],itemId=%s, between slack interval, control target achieved, return directly", p.task.TrafficControlTaskId, p.task.Name, p.target.TrafficControlTargetId, p.target.Name, itemId))
+				if ctx.Debug {
+					ctx.LogDebug(fmt.Sprintf("module=PIDController\t%s\titem_id=%s, between slack interval, control target achieved, return directly", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), itemId))
+				}
 				return 0, aimValue
 			}
 		}
@@ -153,10 +156,7 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 
 	if p.freezeMinutes > 0 {
 		// 流量占比型任务凌晨刚开始的时候流量占比统计值不置信，直接输出前一天最后一次的调控信号
-		location, err := time.LoadLocation("Asia/Shanghai") // 北京采用Asia/Shanghai时区
-		if err != nil {                                     // 如果无法加载时区，默认使用本地时区
-			location = time.Local
-		}
+		location := trafficControlLocation()
 		// 获取当前时间
 		now := time.Now().In(location)
 		// 获取当天的零点时间
@@ -164,7 +164,9 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 		// 计算当前时间与零点的差值
 		durationSinceStartOfDay := int(now.Sub(startOfDay).Minutes())
 		if durationSinceStartOfDay < p.freezeMinutes {
-			ctx.LogDebug(fmt.Sprintf("module=PIDController\titemId=%s,expId=%s\texit within the freezing time", itemId, expId))
+			if ctx.Debug {
+				ctx.LogDebug(fmt.Sprintf("module=PIDController\titem_id=%s,exp_id=%s\texit within the freezing time", itemId, expId))
+			}
 			return status.lastOutput, aimValue
 		}
 	}
@@ -198,8 +200,8 @@ func (p *PIDController) compute(ctx *context.RecommendContext, expId, itemId str
 		iTerm = ki * status.integralSum
 	}
 	status.lastOutput = pTerm + iTerm + dTerm
-	if status.lastOutput == 0 {
-		ctx.LogDebug(fmt.Sprintf("module=PIDController\t[taskId:%s/taskName=%s]\t[targetId:%s/targetName:%s]\titemId=%s, expId=%s lastMeasurement=%f, err=%.6f, output=0", p.task.TrafficControlTaskId, p.task.Name, p.target.TrafficControlTargetId, p.target.Name, itemId, expId, lastMeasurement, currentError))
+	if ctx.Debug && status.lastOutput == 0 {
+		ctx.LogDebug(fmt.Sprintf("module=PIDController\t%s\titem_id=%s, exp_id=%s report_traffic=%f, err=%.6f, output=0", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), itemId, expId, lastMeasurement, currentError))
 	}
 	return status.lastOutput, aimValue
 }
@@ -304,7 +306,7 @@ func (p *PIDController) setMeasurement(expId, itemId string, measurement float64
 		logProb = 0.1
 	}
 	if rand.Float64() < logProb {
-		log.Info(fmt.Sprintf("module=PIDController\ttarget=[%s/%s]\titemId=%s\terr=%f,lastErr=%f, derivative=%f,integralSum=%f,dt=%.2f,measure=%.6f,time=%v", p.target.TrafficControlTargetId, p.target.Name, itemId,
+		log.Debug(fmt.Sprintf("module=PIDController\t%s\titem_id=%s\terr=%f,last_err=%f, derivative=%f,integral_sum=%f,dt=%.2f,measure=%.6f,time=%v", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), itemId,
 			currentError, status.lastError, status.derivative, status.integralSum, dt, measurement, measureTime))
 	}
 
@@ -335,13 +337,13 @@ func (p *PIDController) getControlTargetAimValue() (float64, bool) {
 	now := time.Now()
 	n := len(p.target.SplitParts.SetValues)
 	if n == 0 {
-		log.Error(fmt.Sprintf("module=PIDController\tthe size of target set values array is 0, targetId:%s",
-			p.target.TrafficControlTargetId))
+		log.Error(fmt.Sprintf("module=PIDController\tthe size of target aim values array is 0\t%s",
+			trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name)))
 		return float64(p.target.Value), false
 	}
 	if len(p.target.SplitParts.TimePoints) != n {
-		log.Error(fmt.Sprintf("module=PIDController\tthe size of target time points array is not equal to the size of target set values array, targetId:%s",
-			p.target.TrafficControlTargetId))
+		log.Error(fmt.Sprintf("module=PIDController\tthe size of target time points array is not equal to the size of target aim values array\t%s",
+			trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name)))
 		return float64(p.target.Value), false
 	}
 	if p.task.ControlType == constants.TrafficControlTaskControlTypePercent {
@@ -389,9 +391,9 @@ func (p *PIDController) getControlTargetAimValue() (float64, bool) {
 		return float64(p.target.SplitParts.SetValues[n-1]), true
 	} else if p.target.StatisPeriod == "Hour" {
 		return float64(p.target.Value) * float64(elapseMinutes) / 60.0, true
-	} else {
-		return float64(p.target.SplitParts.SetValues[n-1]), true // p.target.SetPoint 不会被动态更新
 	}
+
+	return float64(p.target.SplitParts.SetValues[n-1]), true // p.target.SetPoint 不会被动态更新
 }
 
 // 实际值是否在目标值的误差范围内
@@ -423,15 +425,15 @@ func (p *PIDController) IsAllocateExpWise() bool {
 func (p *PIDController) GenerateItemExpress() {
 	targetExpression, err := ParseExpression(p.target.ItemConditionArray, p.target.ItemConditionExpress)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v",
+		log.Error(fmt.Sprintf("module=PIDController\t%s\tparse target item condition field, please check %s or %s\terr:%v", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name),
 			p.target.ItemConditionArray, p.target.ItemConditionExpress, err))
 		return
 	}
 
-	taskExpression, err := ParseExpression(p.task.ItemConditionArray, p.target.ItemConditionExpress)
+	taskExpression, err := ParseExpression(p.task.ItemConditionArray, p.task.ItemConditionExpress)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tparse item condition field, please check %s or %s\terr:%v",
-			p.task.UserConditionArray, p.task.UserConditionExpress, err))
+		log.Error(fmt.Sprintf("module=PIDController\t%s\tparse task item condition field, please check %s or %s\terr:%v", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name),
+			p.task.ItemConditionArray, p.task.ItemConditionExpress, err))
 		return
 	}
 
@@ -449,17 +451,17 @@ func (p *PIDController) GenerateItemExpress() {
 			replacedStr := strings.Replace(itemExpression, "${current_time}", fmt.Sprintf("%d", now), -1)
 			p.itemExprProg, err = expr.Compile(replacedStr, expr.AsBool())
 			if err != nil {
-				log.Error(fmt.Sprintf("module=PIDController\tcompile item expression field, expression:%s, err:%v", itemExpression, err))
+				log.Error(fmt.Sprintf("module=PIDController\t%s\tcompile item expression field, expression:%s\terr:%v", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), replacedStr, err))
 				return
 			}
-			log.Info(fmt.Sprintf("module=PIDController\tcompile item expression success, expression:%s", replacedStr))
+			log.Info(fmt.Sprintf("module=PIDController\t%s\tcompile item expression success, expression:%s", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), replacedStr))
 		} else {
 			p.itemExprProg, err = expr.Compile(itemExpression, expr.AsBool())
 			if err != nil {
-				log.Error(fmt.Sprintf("module=PIDController\tcompile item expression field, expression:%s, err:%v", itemExpression, err))
+				log.Error(fmt.Sprintf("module=PIDController\t%s\tcompile item expression field, expression:%s\terr:%v", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), itemExpression, err))
 				return
 			}
-			log.Info(fmt.Sprintf("module=PIDController\tcompile item expression success, expression:%s", itemExpression))
+			log.Info(fmt.Sprintf("module=PIDController\t%s\tcompile item expression success, expression:%s", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), itemExpression))
 		}
 	}
 }
@@ -467,7 +469,7 @@ func (p *PIDController) GenerateItemExpress() {
 func (p *PIDController) GenerateUserExpress() {
 	taskUserExpression, err := ParseExpression(p.task.UserConditionArray, p.task.UserConditionExpress)
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDControl\tparse user condition field, please check %s or %s",
+		log.Error(fmt.Sprintf("module=PIDControl\t%s\tparse user condition field, please check %s or %s", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name),
 			p.task.UserConditionArray, p.task.UserConditionExpress))
 	}
 	if taskUserExpression == "" {
@@ -475,10 +477,10 @@ func (p *PIDController) GenerateUserExpress() {
 	}
 	p.userExprProg, err = expr.Compile(taskUserExpression, expr.AsBool())
 	if err != nil {
-		log.Error(fmt.Sprintf("module=PIDController\tcompile user expression field, expression:%s, err:%v", taskUserExpression, err))
+		log.Error(fmt.Sprintf("module=PIDController\t%s\tcompile user expression field, expression:%s, err:%v", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), taskUserExpression, err))
 		return
 	}
-	log.Info(fmt.Sprintf("module=PIDController\tcompile user expression success, expression:%s", taskUserExpression))
+	log.Info(fmt.Sprintf("module=PIDController\t%s\tcompile user expression success, expression:%s", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), taskUserExpression))
 }
 
 type PIDStatus struct {
@@ -492,14 +494,26 @@ type PIDStatus struct {
 	integralActive  bool      // 当前是否激活积分项
 }
 
+var trafficLocationOnce sync.Once
+var trafficLocation *time.Location
+
+// trafficControlLocation 只加载一次时区数据库，失败时保持原有的本地时区回退。
+func trafficControlLocation() *time.Location {
+	trafficLocationOnce.Do(func() {
+		var err error
+		trafficLocation, err = time.LoadLocation("Asia/Shanghai")
+		if err != nil {
+			trafficLocation = time.Local
+		}
+	})
+	return trafficLocation
+}
+
 func (s *PIDStatus) GetLastMeasurement() float64 {
 	if s.lastTime.IsZero() {
 		return 0
 	}
-	location, err := time.LoadLocation("Asia/Shanghai") // 北京采用Asia/Shanghai时区
-	if err != nil {                                     // 如果无法加载时区，默认使用本地时区
-		location = time.Local
-	}
+	location := trafficControlLocation()
 	now := time.Now().In(location) // 获取当前时间
 	last := s.lastTime.In(location)
 	if now.Day() != last.Day() {

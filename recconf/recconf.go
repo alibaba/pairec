@@ -296,6 +296,7 @@ type PAIModelConfig struct {
 }
 
 type PIDControllerConfig struct {
+	TargetSampleCount      int // 每请求调控目标抽样数，非正值使用默认50，可被实验参数覆盖
 	AllocateExperimentWise bool
 	DefaultKp              float64
 	DefaultKi              float64
