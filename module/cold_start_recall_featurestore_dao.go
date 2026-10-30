@@ -16,6 +16,18 @@ import (
 	"github.com/goburrow/cache"
 )
 
+const coldStartDefaultItemCacheSize = 500000
+
+// coldStartItemCacheSize returns the configured itemCache size. Zero or negative
+// falls back to the default instead of disabling the cache, FilterParams can not
+// be evaluated without it.
+func coldStartItemCacheSize(conf recconf.ColdStartDaoConfig) int {
+	if conf.ItemCacheSize > 0 {
+		return conf.ItemCacheSize
+	}
+	return coldStartDefaultItemCacheSize
+}
+
 type ColdStartRecallFeatureStoreDao struct {
 	fsClient     *fs.FSClient
 	recallCount  int
@@ -61,7 +73,7 @@ func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRe
 		itemIds:     make([]string, 0, 1024),
 
 		cache:     cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Minute)),
-		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Hour)),
+		itemCache: cache.New(cache.WithMaximumSize(coldStartItemCacheSize(config.ColdStartDaoConf)), cache.WithExpireAfterAccess(time.Hour)),
 	}
 	featureView := dao.fsClient.GetProject().GetFeatureView(dao.table)
 	if featureView == nil {
