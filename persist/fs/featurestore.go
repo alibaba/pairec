@@ -2,6 +2,8 @@ package fs
 
 import (
 	"fmt"
+	"reflect"
+	"sort"
 	"sync"
 
 	"github.com/alibaba/pairec/v2/log"
@@ -60,7 +62,32 @@ func Load(config *recconf.RecommendConfig) {
 	fsLoadMu.Lock()
 	defer fsLoadMu.Unlock()
 
-	for name, conf := range config.FeatureStoreConfs {
+	// The feature store SDK caches connection pools (hologres/featuredb/...) in
+	// process-level registries keyed by server-side datasource name with
+	// first-registration-wins semantics. Iterating the config map in random
+	// order would make the winning config of a same-project registration
+	// non-deterministic across restarts, so configs are loaded in sorted key
+	// order to make the selection stable and reproducible.
+	names := make([]string, 0, len(config.FeatureStoreConfs))
+	for name := range config.FeatureStoreConfs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// firstConfs records, per project, the config that registers the shared
+	// connection pools first (and therefore actually takes effect).
+	firstConfs := make(map[string]string, len(names))
+	for _, name := range names {
+		conf := config.FeatureStoreConfs[name]
+		if firstName, ok := firstConfs[conf.ProjectName]; ok {
+			if diffFields := diffFeatureStoreConfs(config.FeatureStoreConfs[firstName], conf); len(diffFields) > 0 {
+				log.Warning(fmt.Sprintf("module=FeatureStore\tname=%q\tmsg=project %s is registered by multiple FeatureStoreConfs, the config of %q is used",
+					name, conf.ProjectName, firstName))
+			}
+		} else {
+			firstConfs[conf.ProjectName] = name
+		}
+
 		fsInstancesMu.RLock()
 		fs, ok := fsInstances[name]
 		fsInstancesMu.RUnlock()
@@ -120,4 +147,19 @@ func Load(config *recconf.RecommendConfig) {
 		fsInstances[name] = m
 		fsInstancesMu.Unlock()
 	}
+}
+
+// diffFeatureStoreConfs returns the field names that differ between two
+// FeatureStoreConfig entries of the same project. Values are never included
+// because the configs may contain credentials.
+func diffFeatureStoreConfs(first, other recconf.FeatureStoreConfig) []string {
+	var diffFields []string
+	firstValue := reflect.ValueOf(first)
+	otherValue := reflect.ValueOf(other)
+	for i := 0; i < firstValue.NumField(); i++ {
+		if !reflect.DeepEqual(firstValue.Field(i).Interface(), otherValue.Field(i).Interface()) {
+			diffFields = append(diffFields, firstValue.Type().Field(i).Name)
+		}
+	}
+	return diffFields
 }
