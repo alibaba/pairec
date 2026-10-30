@@ -57,6 +57,7 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 			keyField:       config.TablePKey,
 			embeddingField: config.EmbeddingColumn,
 			embSeparator:   config.EmbeddingSeparator,
+			embPrecision:   strings.ToLower(config.EmbeddingPrecision),
 		},
 		suffixParam:          config.TableSuffixParam,
 		gamma:                0.25,
@@ -211,7 +212,7 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			absentItemIds = append(absentItemIds, string(item.Id))
 			itemMap[string(item.Id)] = item
 		} else {
-			item.Embedding = cloneEmbedding(embI.([]float64))
+			item.Embedding = s.loadEmbedding(embI)
 			if embedSize == 0 {
 				embedSize = len(item.Embedding)
 			} else if embedSize != len(item.Embedding) {
@@ -245,7 +246,7 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 					id, len(vector), embedSize))
 				return errors.New("item embedding size do not match")
 			}
-			s.embCache.Put(id, vector)
+			s.embCache.Put(id, s.storeEmbedding(vector))
 			if item, ok := itemMap[id]; ok {
 				item.Embedding = cloneEmbedding(vector)
 			}

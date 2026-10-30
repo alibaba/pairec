@@ -75,6 +75,7 @@ func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 			keyField:       config.TablePKey,
 			embeddingField: config.EmbeddingColumn,
 			embSeparator:   config.EmbeddingSeparator,
+			embPrecision:   strings.ToLower(config.EmbeddingPrecision),
 		},
 		suffixParam:          config.TableSuffixParam,
 		alpha:                config.Alpha,
@@ -210,7 +211,7 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			absentItemIds = append(absentItemIds, string(item.Id))
 			itemMap[string(item.Id)] = item
 		} else {
-			item.Embedding = cloneEmbedding(embI.([]float64))
+			item.Embedding = s.loadEmbedding(embI)
 			if embedSize == 0 {
 				embedSize = len(item.Embedding)
 			}
@@ -231,7 +232,7 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 				floats.Scale(1/normV, vector)
 			}
 			embedSize = len(vector)
-			s.embCache.Put(id, vector)
+			s.embCache.Put(id, s.storeEmbedding(vector))
 			if item, ok := itemMap[id]; ok {
 				item.Embedding = cloneEmbedding(vector)
 			}

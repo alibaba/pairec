@@ -26,6 +26,9 @@ type embeddingDatasource struct {
 	keyField       string
 	embeddingField string
 	embSeparator   string
+	// embPrecision is the numeric type used to cache vectors: "float32" halves
+	// cache memory, empty/"float64" (default) keeps []float64.
+	embPrecision string
 }
 
 // hasEmbeddingTable reports whether an embedding datasource (hologres table or
@@ -201,4 +204,41 @@ func (d embeddingDatasource) parseEmbedding(ctx *context.RecommendContext, raw i
 		// zero vector that would normalize to NaN and silently corrupt the ranking.
 		return nil
 	}
+}
+
+// embeddingPrecisionFloat32 is the opt-in reduced-precision cache mode; any
+// other value keeps full []float64 storage.
+const embeddingPrecisionFloat32 = "float32"
+
+// storeEmbedding returns the vector in the configured cache precision. The
+// default path returns the []float64 unchanged (no conversion/allocation);
+// "float32" halves per-entry memory at ~7 significant digits, ample for
+// normalized similarity math.
+func (d embeddingDatasource) storeEmbedding(vec []float64) interface{} {
+	if d.embPrecision == embeddingPrecisionFloat32 {
+		out := make([]float32, len(vec))
+		for i, v := range vec {
+			out[i] = float32(v)
+		}
+		return out
+	}
+	return vec
+}
+
+// loadEmbedding clones a cached vector back to []float64. The []float64 branch is
+// checked first so the default path costs a single assertion, matching the
+// original cloneEmbedding(embI.([]float64)); capacity reserves one extra slot for
+// the later append(embs, 1).
+func (d embeddingDatasource) loadEmbedding(cached interface{}) []float64 {
+	if v, ok := cached.([]float64); ok {
+		return cloneEmbedding(v)
+	}
+	if v, ok := cached.([]float32); ok {
+		cloned := make([]float64, len(v), len(v)+1)
+		for i, f := range v {
+			cloned[i] = float64(f)
+		}
+		return cloned
+	}
+	return nil
 }
