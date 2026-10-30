@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"math"
 	"testing"
 
 	"fortio.org/assert"
@@ -183,5 +184,54 @@ func TestNewDimensionFieldUniqueFilterInvalidConfig(t *testing.T) {
 				Property: "distance",
 			},
 		})
+	})
+}
+
+func TestDimensionFieldUniqueFilterKeepNaN(t *testing.T) {
+	nan := math.NaN()
+	minConf := recconf.FilterConfig{
+		Name:           "brand_unique_filter",
+		Dimension:      "brand_id",
+		UniqueKeepConf: recconf.UniqueKeepConfig{Property: "distance", Strategy: "min"},
+	}
+	maxConf := recconf.FilterConfig{
+		Name:           "brand_unique_filter",
+		Dimension:      "brand_id",
+		UniqueKeepConf: recconf.UniqueKeepConfig{Property: "distance", Strategy: "max"},
+	}
+
+	// a leading NaN winner must be replaced by a later readable value (min)
+	t.Run("min finite replaces leading NaN", func(t *testing.T) {
+		items := []*module.Item{
+			newUniqueTestItem("item_1", "brand_a", map[string]interface{}{"distance": nan}),
+			newUniqueTestItem("item_2", "brand_a", map[string]interface{}{"distance": 2.0}),
+			newUniqueTestItem("item_3", "brand_a", map[string]interface{}{"distance": 1.0}),
+		}
+		newItems := runDimensionFieldUniqueFilter(t, minConf, items)
+		assert.Equal(t, 1, len(newItems))
+		assert.Equal(t, module.ItemId("item_3"), newItems[0].Id)
+	})
+
+	// a leading NaN winner must be replaced by a later readable value (max)
+	t.Run("max finite replaces leading NaN", func(t *testing.T) {
+		items := []*module.Item{
+			newUniqueTestItem("item_1", "brand_a", map[string]interface{}{"distance": nan}),
+			newUniqueTestItem("item_2", "brand_a", map[string]interface{}{"distance": 2.0}),
+			newUniqueTestItem("item_3", "brand_a", map[string]interface{}{"distance": 5.0}),
+		}
+		newItems := runDimensionFieldUniqueFilter(t, maxConf, items)
+		assert.Equal(t, 1, len(newItems))
+		assert.Equal(t, module.ItemId("item_3"), newItems[0].Id)
+	})
+
+	// both items unreadable (float64 NaN and the "NaN" string both parse to NaN): keep the first occurrence
+	t.Run("both NaN keeps first", func(t *testing.T) {
+		items := []*module.Item{
+			newUniqueTestItem("item_1", "brand_a", map[string]interface{}{"distance": nan}),
+			newUniqueTestItem("item_2", "brand_a", map[string]interface{}{"distance": "NaN"}),
+		}
+		newItems := runDimensionFieldUniqueFilter(t, minConf, items)
+		assert.Equal(t, 1, len(newItems))
+		assert.Equal(t, module.ItemId("item_1"), newItems[0].Id)
 	})
 }

@@ -3,6 +3,7 @@ package filter
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/alibaba/pairec/v2/module"
@@ -54,10 +55,12 @@ func (f *DimensionFieldUniqueFilter) doFilter(filterData *FilterData) error {
 	items := filterData.Data.([]*module.Item)
 	newItems := make([]*module.Item, 0)
 	uniq := make(map[string]*module.Item, len(items))
-	uniqPos := make(map[string]int, len(items))
-	// number of duplicate pairs whose min/max comparison was skipped because the property is unreadable on both
-	// items; kept as a local counter so the shared filter instance stays concurrency-safe, and reported once per
-	// call to avoid log flooding
+	// uniqPos is only used by the keep strategy; allocate lazily to keep the legacy path at single-map overhead
+	var uniqPos map[string]int
+	if f.keepStrategy != "" {
+		uniqPos = make(map[string]int, len(items))
+	}
+	// local counter of duplicate pairs skipped for unreadable property, reported once per call to avoid log flooding
 	skippedComparisons := 0
 
 	for _, item := range items {
@@ -70,12 +73,14 @@ func (f *DimensionFieldUniqueFilter) doFilter(filterData *FilterData) error {
 		old, ok := uniq[val]
 		if !ok {
 			uniq[val] = item
-			uniqPos[val] = len(newItems)
+			if f.keepStrategy != "" {
+				uniqPos[val] = len(newItems)
+			}
 			newItems = append(newItems, item)
 			continue
 		}
 
-		// keep strategy is configured, replace the group winner in place if the new item is better
+		// replace the group winner in place if the new item is better
 		if f.keepStrategy != "" {
 			better, comparable := f.isBetterKeepItem(old, item)
 			if !comparable {
@@ -96,20 +101,21 @@ func (f *DimensionFieldUniqueFilter) doFilter(filterData *FilterData) error {
 	return nil
 }
 
-// isBetterKeepItem reports whether the new item should replace the old one within the same duplicate group.
-// The item with a comparable property value wins over the one without; on tie the old (first occurring) item is kept.
-// The second result reports whether the comparison property is readable on at least one side; when it is false the
-// winner can not be decided by value comparison and the current group winner is kept unchanged.
+// isBetterKeepItem reports whether the new item should replace the current group winner: the item with a readable
+// property wins, ties keep the old one. comparable is false when neither side is readable (missing or NaN), so the
+// winner is kept unchanged. NaN counts as unreadable because every min/max comparison against it is false.
 func (f *DimensionFieldUniqueFilter) isBetterKeepItem(old, item *module.Item) (better bool, comparable bool) {
 	oldVal, oldErr := old.FloatProperty(f.keepProperty)
 	newVal, newErr := item.FloatProperty(f.keepProperty)
-	if oldErr != nil && newErr != nil {
+	oldReadable := oldErr == nil && !math.IsNaN(oldVal)
+	newReadable := newErr == nil && !math.IsNaN(newVal)
+	if !oldReadable && !newReadable {
 		return false, false
 	}
-	if oldErr != nil {
+	if !oldReadable {
 		return true, true
 	}
-	if newErr != nil {
+	if !newReadable {
 		return false, true
 	}
 
