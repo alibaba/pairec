@@ -16,6 +16,18 @@ import (
 	"github.com/goburrow/cache"
 )
 
+const coldStartDefaultItemCacheSize = 500000
+
+// coldStartItemCacheSize returns the configured itemCache size. Zero or negative
+// falls back to the default instead of disabling the cache, FilterParams can not
+// be evaluated without it.
+func coldStartItemCacheSize(conf recconf.ColdStartDaoConfig) int {
+	if conf.ItemCacheSize > 0 {
+		return conf.ItemCacheSize
+	}
+	return coldStartDefaultItemCacheSize
+}
+
 type ColdStartRecallFeatureStoreDao struct {
 	fsClient     *fs.FSClient
 	recallCount  int
@@ -30,8 +42,19 @@ type ColdStartRecallFeatureStoreDao struct {
 	// features are loaded so that items not matching never enter itemCache and
 	// the request path never spends time on them.
 	itemFilterParam *FilterParam
-	cache           cache.Cache
-	itemCache       cache.Cache
+	// filteredItemIds holds the ids that passed ItemFilterParams while loading.
+	// The request path samples from it instead of the full scan result, so the
+	// per request cost is proportional to the filtered pool instead of the whole
+	// feature view. Only maintained when itemFilterParam != nil.
+	filteredItemIds atomic.Pointer[[]string]
+	filteredMu      sync.Mutex // serializes the read-modify-write of filteredItemIds
+	// loadMu serializes background pool updates. A full load evaluates a scan
+	// snapshot and then replaces the pool, so it must not overlap with a stream
+	// increment: a slow full load would otherwise publish last and drop the
+	// increments that became visible while it was running.
+	loadMu    sync.Mutex
+	cache     cache.Cache
+	itemCache cache.Cache
 }
 
 func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRecallFeatureStoreDao {
@@ -50,7 +73,7 @@ func NewColdStartRecallFeatureStoreDao(config recconf.RecallConfig) *ColdStartRe
 		itemIds:     make([]string, 0, 1024),
 
 		cache:     cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Minute)),
-		itemCache: cache.New(cache.WithMaximumSize(500000), cache.WithExpireAfterAccess(time.Hour)),
+		itemCache: cache.New(cache.WithMaximumSize(coldStartItemCacheSize(config.ColdStartDaoConf)), cache.WithExpireAfterAccess(time.Hour)),
 	}
 	featureView := dao.fsClient.GetProject().GetFeatureView(dao.table)
 	if featureView == nil {
@@ -114,7 +137,7 @@ func (d *ColdStartRecallFeatureStoreDao) initItemData() {
 	}
 
 	d.itemIds = ids
-	go d.fetchItemData(d.itemIds)
+	d.fetchItemData(d.itemIds, true)
 }
 func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 	ticker := time.NewTicker(time.Minute)
@@ -131,7 +154,7 @@ func (d *ColdStartRecallFeatureStoreDao) loopIterateData() {
 				newItemIds = append(newItemIds, id)
 			}
 		}
-		d.fetchItemData(ids)
+		d.fetchItemData(ids, false)
 		ids = ids[:0]
 		d.itemIds = newItemIds
 		//d.lastScanTime = time.Now()
@@ -188,38 +211,46 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 			ret = append(ret, item)
 		}
 	} else {
-		itemIds := make([]string, len(d.itemIds))
-		copy(itemIds, d.itemIds)
+		candidates := d.candidateIds()
+		itemIds := make([]string, len(candidates))
+		copy(itemIds, candidates)
 		rand.Shuffle(len(itemIds), func(i, j int) {
 			itemIds[i], itemIds[j] = itemIds[j], itemIds[i]
 		})
 
-		// Only FilterParams looks at the user, ItemFilterParams was already settled
-		// at load time.
-		var userFeatures map[string]any
-		if d.filterParam != nil {
-			userFeatures = user.MakeUserFeatures2()
-		}
-		for _, id := range itemIds {
-			// Missing from itemCache means the item never passed ItemFilterParams
-			// while loading, so it must not be recalled.
-			cacheValue, ok := d.itemCache.GetIfPresent(id)
-			if !ok {
-				continue
+		if d.filterParam == nil {
+			// ItemFilterParams was already settled at load time and nothing else
+			// looks at the item features, so the pool is used as is.
+			if len(itemIds) > d.recallCount {
+				itemIds = itemIds[:d.recallCount]
 			}
-			if d.filterParam != nil {
+			for _, id := range itemIds {
+				item := NewItem(id)
+				item.RetrieveId = d.recallName
+				ret = append(ret, item)
+			}
+		} else {
+			// Only FilterParams looks at the user, ItemFilterParams was already
+			// settled at load time.
+			userFeatures := user.MakeUserFeatures2()
+			for _, id := range itemIds {
+				// Missing from itemCache means the features are not available, so
+				// FilterParams cannot be evaluated and the item is skipped.
+				cacheValue, ok := d.itemCache.GetIfPresent(id)
+				if !ok {
+					continue
+				}
 				if r, err := d.filterParam.EvaluateByDomain(userFeatures, cacheValue.(map[string]any)); err != nil || !r {
 					continue
 				}
-			}
-			item := NewItem(id)
-			item.RetrieveId = d.recallName
-			ret = append(ret, item)
-			if len(ret) >= d.recallCount {
-				break
+				item := NewItem(id)
+				item.RetrieveId = d.recallName
+				ret = append(ret, item)
+				if len(ret) >= d.recallCount {
+					break
+				}
 			}
 		}
-
 	}
 
 	go func() {
@@ -259,10 +290,17 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 			d.itemIds = ids
 			if len(ids) == 0 {
 				log.Warning(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=scan returned empty result, itemIds cleared", d.recallName))
+				// Clear the filtered pool as well, otherwise cleared source data
+				// would keep being recalled from the previous pool.
+				if d.itemFilterParam != nil {
+					d.loadMu.Lock()
+					d.publishFilteredIds(nil, nil, true)
+					d.loadMu.Unlock()
+				}
 				return
 			}
-			go d.fetchItemData(d.itemIds)
 			log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\tmsg=load item\tsize=%d", len(d.itemIds)))
+			d.fetchItemData(d.itemIds, true)
 		}()
 	}()
 
@@ -273,10 +311,17 @@ func (d *ColdStartRecallFeatureStoreDao) ListItemsByUser(user *User, context *co
 
 }
 
-func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string) {
+func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string, fullScan bool) {
 	if d.filterParam == nil && d.itemFilterParam == nil {
 		return
 	}
+
+	// Hold loadMu for the whole load so that loading the features and publishing
+	// the result stay one step. A stream increment arriving meanwhile waits and
+	// is applied after this load, which is the right order because it carries
+	// fresher data than this load's scan snapshot.
+	d.loadMu.Lock()
+	defer d.loadMu.Unlock()
 
 	start := time.Now()
 	itemIds := make([]string, len(itemIdList))
@@ -294,8 +339,14 @@ func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string) {
 		return
 	}
 	size := len(itemIds)
+	// Only FilterParams reads the features back at request time. Without it the
+	// features are useless once ItemFilterParams has been evaluated here, so only
+	// the ids of the items that passed are kept.
+	cacheFeatures := d.filterParam != nil
 	var cacheSize atomic.Int32
 	var wg sync.WaitGroup
+	var resultMu sync.Mutex
+	var passedIds, failedIds []string
 	ch := make(chan int, 5)
 	batchSize := 200
 	for i := 0; i < size; i += batchSize {
@@ -317,28 +368,111 @@ func (d *ColdStartRecallFeatureStoreDao) fetchItemData(itemIdList []string) {
 			}
 			features, err := featureView.GetOnlineFeatures(joinIds, d.fields, map[string]string{})
 			if err != nil {
-				log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\tmsg=load item cache\tfields=%v\terror=%v", d.fields, err))
+				log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=load item cache\tfields=%v\terror=%v", d.recallName, d.fields, err))
+				resultMu.Lock()
+				failedIds = append(failedIds, itemIds[start:end]...)
+				resultMu.Unlock()
 				return
 			}
+			passed := make([]string, 0, end-start)
 			for _, featureMap := range features {
 				itemId := featureMap[featureEntity.FeatureEntityJoinid]
 				if id := utils.ToString(itemId, ""); id != "" {
 					if d.itemFilterParam != nil {
 						r, err := d.itemFilterParam.EvaluateByDomain(nil, featureMap)
 						if err != nil {
-							// Cache it anyway and let FilterParams have the final say.
+							// Keep it anyway and let FilterParams have the final say.
 							log.Error(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=eval ItemFilterParams\titemId=%s\terror=%v", d.recallName, id, err))
 						} else if !r {
 							continue
 						}
+						passed = append(passed, id)
 					}
-					d.itemCache.Put(id, featureMap)
+					if cacheFeatures {
+						d.itemCache.Put(id, featureMap)
+					}
 					size++
 				}
+			}
+			if len(passed) > 0 {
+				resultMu.Lock()
+				passedIds = append(passedIds, passed...)
+				resultMu.Unlock()
 			}
 			cacheSize.Add(int32(size))
 		}(start, end)
 	}
 	wg.Wait()
-	log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=load item cache\tsize=%d\tcachesize=%d\tcost=%d", d.recallName, len(itemIds), cacheSize.Load(), utils.CostTime(start)))
+	if d.itemFilterParam != nil {
+		d.publishFilteredIds(passedIds, failedIds, fullScan)
+	}
+	log.Info(fmt.Sprintf("module=ColdStartRecallFeatureStoreDao\trecallName=%s\tmsg=load item cache\tsize=%d\tcachesize=%d\tpassed=%d\tfailed=%d\tcost=%d",
+		d.recallName, len(itemIds), cacheSize.Load(), len(passedIds), len(failedIds), utils.CostTime(start)))
+}
+
+// candidateIds returns the ids the request path should sample from. Once
+// ItemFilterParams has been applied while loading, only the ids that passed are
+// worth looking at.
+func (d *ColdStartRecallFeatureStoreDao) candidateIds() []string {
+	if d.itemFilterParam == nil {
+		return d.itemIds
+	}
+	if ids := d.filteredItemIds.Load(); ids != nil {
+		return *ids
+	}
+	// The first load has not published a pool yet, recall nothing instead of
+	// falling back to the unfiltered scan result.
+	return nil
+}
+
+// publishFilteredIds updates the pool of ids that passed ItemFilterParams: a
+// full scan replaces the pool, a stream increment merges into it.
+func (d *ColdStartRecallFeatureStoreDao) publishFilteredIds(passed, failed []string, fullScan bool) {
+	d.filteredMu.Lock()
+	defer d.filteredMu.Unlock()
+	old := d.filteredItemIds.Load()
+
+	if !fullScan {
+		if len(passed) == 0 {
+			return
+		}
+		if old == nil {
+			d.filteredItemIds.Store(&passed)
+			return
+		}
+		exist := make(map[string]bool, len(*old))
+		for _, id := range *old {
+			exist[id] = true
+		}
+		merged := make([]string, len(*old), len(*old)+len(passed))
+		copy(merged, *old)
+		for _, id := range passed {
+			if !exist[id] {
+				exist[id] = true
+				merged = append(merged, id)
+			}
+		}
+		d.filteredItemIds.Store(&merged)
+		return
+	}
+
+	// Ids whose feature batch failed to load keep the verdict of the previous
+	// pool, otherwise a transient FeatureStore error would shrink the recall pool
+	// until the next full scan. They belong to the current scan result, so this
+	// cannot resurrect items already removed from the feature view.
+	ids := passed
+	if len(failed) > 0 && old != nil && len(*old) > 0 {
+		pending := make(map[string]bool, len(failed))
+		for _, id := range failed {
+			pending[id] = true
+		}
+		ids = make([]string, 0, len(passed)+len(failed))
+		ids = append(ids, passed...)
+		for _, id := range *old {
+			if pending[id] {
+				ids = append(ids, id)
+			}
+		}
+	}
+	d.filteredItemIds.Store(&ids)
 }

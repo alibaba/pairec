@@ -621,6 +621,10 @@ type BeTriggerParam struct {
 type ColdStartDaoConfig struct {
 	SqlDaoConfig
 	TimeInterval int // second
+	// ItemCacheSize is the max number of items whose features are kept in memory
+	// by ColdStartRecall on featurestore, default 500000. Only used when
+	// FilterParams is set, it should cover the items passing ItemFilterParams.
+	ItemCacheSize int
 }
 type SqlDaoConfig struct {
 	DaoConfig
