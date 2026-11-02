@@ -26,6 +26,7 @@ type RecallEngineVectorRecall struct {
 	versionId              string
 	userEmbeddingVersionId string
 	timeout                int
+	ivfNprobePct           float32
 	triggerKey             TriggerKey
 	client                 *recallengine.RecallEngineClient
 	mu                     sync.RWMutex
@@ -47,6 +48,7 @@ func NewRecallEngineVectorRecall(client *recallengine.RecallEngineClient, conf r
 		versionId:              conf.RecallEngineParams[0].VersionId,
 		userEmbeddingVersionId: conf.RecallEngineParams[0].UserEmbeddingVersionId,
 		timeout:                conf.RecallEngineParams[0].Timeout,
+		ivfNprobePct:           conf.RecallEngineParams[0].IVFNprobePct,
 		triggerKey:             NewTriggerKey(&conf.RecallEngineParams[0], nil),
 		client:                 client,
 		cloneInstances:         make(map[string]*RecallEngineVectorRecall),
@@ -83,8 +85,8 @@ func (r *RecallEngineVectorRecall) BuildQueryParams(user *module.User, context *
 	if triggerResult.Version != "" {
 		ret.VersionId = triggerResult.Version
 	}
-	if r.timeout > 0 {
-		ret.Options = &re.RecallOptions{Timeout: r.timeout}
+	if r.timeout > 0 || r.ivfNprobePct != 0 {
+		ret.Options = &re.RecallOptions{Timeout: r.timeout, IVFNprobePct: r.ivfNprobePct}
 	}
 	return
 }
@@ -97,6 +99,7 @@ func (r *RecallEngineVectorRecall) CloneWithConfig(params map[string]interface{}
 
 	recallParams := recconf.RecallEngineParam{
 		VersionId:              r.versionId,
+		IVFNprobePct:           r.ivfNprobePct,
 		UserEmbeddingVersionId: r.userEmbeddingVersionId,
 	}
 	if err := json.Unmarshal(j, &recallParams); err != nil {
@@ -130,6 +133,7 @@ func (r *RecallEngineVectorRecall) CloneWithConfig(params map[string]interface{}
 		versionId:              recallParams.VersionId,
 		userEmbeddingVersionId: recallParams.UserEmbeddingVersionId,
 		timeout:                recallParams.Timeout,
+		ivfNprobePct:           recallParams.IVFNprobePct,
 		triggerKey:             NewTriggerKey(&recallParams, r.client),
 		cloneInstances:         make(map[string]*RecallEngineVectorRecall),
 	}

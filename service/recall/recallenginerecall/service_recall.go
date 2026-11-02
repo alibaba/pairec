@@ -150,6 +150,7 @@ func NewRecallEngineServiceRecall(client *recallengine.RecallEngineClient, conf 
 				diversityParam:         param.DiversityParam,
 				versionId:              param.VersionId,
 				userEmbeddingVersionId: param.UserEmbeddingVersionId,
+				ivfNprobePct:           param.IVFNprobePct,
 				timeout:                param.Timeout,
 				triggerKey:             NewTriggerKey(&param, client),
 				client:                 client,
