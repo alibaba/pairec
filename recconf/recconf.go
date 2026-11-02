@@ -622,6 +622,10 @@ type BeTriggerParam struct {
 type ColdStartDaoConfig struct {
 	SqlDaoConfig
 	TimeInterval int // second
+	// ItemCacheSize is the max number of items whose features are kept in memory
+	// by ColdStartRecall on featurestore, default 500000. Only used when
+	// FilterParams is set, it should cover the items passing ItemFilterParams.
+	ItemCacheSize int
 }
 type SqlDaoConfig struct {
 	DaoConfig
@@ -979,6 +983,9 @@ type FilterConfig struct {
 	// RRF (Reciprocal Rank Fusion) multi-recall fusion config, used in RRFusionFilter
 	RRFConf RRFConfig
 
+	// config used in DimensionFieldUniqueFilter to keep the best item within each duplicate group
+	UniqueKeepConf UniqueKeepConfig
+
 	ConditionFilterConfs struct {
 		FilterConfs []struct {
 			Conditions []FilterParamConfig
@@ -996,6 +1003,10 @@ type FilterConfig struct {
 }
 type BeFilterConfig struct {
 	FilterConfig
+}
+type UniqueKeepConfig struct {
+	Property string // item property name used for comparison within duplicate group, e.g. "distance"
+	Strategy string // "min" keeps the item with the smallest property value, "max" keeps the largest; empty keeps the first occurrence
 }
 type FilterValue struct {
 	SelectCol   string
