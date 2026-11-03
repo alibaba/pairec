@@ -8,3 +8,4 @@ parse_pb_log.py
 .worktrees/
 CLAUDE.md
 .qoder/
+tools/
