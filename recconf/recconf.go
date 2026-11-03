@@ -257,6 +257,7 @@ type FeatureDaoConfig struct {
 
 	// FeatureCacheName references a process-wide, on-demand cache in FeatureCacheConfs.
 	// The named definition owns the data source, fields, options and cache policy.
+	// The DAO must still set FeatureStore, and it must match the named cache scope.
 	// FeatureAppendKey and duplicate data-source settings are not supported.
 	FeatureCacheName string
 
