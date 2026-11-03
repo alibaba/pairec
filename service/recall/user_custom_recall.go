@@ -31,6 +31,9 @@ func (r *UserCustomRecall) GetCandidateItems(user *module.User, context *context
 	if r.cache != nil {
 		key := r.cachePrefix + string(user.Id)
 		cacheRet := r.cache.Get(key)
+		if itemStr, ok := cacheRet.(string); ok {
+			cacheRet = []byte(itemStr)
+		}
 		if itemStr, ok := cacheRet.([]uint8); ok {
 			itemIds := strings.Split(string(itemStr), ",")
 			for _, id := range itemIds {
@@ -61,7 +64,7 @@ func (r *UserCustomRecall) GetCandidateItems(user *module.User, context *context
 				itemIds += fmt.Sprintf("%s::%v", string(item.Id), item.Score) + ","
 			}
 			itemIds = itemIds[:len(itemIds)-1]
-			if err := r.cache.Put(key, itemIds, 1800*time.Second); err != nil {
+			if err := r.cache.Put(key, itemIds, time.Duration(r.cacheTime)*time.Second); err != nil {
 				log.Error(fmt.Sprintf("requestId=%s\tmodule=UserCustomRecall\terror=%v",
 					context.RecommendId, err))
 			}

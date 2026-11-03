@@ -58,6 +58,9 @@ func (d *EmptyFeatureDao) userFeatureFetch(user *User, context *context.Recommen
 // NewFeatureDao create FeatureDao from config
 // config.AdapterType is decide the implement
 func NewFeatureDao(config recconf.FeatureDaoConfig) FeatureDao {
+	if config.FeatureCacheName != "" {
+		return NewSharedFeatureFeatureStoreDao(config)
+	}
 	if config.AdapterType == recconf.DaoConf_Adapter_Redis {
 		return NewFeatureRedisDao(config)
 	} else if config.AdapterType == recconf.DaoConf_Adapter_Hologres {

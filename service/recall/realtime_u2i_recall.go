@@ -31,6 +31,9 @@ func (r *RealTimeU2IRecall) GetCandidateItems(user *module.User, context *contex
 	if r.cache != nil {
 		key := r.cachePrefix + string(user.Id)
 		cacheRet := r.cache.Get(key)
+		if itemStr, ok := cacheRet.(string); ok {
+			cacheRet = []byte(itemStr)
+		}
 		if itemStr, ok := cacheRet.([]uint8); ok {
 			itemIds := strings.Split(string(itemStr), ",")
 			for _, id := range itemIds {

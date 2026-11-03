@@ -60,7 +60,7 @@ func (conf RecallConfig) Requirements() Requirements {
 	addDaoRequirements(conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.SqlDaoConfig.DaoConfig, requirements)
 	addDaoRequirements(conf.VectorDaoConf.DaoConfig, requirements)
 	for _, featureConf := range conf.UserFeatureConfs {
-		addDaoRequirements(featureConf.FeatureDaoConf.DaoConfig, requirements)
+		addFeatureCacheRequirement(requirements, featureConf.FeatureDaoConf)
 	}
 	if conf.GraphConf.GraphName != "" {
 		requirements.Add(GraphConfig{}.ModuleType(), conf.GraphConf.GraphName)
@@ -138,7 +138,7 @@ func (conf GeneralRankConfig) Requirements() Requirements {
 	requirements := newRequirements()
 
 	for _, loadConf := range conf.FeatureLoadConfs {
-		addDaoRequirements(loadConf.FeatureDaoConf.DaoConfig, requirements)
+		addFeatureCacheRequirement(requirements, loadConf.FeatureDaoConf)
 	}
 
 	for _, algoName := range conf.RankConf.RankAlgoList {
@@ -152,7 +152,7 @@ func (conf SceneFeatureConfig) Requirements() Requirements {
 	requirements := newRequirements()
 
 	for _, loadConf := range conf.FeatureLoadConfs {
-		addDaoRequirements(loadConf.FeatureDaoConf.DaoConfig, requirements)
+		addFeatureCacheRequirement(requirements, loadConf.FeatureDaoConf)
 	}
 
 	return requirements
@@ -182,6 +182,12 @@ func (conf SceneSortConfig) Requirements() Requirements {
 	return requirements
 }
 
+func (conf FeatureCacheConfig) Requirements() Requirements {
+	requirements := newRequirements()
+	requirements.Add(FeatureStoreConfig{}.ModuleType(), conf.FeatureStoreName)
+	return requirements
+}
+
 func addDaoRequirements(conf DaoConfig, requirements Requirements) {
 	switch conf.AdapterType {
 	case DaoConf_Adapter_Hologres:
@@ -207,4 +213,27 @@ func addDaoRequirements(conf DaoConfig, requirements Requirements) {
 	case DataSource_Type_HBase_Thrift:
 		requirements.Add(HBaseThriftConfig{}.ModuleType(), conf.HBaseName)
 	}
+}
+
+// addFeatureCacheRequirement registers the named cache a feature DAO references.
+// When FeatureCacheName is set, the DAO FeatureStore must match the cache
+// definition; otherwise the shared DAO panics while being constructed, which
+// crashes the process at startup or leaves a half-applied config on hot reload.
+func addFeatureCacheRequirement(requirements Requirements, conf FeatureDaoConfig) {
+	name := conf.FeatureCacheName
+	if name == "" {
+		addDaoRequirements(conf.DaoConfig, requirements)
+		return
+	}
+	scope := conf.FeatureStore
+	requirements.Add(FeatureCacheConfig{}.ModuleType(), name, func(module any) error {
+		cache, ok := module.(FeatureCacheConfig)
+		if !ok {
+			return fmt.Errorf("module is not FeatureCacheConfig")
+		}
+		if scope != cache.FeatureStore {
+			return fmt.Errorf("FeatureStore (%s) does not match the cache scope (%s)", scope, cache.FeatureStore)
+		}
+		return nil
+	})
 }

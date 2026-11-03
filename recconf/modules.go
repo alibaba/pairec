@@ -1,6 +1,7 @@
 package recconf
 
 var modJsonPath = map[string]string{
+	FeatureCacheConfig{}.ModuleType(): "FeatureCacheConfs",
 	HologresConfig{}.ModuleType():     "HologresConfs",
 	TableStoreConfig{}.ModuleType():   "TableStoreConfs",
 	RedisConfig{}.ModuleType():        "RedisConfs",
@@ -32,6 +33,10 @@ type ModuleIndex struct {
 
 func (conf RecommendConfig) GetModules() map[ModuleIndex]any {
 	modules := make(map[ModuleIndex]any)
+
+	for name, config := range conf.FeatureCacheConfs {
+		modules[ModuleIndex{Type: config.ModuleType(), Name: name}] = config
+	}
 
 	for name, config := range conf.HologresConfs {
 		modules[ModuleIndex{Type: config.ModuleType(), Name: name}] = config
@@ -221,4 +226,8 @@ type SceneSortConfig []string
 
 func (conf SceneSortConfig) ModuleType() string {
 	return "SceneSortConf"
+}
+
+func (conf FeatureCacheConfig) ModuleType() string {
+	return "FeatureCacheConf"
 }
