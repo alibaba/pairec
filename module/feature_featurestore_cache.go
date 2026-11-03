@@ -58,7 +58,14 @@ func validateSharedFeatureConfig(conf recconf.FeatureDaoConfig) {
 	if conf.FeatureStore == Feature_Store_User && conf.FeatureType == Feature_Type_Sequence {
 		panic("shared sequence_feature loading is not implemented; use the view/model path")
 	}
-	if conf.FeatureStoreName != "" || conf.FeatureStoreViewName != "" || conf.FeatureStoreModelName != "" || conf.FeatureStoreEntityName != "" || conf.UserSelectFields != "" || conf.ItemSelectFields != "" || conf.FeatureStoreOptions != (recconf.FeatureStoreOptionsConfig{}) {
+	// FeatureStoreName is the only redundant setting: the named cache owns the
+	// FSClient, so this field is never read on the shared path. Report it instead
+	// of failing the process, unlike the settings below which would silently
+	// change what is read.
+	if conf.FeatureStoreName != "" {
+		log.Warning(fmt.Sprintf("module=SharedFeatureFeatureStoreDao\tevent=ignoredConfig\tfield=FeatureStoreName\tvalue=%s\treason=the named cache in FeatureCacheConfs owns the data source", conf.FeatureStoreName))
+	}
+	if conf.FeatureStoreViewName != "" || conf.FeatureStoreModelName != "" || conf.FeatureStoreEntityName != "" || conf.UserSelectFields != "" || conf.ItemSelectFields != "" || conf.FeatureStoreOptions != (recconf.FeatureStoreOptionsConfig{}) {
 		panic("shared data source, fields and options must be configured in FeatureCacheConfs")
 	}
 }

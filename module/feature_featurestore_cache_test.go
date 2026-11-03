@@ -170,7 +170,6 @@ func TestSharedFeatureViewReusesAcrossDAOs(t *testing.T) {
 func TestSharedFeatureRejectsDuplicateSourceSettings(t *testing.T) {
 	c := sharedFeatureTestCache(t)
 	for _, change := range []func(*recconf.FeatureDaoConfig){
-		func(c *recconf.FeatureDaoConfig) { c.FeatureStoreName = "fs" },
 		func(c *recconf.FeatureDaoConfig) { c.FeatureStoreViewName = "view" },
 		func(c *recconf.FeatureDaoConfig) { c.FeatureStoreModelName = "model" },
 		func(c *recconf.FeatureDaoConfig) { c.FeatureStoreEntityName = "entity" },
@@ -189,6 +188,14 @@ func TestSharedFeatureRejectsDuplicateSourceSettings(t *testing.T) {
 			newSharedFeatureTestDao(conf, c, nil)
 		}()
 	}
+	// FeatureStoreName is redundant rather than conflicting: the named cache owns
+	// the FSClient, so the field is never read and must not fail construction.
+	redundant := sharedFeatureTestConfig()
+	redundant.FeatureStoreName = "fs"
+	if dao := newSharedFeatureTestDao(redundant, c, nil); dao == nil {
+		t.Fatal("FeatureStoreName must be tolerated when FeatureCacheName is set")
+	}
+
 	conf := sharedFeatureTestConfig()
 	conf.FeatureStore = Feature_Store_Item
 	func() {
