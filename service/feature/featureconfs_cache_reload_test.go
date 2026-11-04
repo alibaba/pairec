@@ -322,6 +322,7 @@ func TestFeatureConfsFailedReloadKeepsOldCaches(t *testing.T) {
 	oldCache := old.featureCache()
 	oldCache.Put("same", map[string]any{"value": "old"})
 	oldSign := featureService.FeatureSceneSigns["test"]
+	waitReloadCacheCount(t, 1)
 	base := countGoroutineFrames(goburrowProcessFrame)
 	changed := conf
 	changed.FeatureDaoConf.CacheTime++
@@ -833,8 +834,8 @@ func TestFeatureConfsOtherPathsUnchanged(t *testing.T) {
 	t.Cleanup(func() { userFeatureService = original })
 	UserLoadFeatureConfig(userConf)
 	userFeature := userFeatureService.FeatureSceneMap["unrelated"][0]
-	if userFeature.daoSign != "" || userFeature.featureCache() == nil {
-		t.Fatal("B1 changed UserFeatureConfs")
+	if userFeature.daoSign == "" || userFeature.featureCache() == nil || userFeature.featureCache() == first.featureCache() {
+		t.Fatal("UserFeatureConfs must use its own reload cache without sharing ordinary constructors")
 	}
 	userCache := userFeature.featureCache()
 	t.Cleanup(func() { _ = userCache.Close() })

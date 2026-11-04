@@ -18,6 +18,7 @@ type Feature struct {
 	// featureTrans use for transform feature, specific operator by FeatureOp
 	featureTrans []FeatureTrans
 	daoSign      string
+	asyncLoad    bool
 }
 
 func LoadWithConfig(config recconf.FeatureLoadConfig) *Feature {
