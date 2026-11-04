@@ -7,6 +7,7 @@ import (
 
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/algorithm/eas"
+	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/algorithm/response"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -113,6 +114,21 @@ func (r *BaseGeneralRank) doRankWithAlgo(user *module.User, items []*module.Item
 
 	userFeatures := user.MakeUserFeatures2()
 
+	// Resolve the skip_feature_reply consistency jobs once before building the
+	// scoring requests. Each matched algo carries debug_level=103 on the request the
+	// scoring fan-out already sends, so the model service writes OSS CSV during this
+	// same scoring call, collapsing the original scoring + /api/feature_reply two EAS
+	// calls into one without adding any request.
+	var skipMetaByAlgo map[string]map[string]string
+	if r.rankConfig.Processor == eas.Eas_Processor_EASYREC {
+		if skipJobs := rank.MatchSkipFeatureReplyJob(user, context, r.rankConfig.RankAlgoList); len(skipJobs) > 0 {
+			skipMetaByAlgo = make(map[string]map[string]string, len(skipJobs))
+			for algo, job := range skipJobs {
+				skipMetaByAlgo[algo] = rank.SkipFeatureReplyMeta(user, context, job)
+			}
+		}
+	}
+
 	//emptyFeatures := make(map[string]interface{}, 0)
 	/**
 	go func() {
@@ -176,7 +192,13 @@ func (r *BaseGeneralRank) doRankWithAlgo(user *module.User, items []*module.Item
 				wg.Add(1)
 				go func(algo string) {
 					defer wg.Done()
-					algoResponses, err := algorithm.Run(algo, algoData.GetFeatures())
+					runFeatures := algoData.GetFeatures()
+					if meta, ok := skipMetaByAlgo[algo]; ok {
+						if pbReq, ok := runFeatures.(*easyrec.PBRequest); ok {
+							runFeatures = rank.CloneEasyrecRequestWithDebug(pbReq, rank.FeatureConsistencySkipReplyDebugLevel, meta)
+						}
+					}
+					algoResponses, err := algorithm.Run(algo, runFeatures)
 					if err != nil {
 						log.Error(fmt.Sprintf("requestId=%s\terror=run algorithm error(%v)", context.RecommendId, err))
 						algoData.SetError(err)

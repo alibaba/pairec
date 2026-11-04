@@ -19,6 +19,7 @@ import (
 	"github.com/alibaba/pairec/v2/algorithm/response"
 
 	jsoniter "github.com/json-iterator/go"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
@@ -35,6 +36,18 @@ const (
 	DssmO2o = "dssm_o2o"
 	MindO2o = "mind_o2o"
 )
+
+// FeatureConsistencySkipReplyDebugLevel is the special debug level carried by the
+// online scoring request when a skip_feature_reply job is hit. The model service
+// recognizes it and writes the generated features to OSS CSV directly, so the
+// /api/feature_reply relay is skipped. The value is fixed on the engine side and
+// must stay aligned with the model service and the overall consistency scheme.
+const FeatureConsistencySkipReplyDebugLevel = 103
+
+// featureConsistencySkipJobIdKey is the recommend context param key used to carry
+// the set of sampled skip_feature_reply job ids (map[int]bool) from the synchronous
+// scoring path to the asynchronous backflow path, so both share one sampling decision.
+const featureConsistencySkipJobIdKey = "_fcj_skip_job_id_"
 
 var serviceName string
 
@@ -116,6 +129,207 @@ func (r *FeatureConsistencyJobService) checkRecallFeatureConsistencyJobForRunnin
 	return false
 }
 
+// MatchSkipFeatureReplyJob resolves the skip_feature_reply consistency jobs for this
+// scoring call, keyed by the algo whose request should carry debug_level=103. The
+// scoring fan-out already sends one request per algo, so decorating a matched algo's
+// request adds no extra EAS call. Sampling is per job and independent: a job is served
+// at exactly its own SampleRate, never conditioned on another job's sampling outcome.
+// Jobs targeting different algos never compete; only jobs sharing the same algo contend
+// for that algo's single request slot (and single task_id), resolved by one weighted
+// draw. Sampling happens here exactly once; the matched job ids are stored in the
+// recommend context so the async backflow path reuses the same decision.
+func MatchSkipFeatureReplyJob(user *module.User, ctx *context.RecommendContext, rankAlgoNames []string) map[string]*model.FeatureConsistencyJob {
+	client := abtest.GetExperimentClient()
+	if client == nil || ctx == nil || user == nil {
+		return nil
+	}
+	scene, _ := ctx.GetParameter("scene").(string)
+	if scene == "" {
+		return nil
+	}
+	jobs := client.GetSceneParams(scene).GetFeatureConsistencyJobs()
+	currTime := time.Now().Unix()
+
+	// Group the structurally-matched jobs by the algo they target, keeping first-seen
+	// order so same-algo contention is resolved deterministically.
+	jobsByAlgo := make(map[string][]*model.FeatureConsistencyJob)
+	var algoOrder []string
+	for _, job := range jobs {
+		if job == nil || !job.SkipFeatureReply {
+			continue
+		}
+		if job.Status != common.Feature_Consistency_Job_State_RUNNING {
+			continue
+		}
+		if currTime < job.StartTime || currTime > job.EndTime {
+			continue
+		}
+		algoName := matchEasModelAlgoName(job, ctx, rankAlgoNames)
+		if algoName == "" {
+			continue
+		}
+		if _, ok := jobsByAlgo[algoName]; !ok {
+			algoOrder = append(algoOrder, algoName)
+		}
+		jobsByAlgo[algoName] = append(jobsByAlgo[algoName], job)
+	}
+
+	matched := make(map[string]*model.FeatureConsistencyJob)
+	hitJobIds := make(map[int]bool)
+	for _, algoName := range algoOrder {
+		if job := sampleSkipJobGroup(ctx, scene, algoName, jobsByAlgo[algoName]); job != nil {
+			matched[algoName] = job
+			hitJobIds[job.JobId] = true
+		}
+	}
+	if len(hitJobIds) == 0 {
+		return nil
+	}
+	ctx.AddContextParam(featureConsistencySkipJobIdKey, hitJobIds)
+	return matched
+}
+
+// sampleSkipJobGroup picks at most one job from a group of skip jobs that all target
+// the same algo, so they contend for that algo's single request slot and single
+// task_id. A lone job is sampled plainly at its own rate. Several jobs are resolved by
+// one weighted draw over [0,100): each job is selected with probability SampleRate/100
+// and the leftover selects none, keeping every rate exact and the selections mutually
+// exclusive. When the rates oversubscribe (>100) exact rates for all are impossible, so
+// the first job is sampled at its own rate, the rest are not served, and a warning marks
+// the conflict.
+func sampleSkipJobGroup(ctx *context.RecommendContext, scene, algoName string, group []*model.FeatureConsistencyJob) *model.FeatureConsistencyJob {
+	if len(group) == 1 {
+		if sampleHit(group[0].SampleRate) {
+			return group[0]
+		}
+		return nil
+	}
+
+	total := 0
+	for _, job := range group {
+		total += sampleWeight(job.SampleRate)
+	}
+
+	if total > 100 {
+		names := make([]string, 0, len(group))
+		for _, job := range group {
+			names = append(names, job.JobName)
+		}
+		log.Warning(fmt.Sprintf("requestId=%s\tevent=matchSkipFeatureReplyJobOversubscribed\tscene=%s\talgo=%s\tjobs=%s\tmsg=same-algo skip job sample rates exceed 100, serving only the first at its own rate", ctx.RecommendId, scene, algoName, strings.Join(names, ",")))
+		if sampleHit(group[0].SampleRate) {
+			return group[0]
+		}
+		return nil
+	}
+
+	r := rand.Intn(100)
+	acc := 0
+	for _, job := range group {
+		acc += sampleWeight(job.SampleRate)
+		if r < acc {
+			return job
+		}
+	}
+	return nil
+}
+
+// sampleWeight clamps a job sample rate into [0,100] for weighted selection.
+func sampleWeight(rate int) int {
+	if rate >= 100 {
+		return 100
+	}
+	if rate <= 0 {
+		return 0
+	}
+	return rate
+}
+
+// sampleHit reports whether a single job passes its own sample rate check.
+func sampleHit(rate int) bool {
+	if rate >= 100 {
+		return true
+	}
+	if rate <= 0 {
+		return false
+	}
+	return rand.Intn(100) < rate
+}
+
+// matchEasModelAlgoName resolves the algo name whose EAS url targets the job's
+// model service and that is also present in rankAlgoNames. It returns "" if none
+// matches. The url split is guarded to avoid a panic on malformed EAS urls.
+func matchEasModelAlgoName(job *model.FeatureConsistencyJob, ctx *context.RecommendContext, rankAlgoNames []string) string {
+	if ctx.Config == nil {
+		return ""
+	}
+	for _, algoConfig := range ctx.Config.AlgoConfs {
+		urls := strings.Split(algoConfig.EasConf.Url, "/api/predict/")
+		if len(urls) < 2 {
+			continue
+		}
+		if urls[1] != job.EasModelServiceName {
+			continue
+		}
+		for _, rankAlgoName := range rankAlgoNames {
+			if rankAlgoName == algoConfig.Name {
+				return algoConfig.Name
+			}
+		}
+	}
+	return ""
+}
+
+// SkipFeatureReplyMeta builds the meta_data carried by the online scoring request
+// when skip_feature_reply is hit. The model service uses these fields as OSS CSV
+// columns, so they must stay aligned with the compare script's table schema.
+// task_id is the current run's history id (not JobId): the model service lands CSV
+// under {log_oss_path}/{task_id}/{uuid}.csv, and a per-run unique history id keeps
+// each run's CSVs isolated instead of piling up under a stable JobId directory.
+func SkipFeatureReplyMeta(user *module.User, ctx *context.RecommendContext, job *model.FeatureConsistencyJob) map[string]string {
+	scene, _ := ctx.GetParameter("scene").(string)
+	return map[string]string{
+		"request_id":   ctx.RecommendId,
+		"user_id":      string(user.Id),
+		"scene":        scene,
+		"request_time": strconv.FormatInt(time.Now().UnixMilli(), 10),
+		"task_id":      strconv.Itoa(job.LatestHistoryJobId),
+	}
+}
+
+// CloneEasyrecRequestWithDebug returns a deep copy of req carrying the given debug
+// level and merged meta_data, leaving the original request untouched so other
+// algos sharing the same batch request are not affected.
+func CloneEasyrecRequestWithDebug(req *easyrec.PBRequest, level int, meta map[string]string) *easyrec.PBRequest {
+	if req == nil {
+		return nil
+	}
+	clone, ok := proto.Clone(req).(*easyrec.PBRequest)
+	if !ok || clone == nil {
+		return req
+	}
+	clone.DebugLevel = int32(level)
+	if clone.MetaData == nil {
+		clone.MetaData = make(map[string]string, len(meta))
+	}
+	for k, v := range meta {
+		clone.MetaData[k] = v
+	}
+	return clone
+}
+
+// SkipFeatureReplyJobHit reports whether the given job was the one sampled in the
+// synchronous scoring path, so the async backflow reuses the same decision instead
+// of re-sampling. It is exported for reuse by the general_rank package.
+func SkipFeatureReplyJobHit(ctx *context.RecommendContext, jobId int) bool {
+	if ctx == nil {
+		return false
+	}
+	if hitJobIds, ok := ctx.GetContextParam(featureConsistencySkipJobIdKey).(map[int]bool); ok {
+		return hitJobIds[jobId]
+	}
+	return false
+}
+
 func (r *FeatureConsistencyJobService) LogRankResult(user *module.User, items []*module.Item, context *context.RecommendContext) {
 
 	if abtest.GetExperimentClient() != nil {
@@ -124,6 +338,18 @@ func (r *FeatureConsistencyJobService) LogRankResult(user *module.User, items []
 
 		for _, job := range jobs {
 			if job.ModelType == "rank_sample" {
+				continue
+			}
+
+			if job.SkipFeatureReply {
+				// The online scoring request already carried debug_level=103, so the
+				// model service writes OSS CSV directly. Reuse the sampling decision
+				// made in the scoring path instead of re-sampling, and only backflow
+				// the online-side data. No /api/feature_reply relay, no replay log sync.
+				if SkipFeatureReplyJobHit(context, job.JobId) {
+					log.Info(fmt.Sprintf("requestId=%s\tevent=logRankResultSkipFeatureReply\tname=%s", context.RecommendId, job.JobName))
+					r.logRankResultToPaiConfigServer(user, items, context, job)
+				}
 				continue
 			}
 

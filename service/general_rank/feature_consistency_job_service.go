@@ -14,6 +14,7 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/rank"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/common"
 	"github.com/aliyun/aliyun-pairec-config-go-sdk/v2/model"
@@ -31,6 +32,18 @@ func (r *FeatureConsistencyJobService) LogRankResult(user *module.User, items []
 		jobs := abtest.GetExperimentClient().GetSceneParams(scene).GetFeatureConsistencyJobs()
 
 		for _, job := range jobs {
+			if job.SkipFeatureReply {
+				// The online scoring request already carried debug_level=103, so the
+				// model service writes OSS CSV directly. Reuse the sampling decision
+				// made in the scoring path instead of re-sampling, and only backflow
+				// the online-side data. No /api/feature_reply relay, no replay log sync.
+				if rank.SkipFeatureReplyJobHit(context, job.JobId) {
+					log.Info(fmt.Sprintf("requestId=%s\tevent=logRankResultSkipFeatureReply\tname=%s", context.RecommendId, job.JobName))
+					r.logRankResultToPaiConfigServer(user, items, context, job)
+				}
+				continue
+			}
+
 			if r.checkFeatureConsistencyJobForRunning(job, user, items, context) {
 				log.Info(fmt.Sprintf("requestId=%s\tevent=logRankResult\tname=%s", context.RecommendId, job.JobName))
 				r.logRankResultToPaiConfigServer(user, items, context, job)

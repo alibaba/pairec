@@ -9,6 +9,7 @@ import (
 
 	"github.com/alibaba/pairec/v2/algorithm"
 	"github.com/alibaba/pairec/v2/algorithm/eas"
+	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/algorithm/response"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -181,6 +182,21 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 		userFeatures = user.MakeUserFeatures()
 	}
 
+	// Resolve the skip_feature_reply consistency jobs once, before building the
+	// scoring requests. Each matched algo carries debug_level=103 on the request the
+	// scoring fan-out already sends, so the model service writes OSS CSV during this
+	// same scoring call, collapsing the original scoring + /api/feature_reply two EAS
+	// calls into one without adding any request.
+	var skipMetaByAlgo map[string]map[string]string
+	if rankConfig.Processor == eas.Eas_Processor_EASYREC {
+		if skipJobs := MatchSkipFeatureReplyJob(user, context, rankConfig.RankAlgoList); len(skipJobs) > 0 {
+			skipMetaByAlgo = make(map[string]map[string]string, len(skipJobs))
+			for algo, job := range skipJobs {
+				skipMetaByAlgo[algo] = SkipFeatureReplyMeta(user, context, job)
+			}
+		}
+	}
+
 	var filter bool
 	for _, item := range rankItems {
 		filter = false
@@ -270,7 +286,13 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 				wg.Add(1)
 				go func(algo string) {
 					defer wg.Done()
-					ret, err := algorithm.Run(algo, algoData.GetFeatures())
+					runFeatures := algoData.GetFeatures()
+					if meta, ok := skipMetaByAlgo[algo]; ok {
+						if pbReq, ok := runFeatures.(*easyrec.PBRequest); ok {
+							runFeatures = CloneEasyrecRequestWithDebug(pbReq, FeatureConsistencySkipReplyDebugLevel, meta)
+						}
+					}
+					ret, err := algorithm.Run(algo, runFeatures)
 					if err != nil {
 						log.Error(fmt.Sprintf("requestId=%s\terror=run algorithm error(%v)", context.RecommendId, err))
 						algoData.SetError(err)
