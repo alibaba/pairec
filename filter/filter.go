@@ -3,6 +3,7 @@ package filter
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/alibaba/pairec/v2/context"
@@ -10,10 +11,13 @@ import (
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/goburrow/cache"
 )
 
 var filterMapping = make(map[string]IFilter)
 var filterSigns = make(map[string]string)
+var filterMappingMu sync.RWMutex
+var filterLoadMu sync.Mutex
 
 var filterService *FilterService
 
@@ -43,10 +47,13 @@ type ICloneFilter interface {
 }
 
 type FilterService struct {
+	mu      sync.RWMutex
 	Filters map[string][]IFilter
 }
 
 func (fs *FilterService) AddFilter(scene string, filter IFilter) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	// if exist in Filters, direct return
 	filters, ok := fs.Filters[scene]
 	if ok {
@@ -64,6 +71,8 @@ func (fs *FilterService) AddFilter(scene string, filter IFilter) {
 	}
 }
 func (fs *FilterService) AddFilters(scene string, filters []IFilter) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	fs.Filters[scene] = filters
 }
 
@@ -80,7 +89,7 @@ func (fs *FilterService) Filter(filterData *FilterData, tag string) {
 			if values, ok := names.([]interface{}); ok {
 				for _, v := range values {
 					if filterName, ok := v.(string); ok {
-						if filter, exist := filterMapping[filterName]; exist {
+						if filter, err := GetFilter(filterName); err == nil {
 							filters = append(filters, filter)
 						}
 					}
@@ -94,12 +103,14 @@ func (fs *FilterService) Filter(filterData *FilterData, tag string) {
 	}
 
 	if len(filters) == 0 {
+		fs.mu.RLock()
 		if filterList, ok := fs.Filters[scene]; ok {
 			filters = filterList
 		} else {
 			filters = fs.Filters["default"]
 
 		}
+		fs.mu.RUnlock()
 
 		/*
 			if len(filters) == 0 {
@@ -128,12 +139,16 @@ func (fs *FilterService) Filter(filterData *FilterData, tag string) {
 }
 
 func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
+	filterLoadMu.Lock()
+	defer filterLoadMu.Unlock()
 	for _, conf := range config.FilterConfs {
-		if _, ok := filterMapping[conf.Name]; ok {
-			sign, _ := json.Marshal(&conf)
-			if utils.Md5(string(sign)) == filterSigns[conf.Name] {
-				continue
-			}
+		sign, _ := json.Marshal(&conf)
+		filterMappingMu.RLock()
+		old, ok := filterMapping[conf.Name]
+		unchanged := ok && utils.Md5(string(sign)) == filterSigns[conf.Name]
+		filterMappingMu.RUnlock()
+		if unchanged {
+			continue
 		}
 
 		var f IFilter
@@ -148,7 +163,8 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 		} else if conf.FilterType == "PriorityAdjustCountFilterV2" {
 			f = NewPriorityAdjustCountFilterV2(conf)
 		} else if conf.FilterType == "ItemStateFilter" {
-			f = NewItemStateFilter(conf)
+			inherited, cacheSign := itemStateCacheConfig(conf, old)
+			f = newItemStateFilterWithCache(conf, inherited, cacheSign)
 		} else if conf.FilterType == "ItemCustomFilter" {
 			f = NewItemCustomFilter(conf)
 		} else if conf.FilterType == "CompletelyFairFilter" {
@@ -173,8 +189,14 @@ func RegisterFilterWithConfig(config *recconf.RecommendConfig) {
 			panic("Filter is nil, name:" + conf.Name)
 		}
 
-		sign, _ := json.Marshal(&conf)
 		registerFilterWithSign(conf.Name, f, utils.Md5(string(sign)))
+		if previous, ok := old.(*ItemStateFilter); ok && previous != nil && previous.cacheSign != "" {
+			var freshCache cache.Cache
+			if current, ok := f.(*ItemStateFilter); ok {
+				freshCache = current.itemStateCache()
+			}
+			invalidateItemStateCache(previous.itemStateCache(), freshCache)
+		}
 
 	}
 }
@@ -183,7 +205,7 @@ func Load(config *recconf.RecommendConfig) {
 	for scene, filterList := range config.FilterNames {
 		var filters []IFilter
 		for _, name := range filterList {
-			if filter, ok := filterMapping[name]; ok {
+			if filter, err := GetFilter(name); err == nil {
 				filters = append(filters, filter)
 			} else {
 				log.Error(fmt.Sprintf("Filter:not find, name:%s", name))
@@ -198,6 +220,8 @@ func Filter(filterData *FilterData, tag string) {
 }
 
 func RegisterFilter(name string, filter IFilter) {
+	filterMappingMu.Lock()
+	defer filterMappingMu.Unlock()
 	if filter == nil {
 		panic("Filter is nil, name:" + name)
 	}
@@ -206,12 +230,16 @@ func RegisterFilter(name string, filter IFilter) {
 	}
 }
 func registerFilterWithSign(name string, filter IFilter, sign string) {
+	filterMappingMu.Lock()
+	defer filterMappingMu.Unlock()
 	filterMapping[name] = filter
 	filterSigns[name] = sign
 }
 
 // GetFilter get filter by the name
 func GetFilter(name string) (IFilter, error) {
+	filterMappingMu.RLock()
+	defer filterMappingMu.RUnlock()
 	filter, ok := filterMapping[name]
 	if !ok {
 		return nil, fmt.Errorf("Filter not found, name:%s", name)
@@ -221,6 +249,8 @@ func GetFilter(name string) (IFilter, error) {
 }
 
 func GetFiltersBySceneName(sceneName string) ([]IFilter, bool) {
+	filterService.mu.RLock()
+	defer filterService.mu.RUnlock()
 	var ret []IFilter
 	ret, ok := filterService.Filters[sceneName]
 	if ok {

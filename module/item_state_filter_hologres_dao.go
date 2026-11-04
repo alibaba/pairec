@@ -77,6 +77,10 @@ func NewItemStateFilterHologresDao(config recconf.FilterConfig, transFunc Featur
 	return dao
 }
 
+func (d *ItemStateFilterHologresDao) ItemStateCache() cache.Cache {
+	return d.itmCache
+}
+
 func (d *ItemStateFilterHologresDao) getStmt(key int) *sql.Stmt {
 	d.mu.RLock()
 	defer d.mu.RUnlock()

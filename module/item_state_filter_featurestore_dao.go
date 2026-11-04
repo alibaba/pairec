@@ -73,6 +73,10 @@ func NewItemStateFilterFeatureStoreDao(config recconf.FilterConfig, transFunc Fe
 	return dao
 }
 
+func (d *ItemStateFilterFeatureStoreDao) ItemStateCache() cache.Cache {
+	return d.itmCache
+}
+
 func (d *ItemStateFilterFeatureStoreDao) Filter(user *User, items []*Item, ctx *context.RecommendContext) (ret []*Item) {
 	fields := make(map[string]bool, len(items))
 	cpuCount := utils.MaxInt(int(math.Ceil(float64(len(items))/float64(requestCount))), 1)

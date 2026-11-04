@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -8,12 +9,15 @@ import (
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/feature"
+	"github.com/alibaba/pairec/v2/utils"
+	"github.com/goburrow/cache"
 )
 
 type ItemStateFilter struct {
 	name             string
 	itemStateDao     module.ItemStateFilterDao
 	featureTransList []*featureTrans
+	cacheSign        string
 }
 
 func NewItemStateFilter(config recconf.FilterConfig) *ItemStateFilter {
@@ -36,6 +40,56 @@ func NewItemStateFilter(config recconf.FilterConfig) *ItemStateFilter {
 		return &filter
 	}
 }
+
+var itemStateCacheAfterFunc = time.AfterFunc
+
+func itemStateCacheConfig(conf recconf.FilterConfig, old IFilter) (cache.Cache, string) {
+	if conf.FilterType != "ItemStateFilter" || conf.ItemStateDaoConf.FeatureViewCacheName != "" ||
+		(conf.ItemStateDaoConf.AdapterType != recconf.DataSource_Type_FeatureStore && conf.ItemStateDaoConf.AdapterType != recconf.DaoConf_Adapter_Hologres) {
+		return nil, ""
+	}
+	conf.Features = nil
+	conf.FilterParams = nil
+	encoded, err := json.Marshal(conf)
+	if err != nil {
+		panic(err)
+	}
+	sign := utils.Md5(string(encoded))
+	if f, ok := old.(*ItemStateFilter); ok && f != nil && f.cacheSign == sign {
+		return f.itemStateCache(), sign
+	}
+	return nil, sign
+}
+
+func newItemStateFilterWithCache(conf recconf.FilterConfig, inherited cache.Cache, sign string) *ItemStateFilter {
+	if sign == "" {
+		return NewItemStateFilter(conf)
+	}
+	f := &ItemStateFilter{name: conf.Name, featureTransList: loadWithConfig(conf.Features), cacheSign: sign}
+	var transFunc module.FeatureTransFunc
+	if len(f.featureTransList) > 0 {
+		transFunc = f.invokeFeatureTrans
+	}
+	f.itemStateDao = module.NewItemStateFilterDaoWithCache(conf, transFunc, inherited)
+	return f
+}
+
+func (f *ItemStateFilter) itemStateCache() cache.Cache {
+	switch dao := f.itemStateDao.(type) {
+	case *module.ItemStateFilterFeatureStoreDao:
+		return dao.ItemStateCache()
+	case *module.ItemStateFilterHologresDao:
+		return dao.ItemStateCache()
+	}
+	return nil
+}
+
+func invalidateItemStateCache(old, fresh cache.Cache) {
+	if old != nil && old != fresh {
+		itemStateCacheAfterFunc(30*time.Second, old.InvalidateAll)
+	}
+}
+
 func (f *ItemStateFilter) Filter(filterData *FilterData) error {
 	if _, ok := filterData.Data.([]*module.Item); !ok {
 		return errors.New("filter data type error")
