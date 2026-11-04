@@ -69,13 +69,17 @@ func NewDPPSort(config recconf.DPPSortConfig) *DPPSort {
 	if config.CacheSize > 0 {
 		cacheSize = config.CacheSize
 	}
+	embPrecision, err := normalizeEmbeddingPrecision(config.EmbeddingPrecision)
+	if err != nil {
+		panic(err)
+	}
 	dpp := DPPSort{
 		embeddingDatasource: embeddingDatasource{
 			logModule:      "DPPSort",
 			keyField:       config.TablePKey,
 			embeddingField: config.EmbeddingColumn,
 			embSeparator:   config.EmbeddingSeparator,
-			embPrecision:   strings.ToLower(config.EmbeddingPrecision),
+			embPrecision:   embPrecision,
 		},
 		suffixParam:          config.TableSuffixParam,
 		alpha:                config.Alpha,

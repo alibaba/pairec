@@ -51,13 +51,17 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 	if config.CacheSize > 0 {
 		cacheSize = config.CacheSize
 	}
+	embPrecision, err := normalizeEmbeddingPrecision(config.EmbeddingPrecision)
+	if err != nil {
+		panic(err)
+	}
 	ssd := SSDSort{
 		embeddingDatasource: embeddingDatasource{
 			logModule:      "SSDSort",
 			keyField:       config.TablePKey,
 			embeddingField: config.EmbeddingColumn,
 			embSeparator:   config.EmbeddingSeparator,
-			embPrecision:   strings.ToLower(config.EmbeddingPrecision),
+			embPrecision:   embPrecision,
 		},
 		suffixParam:          config.TableSuffixParam,
 		gamma:                0.25,

@@ -210,6 +210,27 @@ func (d embeddingDatasource) parseEmbedding(ctx *context.RecommendContext, raw i
 // other value keeps full []float64 storage.
 const embeddingPrecisionFloat32 = "float32"
 
+// embeddingPrecisionFloat64 is the explicit full-precision cache mode; it behaves
+// identically to the empty default.
+const embeddingPrecisionFloat64 = "float64"
+
+// normalizeEmbeddingPrecision validates and normalizes the configured embedding
+// cache precision: it trims surrounding space, lower-cases the value and accepts
+// only "" (default), "float64" or "float32". Any other value (e.g. a typo such as
+// "fp32" or "float16") returns an error so the sorter constructor fails loudly at
+// config-load time instead of silently falling back to float64, which would keep
+// full memory usage while the operator believes the precision was reduced.
+func normalizeEmbeddingPrecision(raw string) (string, error) {
+	precision := strings.ToLower(strings.TrimSpace(raw))
+	switch precision {
+	case "", embeddingPrecisionFloat64, embeddingPrecisionFloat32:
+		return precision, nil
+	default:
+		return "", fmt.Errorf("invalid EmbeddingPrecision %q: must be %q, %q or empty (default float64)",
+			raw, embeddingPrecisionFloat32, embeddingPrecisionFloat64)
+	}
+}
+
 // storeEmbedding returns the vector in the configured cache precision. The
 // default path returns the []float64 unchanged (no conversion/allocation);
 // "float32" halves per-entry memory at ~7 significant digits, ample for
