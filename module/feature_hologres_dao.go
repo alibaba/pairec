@@ -17,6 +17,7 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
 	"github.com/alibaba/pairec/v2/utils/sqlutil"
+	"github.com/goburrow/cache"
 	"github.com/huandu/go-sqlbuilder"
 )
 
@@ -82,6 +83,13 @@ func NewFeatureHologresDao(config recconf.FeatureDaoConfig) *FeatureHologresDao 
 	}
 	return dao
 }
+func (d *FeatureHologresDao) FeatureCache() cache.Cache {
+	if d == nil || d.FeatureBaseDao == nil {
+		return nil
+	}
+	return d.cache
+}
+
 func (d *FeatureHologresDao) getItemStmt(key int) *sql.Stmt {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
