@@ -2,6 +2,7 @@ package recall
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"runtime/pprof"
@@ -14,6 +15,7 @@ import (
 	reccontext "github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/module"
 	pcache "github.com/alibaba/pairec/v2/persist/cache"
+	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 )
 
@@ -83,6 +85,8 @@ func localCacheTestRecall(conf recconf.RecallConfig, old Recall, dao *localCache
 		r = &UserGlobalHotRecall{BaseRecall: base, userGroupHotRecallDao: dao}
 	case "UserGroupHotRecall":
 		r = &UserGroupHotRecall{BaseRecall: base, userGroupHotRecallDao: dao}
+	case "UserCustomRecall":
+		r = &UserCustomRecall{BaseRecall: base, userCustomRecallDao: dao}
 	}
 	applyLocalCache(r, conf, inherited, sign)
 	return r
@@ -98,13 +102,15 @@ func localCacheTestKey(conf recconf.RecallConfig) (string, string) {
 		return conf.Name, "cached::2"
 	case "UserGroupHotRecall":
 		return conf.CachePrefix + "group", "cached::2"
+	case "UserCustomRecall":
+		return conf.CachePrefix + "u", "cached::2"
 	default:
 		return "seed", "cached:2"
 	}
 }
 
 func TestReloadLocalCacheInheritance(t *testing.T) {
-	for _, typ := range []string{"ItemCollaborativeFilterRecall", "UserGlobalHotRecall", "UserGroupHotRecall"} {
+	for _, typ := range []string{"ItemCollaborativeFilterRecall", "UserGlobalHotRecall", "UserGroupHotRecall", "UserCustomRecall"} {
 		t.Run(typ, func(t *testing.T) {
 			var allocations int
 			pcache.Register("localCache", func() pcache.Cache { allocations++; return pcache.NewLocalCache() })
@@ -164,7 +170,7 @@ func TestReloadLocalCacheIncompatible(t *testing.T) {
 }
 
 func TestReloadLocalCacheActualPutTTL(t *testing.T) {
-	for _, typ := range []string{"ItemCollaborativeFilterRecall", "UserGlobalHotRecall", "UserGroupHotRecall"} {
+	for _, typ := range []string{"ItemCollaborativeFilterRecall", "UserGlobalHotRecall", "UserGroupHotRecall", "UserCustomRecall"} {
 		t.Run(typ, func(t *testing.T) {
 			conf := localCacheTestConf(t.Name(), typ)
 			dao := &localCacheTestDao{}
@@ -224,6 +230,162 @@ func TestReloadLocalCacheIndependentConstruction(t *testing.T) {
 	first, second := NewBaseRecall(conf), NewBaseRecall(conf)
 	if first.cache == second.cache {
 		t.Fatal("ordinary constructors must keep independent caches")
+	}
+}
+
+func TestReloadLocalCacheUserCustomExpiry(t *testing.T) {
+	conf := localCacheTestConf(t.Name(), "UserCustomRecall")
+	dao := &localCacheTestDao{}
+	old := localCacheTestRecall(conf, nil, dao)
+	base := localCacheBase(old)
+	if base == nil {
+		t.Fatal("UserCustomRecall is missing from A inheritance")
+	}
+	_ = base.cache.Put("expiry", "old::1", 30*time.Millisecond)
+	key, value := localCacheTestKey(conf)
+	_ = base.cache.Put(key, value, time.Hour)
+	conf.CacheTime = 60
+	fresh := localCacheTestRecall(conf, old, dao)
+	var wg sync.WaitGroup
+	for _, r := range []Recall{old, fresh} {
+		wg.Add(1)
+		go func(r Recall) {
+			defer wg.Done()
+			for i := 0; i < 100; i++ {
+				items := r.GetCandidateItems(module.NewUser("u"), localCacheTestContext())
+				if len(items) != 1 || items[0].Id != "cached" || items[0].Score != 2 {
+					t.Error("concurrent old/new request lost inherited candidates")
+				}
+			}
+		}(r)
+	}
+	wg.Wait()
+	deadline := time.Now().Add(time.Second)
+	for base.cache.Get("expiry") != nil && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if localCacheBase(fresh).cache.Get("expiry") != nil || dao.calls.Load() != 0 {
+		t.Fatal("reload extended old expiry or fetched cached candidates remotely")
+	}
+}
+
+func TestReloadLocalCacheUserCustomLoad(t *testing.T) {
+	if runI2IReloadSubprocess(t) {
+		return
+	}
+	view := prepareI2IReloadSource(t)
+	view.fetch = func(keys []any) []map[string]any {
+		if len(keys) != 1 || keys[0] != "u" {
+			t.Error("UserCustomRecall changed its user key")
+		}
+		return []map[string]any{{"item_ids": "custom_result::3"}}
+	}
+	client, err := fs.GetFeatureStoreClient("i2i_reload_fs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.GetProject().FeatureViewMap.Store("custom", view)
+	conf := localCacheTestConf(t.Name(), "UserCustomRecall")
+	conf.ItemType = "video"
+	conf.CacheConfig = `{"defaultExpiration":3600,"cleanupInterval":0}`
+	conf.DaoConf = recconf.DaoConfig{AdapterType: recconf.DataSource_Type_FeatureStore,
+		FeatureStoreName: "i2i_reload_fs", FeatureStoreViewName: "custom"}
+	var allocations int
+	pcache.Register("localCache", func() pcache.Cache { allocations++; return pcache.NewLocalCache() })
+	t.Cleanup(func() { pcache.Register("localCache", pcache.NewLocalCache) })
+	names := map[string]bool{conf.Name: true}
+	t.Cleanup(func() {
+		recallsMu.Lock()
+		defer recallsMu.Unlock()
+		for name := range names {
+			delete(recalls, name)
+			delete(recallSigns, name)
+		}
+	})
+	load := func(config recconf.RecallConfig) Recall {
+		names[config.Name] = true
+		Load(&recconf.RecommendConfig{RecallConfs: []recconf.RecallConfig{config}})
+		r, err := GetRecall(config.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	old := load(conf).(*UserCustomRecall)
+	if load(conf) != old {
+		t.Fatal("unchanged configuration rebuilt UserCustomRecall")
+	}
+	user, ctx := module.NewUser("u"), localCacheTestContext()
+	items := old.GetCandidateItems(user, ctx)
+	if len(items) != 1 || items[0].Id != "custom_result" || items[0].Score != 3 || items[0].RetrieveId != conf.Name || items[0].ItemType != "video" {
+		t.Fatal("original UserCustomRecall DAO result changed")
+	}
+	key := conf.CachePrefix + "u"
+	deadline := time.Now().Add(time.Second)
+	for old.cache.Get(key) == nil && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if old.cache.Get(key) != "custom_result::3" {
+		t.Fatal("original async write did not populate the user cache")
+	}
+	for _, ttl := range []int{600, 60, 0, -1} {
+		updated := conf
+		updated.CacheTime = ttl
+		fresh := load(updated).(*UserCustomRecall)
+		wantTTL := ttl
+		if ttl <= 0 {
+			wantTTL = 1800
+		}
+		if fresh == old || fresh.cache != old.cache || fresh.cacheTime != wantTTL || old.cacheTime != conf.CacheTime || fresh.userCustomRecallDao == old.userCustomRecallDao {
+			t.Fatal("TTL reload must inherit only the cache and rebuild the DAO")
+		}
+		items := fresh.GetCandidateItems(user, ctx)
+		if len(items) != 1 || items[0].Id != "custom_result" || items[0].Score != 3 || items[0].RetrieveId != conf.Name || items[0].ItemType != "video" {
+			t.Fatal("inherited UserCustomRecall cache changed the candidates")
+		}
+	}
+	if allocations != 1 || view.calls.Load() != 1 {
+		t.Fatal("TTL-only reload allocated a throwaway cache or read FeatureStore")
+	}
+	changes := map[string]func(*recconf.RecallConfig){
+		"count":   func(c *recconf.RecallConfig) { c.RecallCount++ },
+		"view":    func(c *recconf.RecallConfig) { c.DaoConf.FeatureStoreViewName = "other" },
+		"prefix":  func(c *recconf.RecallConfig) { c.CachePrefix += "other_" },
+		"config":  func(c *recconf.RecallConfig) { c.CacheConfig = `{"defaultExpiration":120,"cleanupInterval":0}` },
+		"disable": func(c *recconf.RecallConfig) { c.CacheAdapter = "" },
+		"type":    func(c *recconf.RecallConfig) { c.RecallType = "MockRecall" },
+		"name":    func(c *recconf.RecallConfig) { c.Name += "_other" },
+	}
+	for name, change := range changes {
+		t.Run(name, func(t *testing.T) {
+			load(conf)
+			updated := conf
+			change(&updated)
+			var fresh *BaseRecall
+			switch r := load(updated).(type) {
+			case *UserCustomRecall:
+				fresh = r.BaseRecall
+			case *MockRecall:
+				fresh = r.BaseRecall
+			}
+			if fresh == nil || fresh.cache == old.cache || old.cache.Get(key) != "custom_result::3" {
+				t.Fatal("incompatible Load reused or cleared the old user cache")
+			}
+			if fresh.cache != nil && fresh.cache.Get(key) != nil {
+				t.Fatal("incompatible Load copied old user data")
+			}
+		})
+	}
+	first, second := NewUserCustomRecall(conf), NewUserCustomRecall(conf)
+	if first.cache == second.cache || first.cacheSign != "" || second.cacheSign != "" {
+		t.Fatal("ordinary constructors must not join managed inheritance")
+	}
+	encoded, _ := json.Marshal(conf)
+	var params map[string]any
+	_ = json.Unmarshal(encoded, &params)
+	cloned := old.CloneWithConfig(params).(*UserCustomRecall)
+	if cloned == old || cloned.cache == old.cache || cloned.cacheSign != "" {
+		t.Fatal("AB clone must keep an independent cache")
 	}
 }
 

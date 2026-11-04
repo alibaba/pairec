@@ -78,7 +78,7 @@ func Load(config *recconf.RecommendConfig) {
 		} else if conf.RecallType == "VectorRecall" {
 			recall = NewVectorRecall(conf)
 		} else if conf.RecallType == "UserCustomRecall" {
-			recall = NewUserCustomRecall(conf)
+			recall = NewUserCustomRecall(cacheConf)
 		} else if conf.RecallType == "HologresVectorRecall" {
 			recall = NewHologresVectorRecall(conf)
 		} else if conf.RecallType == "HologresVectorRecallV2" {
@@ -138,7 +138,7 @@ func Load(config *recconf.RecommendConfig) {
 	}
 }
 
-// localCacheBase limits inheritance to the three A recall implementations.
+// localCacheBase limits inheritance to the supported A recall implementations.
 func localCacheBase(r Recall) *BaseRecall {
 	if utils.IsNil(r) {
 		return nil
@@ -150,6 +150,8 @@ func localCacheBase(r Recall) *BaseRecall {
 		return r.BaseRecall
 	case *UserGroupHotRecall:
 		return r.BaseRecall
+	case *UserCustomRecall:
+		return r.BaseRecall
 	}
 	return nil
 }
@@ -159,7 +161,7 @@ func localCacheConfig(conf recconf.RecallConfig, old Recall) (recconf.RecallConf
 		return conf, nil, ""
 	}
 	switch conf.RecallType {
-	case "ItemCollaborativeFilterRecall", "UserGlobalHotRecall", "UserGroupHotRecall":
+	case "ItemCollaborativeFilterRecall", "UserGlobalHotRecall", "UserGroupHotRecall", "UserCustomRecall":
 	default:
 		return conf, nil, ""
 	}
