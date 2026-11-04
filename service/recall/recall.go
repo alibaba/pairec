@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -97,7 +98,8 @@ func Load(config *recconf.RecommendConfig) {
 		} else if conf.RecallType == "BeRecall" {
 			recall = NewBeRecall(conf)
 		} else if conf.RecallType == "RealTimeU2IRecall" {
-			recall = NewRealTimeU2IRecall(conf)
+			inheritedI2I, i2iSign := i2iCacheConfig(conf, old)
+			recall = newRealTimeU2IRecallWithCache(conf, inheritedI2I, i2iSign)
 		} else if conf.RecallType == "OnlineHologresVectorRecall" {
 			recall = NewOnlineHologresVectorRecall(conf)
 		} else if conf.RecallType == "GraphRecall" {
@@ -125,6 +127,14 @@ func Load(config *recconf.RecommendConfig) {
 		recalls[conf.Name] = recall
 		recallSigns[conf.Name] = utils.Md5(string(sign))
 		recallsMu.Unlock()
+		if previous, ok := old.(*RealTimeU2IRecall); ok && previous != nil && previous.i2iCacheSign != "" {
+			if c := previous.i2iCache(); c != nil {
+				current, ok := recall.(*RealTimeU2IRecall)
+				if !ok || current.i2iCache() != c {
+					i2iCacheAfterFunc(30*time.Second, c.InvalidateAll)
+				}
+			}
+		}
 	}
 }
 
