@@ -3,6 +3,13 @@ package sort
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/rand"
+	gosort "sort"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/alibaba/pairec/v2/abtest"
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -15,12 +22,6 @@ import (
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
-	"math"
-	"math/rand"
-	gosort "sort"
-	"strings"
-	"sync"
-	"time"
 )
 
 type SSDSort struct {
@@ -51,12 +52,17 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 	if config.CacheSize > 0 {
 		cacheSize = config.CacheSize
 	}
+	embPrecision, err := normalizeEmbeddingPrecision(config.EmbeddingPrecision)
+	if err != nil {
+		panic(err)
+	}
 	ssd := SSDSort{
 		embeddingDatasource: embeddingDatasource{
 			logModule:      "SSDSort",
 			keyField:       config.TablePKey,
 			embeddingField: config.EmbeddingColumn,
 			embSeparator:   config.EmbeddingSeparator,
+			embPrecision:   embPrecision,
 		},
 		suffixParam:          config.TableSuffixParam,
 		gamma:                0.25,
@@ -211,7 +217,7 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 			absentItemIds = append(absentItemIds, string(item.Id))
 			itemMap[string(item.Id)] = item
 		} else {
-			item.Embedding = cloneEmbedding(embI.([]float64))
+			item.Embedding = s.loadEmbedding(embI)
 			if embedSize == 0 {
 				embedSize = len(item.Embedding)
 			} else if embedSize != len(item.Embedding) {
@@ -245,9 +251,12 @@ func (s *SSDSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 					id, len(vector), embedSize))
 				return errors.New("item embedding size do not match")
 			}
-			s.embCache.Put(id, vector)
+			// Same single-representation fix as DPPSort; the appended 1.0 is exact in
+			// float32 and the float64 default path stays byte-identical.
+			stored := s.storeEmbedding(vector)
+			s.embCache.Put(id, stored)
 			if item, ok := itemMap[id]; ok {
-				item.Embedding = cloneEmbedding(vector)
+				item.Embedding = s.loadEmbedding(stored)
 			}
 			rowNum = rowNum + 1
 		}

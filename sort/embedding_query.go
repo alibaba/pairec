@@ -26,6 +26,9 @@ type embeddingDatasource struct {
 	keyField       string
 	embeddingField string
 	embSeparator   string
+	// embPrecision is the numeric type used to cache vectors: "float32" halves
+	// cache memory, empty/"float64" (default) keeps []float64.
+	embPrecision string
 }
 
 // hasEmbeddingTable reports whether an embedding datasource (hologres table or
@@ -201,4 +204,74 @@ func (d embeddingDatasource) parseEmbedding(ctx *context.RecommendContext, raw i
 		// zero vector that would normalize to NaN and silently corrupt the ranking.
 		return nil
 	}
+}
+
+// embeddingPrecisionFloat32 is the opt-in reduced-precision cache mode; any
+// other value keeps full []float64 storage.
+const embeddingPrecisionFloat32 = "float32"
+
+// embeddingPrecisionFloat64 is the explicit full-precision cache mode; it behaves
+// identically to the empty default.
+const embeddingPrecisionFloat64 = "float64"
+
+// normalizeEmbeddingPrecision validates and normalizes the configured embedding
+// cache precision: it trims surrounding space, lower-cases the value and accepts
+// only "" (default), "float64" or "float32". Any other value (e.g. a typo such as
+// "fp32" or "float16") returns an error so the sorter constructor fails loudly at
+// config-load time instead of silently falling back to float64, which would keep
+// full memory usage while the operator believes the precision was reduced.
+func normalizeEmbeddingPrecision(raw string) (string, error) {
+	precision := strings.ToLower(strings.TrimSpace(raw))
+	switch precision {
+	case "", embeddingPrecisionFloat64, embeddingPrecisionFloat32:
+		return precision, nil
+	default:
+		return "", fmt.Errorf("invalid EmbeddingPrecision %q: must be %q, %q or empty (default float64)",
+			raw, embeddingPrecisionFloat32, embeddingPrecisionFloat64)
+	}
+}
+
+// storeEmbedding returns the vector in the configured cache precision. The
+// default path returns the []float64 unchanged (no conversion/allocation);
+// "float32" halves per-entry memory at ~7 significant digits, ample for
+// normalized similarity math. If any finite component overflows float32 (|v| >
+// MaxFloat32, possible when NormalizeEmb="false" leaves vectors unbounded), the
+// whole vector is kept as []float64 for this entry instead of caching a +/-Inf that
+// would poison every later cache hit; loadEmbedding accepts both types, so a
+// mixed-precision cache is safe and the default path is unaffected.
+func (d embeddingDatasource) storeEmbedding(vec []float64) interface{} {
+	if d.embPrecision == embeddingPrecisionFloat32 {
+		out := make([]float32, len(vec))
+		for i, v := range vec {
+			f := float32(v)
+			// A finite float64 with |v| > MaxFloat32 (~3.4e38) converts to +/-Inf.
+			// parseEmbedding's IsInf check runs before this conversion, and with
+			// NormalizeEmb="false" vectors are unbounded - fall back to []float64
+			// storage for this entry instead of poisoning later cache hits.
+			if math.IsInf(float64(f), 0) && !math.IsInf(v, 0) {
+				return vec
+			}
+			out[i] = f
+		}
+		return out
+	}
+	return vec
+}
+
+// loadEmbedding clones a cached vector back to []float64. The []float64 branch is
+// checked first so the default path costs a single assertion, matching the
+// original cloneEmbedding(embI.([]float64)); capacity reserves one extra slot for
+// the later append(embs, 1).
+func (d embeddingDatasource) loadEmbedding(cached interface{}) []float64 {
+	if v, ok := cached.([]float64); ok {
+		return cloneEmbedding(v)
+	}
+	if v, ok := cached.([]float32); ok {
+		cloned := make([]float64, len(v), len(v)+1)
+		for i, f := range v {
+			cloned[i] = float64(f)
+		}
+		return cloned
+	}
+	return nil
 }

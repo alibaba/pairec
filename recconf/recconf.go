@@ -1210,6 +1210,9 @@ type DPPSortConfig struct {
 	TablePKey          string
 	EmbeddingColumn    string
 	EmbeddingSeparator string
+	// EmbeddingPrecision selects the cache numeric type: "float32" halves memory,
+	// empty or "float64" (default) keeps full precision.
+	EmbeddingPrecision string
 	Alpha              float64
 	CacheTimeInMinutes int
 	CacheSize          int
@@ -1231,6 +1234,9 @@ type SSDSortConfig struct {
 	TablePKey          string
 	EmbeddingColumn    string
 	EmbeddingSeparator string
+	// EmbeddingPrecision selects the cache numeric type: "float32" halves memory,
+	// empty or "float64" (default) keeps full precision.
+	EmbeddingPrecision string
 	Gamma              float64
 	UseSSDStar         bool
 	CacheTimeInMinutes int
