@@ -236,9 +236,13 @@ func (s *DPPSort) loadEmbeddingCache(ctx *context.RecommendContext, items []*mod
 				floats.Scale(1/normV, vector)
 			}
 			embedSize = len(vector)
-			s.embCache.Put(id, s.storeEmbedding(vector))
+			// Cache and item share one representation: read the item's embedding back
+			// from the stored value so a float32 cache cannot make the ranking drift
+			// between cache-filling and cache-hitting requests (float64 stays identical).
+			stored := s.storeEmbedding(vector)
+			s.embCache.Put(id, stored)
 			if item, ok := itemMap[id]; ok {
-				item.Embedding = cloneEmbedding(vector)
+				item.Embedding = s.loadEmbedding(stored)
 			}
 			rowNum = rowNum + 1
 		}

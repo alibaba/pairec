@@ -234,12 +234,24 @@ func normalizeEmbeddingPrecision(raw string) (string, error) {
 // storeEmbedding returns the vector in the configured cache precision. The
 // default path returns the []float64 unchanged (no conversion/allocation);
 // "float32" halves per-entry memory at ~7 significant digits, ample for
-// normalized similarity math.
+// normalized similarity math. If any finite component overflows float32 (|v| >
+// MaxFloat32, possible when NormalizeEmb="false" leaves vectors unbounded), the
+// whole vector is kept as []float64 for this entry instead of caching a +/-Inf that
+// would poison every later cache hit; loadEmbedding accepts both types, so a
+// mixed-precision cache is safe and the default path is unaffected.
 func (d embeddingDatasource) storeEmbedding(vec []float64) interface{} {
 	if d.embPrecision == embeddingPrecisionFloat32 {
 		out := make([]float32, len(vec))
 		for i, v := range vec {
-			out[i] = float32(v)
+			f := float32(v)
+			// A finite float64 with |v| > MaxFloat32 (~3.4e38) converts to +/-Inf.
+			// parseEmbedding's IsInf check runs before this conversion, and with
+			// NormalizeEmb="false" vectors are unbounded - fall back to []float64
+			// storage for this entry instead of poisoning later cache hits.
+			if math.IsInf(float64(f), 0) && !math.IsInf(v, 0) {
+				return vec
+			}
+			out[i] = f
 		}
 		return out
 	}
