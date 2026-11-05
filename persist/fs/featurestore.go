@@ -3,7 +3,6 @@ package fs
 import (
 	"fmt"
 	"reflect"
-	"sort"
 	"sync"
 
 	"github.com/alibaba/pairec/v2/log"
@@ -64,28 +63,19 @@ func Load(config *recconf.RecommendConfig) {
 
 	// The feature store SDK caches connection pools (hologres/featuredb/...) in
 	// process-level registries keyed by server-side datasource name with
-	// first-registration-wins semantics. Iterating the config map in random
-	// order would make the winning config of a same-project registration
-	// non-deterministic across restarts, so configs are loaded in sorted key
-	// order to make the selection stable and reproducible.
-	names := make([]string, 0, len(config.FeatureStoreConfs))
-	for name := range config.FeatureStoreConfs {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	// firstConfs records, per project, the config that registers the shared
-	// connection pools first (and therefore actually takes effect).
-	firstConfs := make(map[string]string, len(names))
-	for _, name := range names {
-		conf := config.FeatureStoreConfs[name]
-		if firstName, ok := firstConfs[conf.ProjectName]; ok {
+	// first-registration-wins semantics. This loop iterates the config map in its
+	// natural (random) order, so when several FeatureStoreConfs share one project
+	// but differ, which config takes effect is non-deterministic across restarts.
+	// Warn on that conflict so it can be converged instead of silently picking one.
+	seenProjects := make(map[string]string, len(config.FeatureStoreConfs))
+	for name, conf := range config.FeatureStoreConfs {
+		if firstName, ok := seenProjects[conf.ProjectName]; ok {
 			if diffFields := diffFeatureStoreConfs(config.FeatureStoreConfs[firstName], conf); len(diffFields) > 0 {
-				log.Warning(fmt.Sprintf("module=FeatureStore\tname=%q\tmsg=project %s is registered by multiple FeatureStoreConfs, the config of %q is used",
-					name, conf.ProjectName, firstName))
+				log.Warning(fmt.Sprintf("module=FeatureStore\tname=%q\tmsg=project %s is registered by multiple FeatureStoreConfs (%q and %q) with differing fields, the effective config is non-deterministic, please converge them",
+					name, conf.ProjectName, firstName, name))
 			}
 		} else {
-			firstConfs[conf.ProjectName] = name
+			seenProjects[conf.ProjectName] = name
 		}
 
 		fsInstancesMu.RLock()
