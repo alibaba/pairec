@@ -2,6 +2,7 @@ package fs
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/alibaba/pairec/v2/log"
@@ -60,7 +61,23 @@ func Load(config *recconf.RecommendConfig) {
 	fsLoadMu.Lock()
 	defer fsLoadMu.Unlock()
 
+	// The feature store SDK caches connection pools (hologres/featuredb/...) in
+	// process-level registries keyed by server-side datasource name with
+	// first-registration-wins semantics. This loop iterates the config map in its
+	// natural (random) order, so when several FeatureStoreConfs share one project
+	// but differ, which config takes effect is non-deterministic across restarts.
+	// Warn on that conflict so it can be converged instead of silently picking one.
+	seenProjects := make(map[string]string, len(config.FeatureStoreConfs))
 	for name, conf := range config.FeatureStoreConfs {
+		if firstName, ok := seenProjects[conf.ProjectName]; ok {
+			if diffFields := diffFeatureStoreConfs(config.FeatureStoreConfs[firstName], conf); len(diffFields) > 0 {
+				log.Warning(fmt.Sprintf("module=FeatureStore\tname=%q\tmsg=project %s is registered by multiple FeatureStoreConfs (%q and %q) with differing fields, the effective config is non-deterministic, please converge them",
+					name, conf.ProjectName, firstName, name))
+			}
+		} else {
+			seenProjects[conf.ProjectName] = name
+		}
+
 		fsInstancesMu.RLock()
 		fs, ok := fsInstances[name]
 		fsInstancesMu.RUnlock()
@@ -120,4 +137,19 @@ func Load(config *recconf.RecommendConfig) {
 		fsInstances[name] = m
 		fsInstancesMu.Unlock()
 	}
+}
+
+// diffFeatureStoreConfs returns the field names that differ between two
+// FeatureStoreConfig entries of the same project. Values are never included
+// because the configs may contain credentials.
+func diffFeatureStoreConfs(first, other recconf.FeatureStoreConfig) []string {
+	var diffFields []string
+	firstValue := reflect.ValueOf(first)
+	otherValue := reflect.ValueOf(other)
+	for i := 0; i < firstValue.NumField(); i++ {
+		if !reflect.DeepEqual(firstValue.Field(i).Interface(), otherValue.Field(i).Interface()) {
+			diffFields = append(diffFields, firstValue.Type().Field(i).Name)
+		}
+	}
+	return diffFields
 }
