@@ -1580,8 +1580,8 @@ func isItemInArray(element string, array []string) bool {
 	return false
 }
 
-// trafficIdentity 渲染流量调控日志的统一身份标记，如 [task=2|target=3|name="string_in"]，
-// name 加引号避免目标名中含 = 或空格时破坏解析。
+// trafficIdentity 渲染流量调控日志的统一身份标记，如 [task=2|target=3|name='string_in']，
+// name 加单引号避免目标名中含 = 或空格时破坏解析。
 func trafficIdentity(taskId, targetId, targetName string) string {
 	return fmt.Sprintf("[task=%s|target=%s|name='%s']", taskId, targetId, targetName)
 }
