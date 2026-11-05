@@ -18,13 +18,13 @@ func (b *SessionBlob) previousSearchForValidation(configID string) *searchsugges
 	return &previous
 }
 
-func (b *SessionBlob) recordTurn(query string, intent *searchsuggestion.SearchIntent) {
+func (b *SessionBlob) recordTurn(query, assistantReply string, intent *searchsuggestion.SearchIntent) {
 	b.TurnCount++
 	if intent != nil {
 		b.LastSearch = intent
 		b.LastSearchTurnID = b.TurnCount
 	}
-	b.UserQueries = append(b.UserQueries, SessionQuery{TurnID: b.TurnCount, Query: query})
+	b.UserQueries = append(b.UserQueries, SessionQuery{TurnID: b.TurnCount, Query: query, AssistantReply: assistantReply})
 }
 
 func (b *SessionBlob) messages(query string) []aichat.Message {
@@ -42,7 +42,7 @@ func (b *SessionBlob) messages(query string) []aichat.Message {
 	return append(messages, aichat.Message{Role: "user", Content: query})
 }
 
-func (b *SessionBlob) knowledgeQuery(query string) string {
+func (b *SessionBlob) knowledgeQuery(query string, previousSearch *searchsuggestion.SearchIntent) string {
 	var parts []string
 	if b.LastSearch != nil {
 		if keywords := strings.TrimSpace(strings.Join(b.LastSearch.Keywords, " ")); keywords != "" {
@@ -58,10 +58,14 @@ func (b *SessionBlob) knowledgeQuery(query string) string {
 	if len(pending) > 0 {
 		parts = append(parts, "Subsequent user requests: "+compactJSON(pending))
 	}
-	if len(parts) == 0 {
+	if len(parts) == 0 && previousSearch == nil {
 		return query
 	}
-	return strings.Join(append(parts, "Current user request: "+query), "\n")
+	parts = append(parts, "Current user request: "+query)
+	if previousSearch != nil {
+		parts = append(parts, "Previous search parameters (historical reference): "+compactJSON(previousSearch))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (b *SessionBlob) trim(maxTurns, maxTokens int) {
