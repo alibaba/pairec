@@ -12,9 +12,11 @@ import (
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/service/metrics"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/goburrow/cache"
 )
 
 var featureService *FeatureService
+var featureCacheAfterFunc = time.AfterFunc
 
 // FeatureFunc is use for feature engineering, after all the features loaded
 type FeatureFunc func(user *module.User, items []*module.Item, context *context.RecommendContext) []*module.Item
@@ -38,6 +40,8 @@ func RegisterLoadFeatureFunc(sceneName string, f LoadFeatureFunc) {
 }
 
 type FeatureService struct {
+	mu                   sync.RWMutex
+	loadMu               sync.Mutex
 	FeatureSceneMap      map[string][]*Feature
 	FeatureSceneSigns    map[string]string
 	FeatureSceneAsyncMap map[string]bool
@@ -58,10 +62,14 @@ func NewFeatureService() *FeatureService {
 }
 
 func (s *FeatureService) SetFeatureSceneAsync(sceneName string, async bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.FeatureSceneAsyncMap[sceneName] = async
 }
 
 func (s *FeatureService) SetFeatures(sceneName string, features []*Feature) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.FeatureSceneMap[sceneName] = features
 }
 
@@ -71,6 +79,13 @@ func (s *FeatureService) AddFeatureFunc(sceneName string, f FeatureFunc) {
 
 func (s *FeatureService) AddLoadFeatureFunc(sceneName string, f LoadFeatureFunc) {
 	s.LoadFeatureFuncMap[sceneName] = f
+}
+
+func (s *FeatureService) getFeatures(scene string) ([]*Feature, bool, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	features, ok := s.FeatureSceneMap[scene]
+	return features, s.FeatureSceneAsyncMap[scene], ok
 }
 
 // LoadFeatures load user or item feature use feature.Feature
@@ -84,8 +99,7 @@ func (s *FeatureService) LoadFeatures(user *module.User, items []*module.Item, c
 		sceneName = context.GetParameter("scene").(string)
 	}
 
-	if features, ok := s.FeatureSceneMap[sceneName]; ok {
-		async := s.FeatureSceneAsyncMap[sceneName]
+	if features, async, ok := s.getFeatures(sceneName); ok {
 		if async {
 			var wg sync.WaitGroup
 			for _, fea := range features {
@@ -133,8 +147,7 @@ func (s *FeatureService) LoadFeatures(user *module.User, items []*module.Item, c
 func (s *FeatureService) LoadFeaturesForGeneralRank(user *module.User, items []*module.Item, context *context.RecommendContext, pipeline string) {
 	start := time.Now()
 	sceneName := context.GetParameter("scene").(string)
-	if features, ok := s.FeatureSceneMap[sceneName]; ok {
-		async := s.FeatureSceneAsyncMap[sceneName]
+	if features, async, ok := s.getFeatures(sceneName); ok {
 		if async {
 			var wg sync.WaitGroup
 			for _, fea := range features {
@@ -166,8 +179,7 @@ func (s *FeatureService) LoadFeaturesForGeneralRank(user *module.User, items []*
 func (s *FeatureService) LoadFeaturesForPipelineRank(user *module.User, items []*module.Item, context *context.RecommendContext, pipeline string) {
 	start := time.Now()
 	sceneName := context.GetParameter("scene").(string)
-	if features, ok := s.FeatureSceneMap[sceneName]; ok {
-		async := s.FeatureSceneAsyncMap[sceneName]
+	if features, async, ok := s.getFeatures(sceneName); ok {
 		if async {
 			var wg sync.WaitGroup
 			for _, fea := range features {
@@ -193,26 +205,75 @@ func (s *FeatureService) LoadFeaturesForPipelineRank(user *module.User, items []
 }
 
 func LoadFeatureConfig(config *recconf.RecommendConfig) {
+	s := featureService
+	s.loadMu.Lock()
+	defer s.loadMu.Unlock()
 	for name, sceneConf := range config.FeatureConfs {
-		if _, ok := featureService.FeatureSceneMap[name]; ok {
-			if signOfFeatureLoadConfs(sceneConf.FeatureLoadConfs) == featureService.FeatureSceneSigns[name] {
+		sign := signOfFeatureLoadConfs(sceneConf.FeatureLoadConfs)
+		s.mu.RLock()
+		old, ok := s.FeatureSceneMap[name]
+		unchanged := ok && sign == s.FeatureSceneSigns[name]
+		s.mu.RUnlock()
+		if unchanged {
+			continue
+		}
+
+		features, reused := loadFeatureScene(sceneConf.FeatureLoadConfs, old)
+		s.mu.Lock()
+		s.FeatureSceneAsyncMap[name] = sceneConf.AsynLoadFeature
+		s.FeatureSceneMap[name] = features
+		s.FeatureSceneSigns[name] = sign
+		s.mu.Unlock()
+		for _, f := range old {
+			if f.daoSign == "" {
 				continue
 			}
+			if c := f.featureCache(); c != nil && !reused[c] {
+				featureCacheAfterFunc(30*time.Second, c.InvalidateAll)
+				reused[c] = true
+			}
 		}
-
-		var features []*Feature
-		for _, conf := range sceneConf.FeatureLoadConfs {
-			f := LoadWithConfig(conf)
-			features = append(features, f)
-		}
-
-		featureService.FeatureSceneAsyncMap[name] = false
-		if sceneConf.AsynLoadFeature {
-			featureService.FeatureSceneAsyncMap[name] = true
-		}
-		featureService.FeatureSceneMap[name] = features
-		featureService.FeatureSceneSigns[name] = signOfFeatureLoadConfs(sceneConf.FeatureLoadConfs)
 	}
+}
+
+func loadFeatureScene(confs []recconf.FeatureLoadConfig, old []*Feature) ([]*Feature, map[cache.Cache]bool) {
+	candidates := make(map[string][]*Feature)
+	for _, f := range old {
+		if f.daoSign != "" && f.featureCache() != nil {
+			candidates[f.daoSign] = append(candidates[f.daoSign], f)
+		}
+	}
+	reused := make(map[cache.Cache]bool)
+	var created []cache.Cache
+	var features []*Feature
+	completed := false
+	defer func() {
+		if !completed {
+			for _, c := range created {
+				_ = c.Close()
+			}
+		}
+	}()
+	for _, conf := range confs {
+		var sign string
+		if (conf.FeatureDaoConf.AdapterType == recconf.DataSource_Type_FeatureStore || conf.FeatureDaoConf.AdapterType == recconf.DaoConf_Adapter_Hologres) && conf.FeatureDaoConf.FeatureCacheName == "" {
+			sign = featureDaoSign(conf.FeatureDaoConf)
+		}
+		var inherited cache.Cache
+		if queue := candidates[sign]; len(queue) > 0 {
+			inherited = queue[0].featureCache()
+			candidates[sign] = queue[1:]
+		}
+		f := loadWithCache(conf, inherited)
+		features = append(features, f)
+		if inherited != nil {
+			reused[inherited] = true
+		} else if c := f.featureCache(); c != nil {
+			created = append(created, c)
+		}
+	}
+	completed = true
+	return features, reused
 }
 
 func signOfFeatureLoadConfs(confs []recconf.FeatureLoadConfig) string {

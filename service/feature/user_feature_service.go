@@ -57,6 +57,15 @@ func NewUserFeatureService() *UserFeatureService {
 	}
 }
 
+func (s *UserFeatureService) isAsyncLoad(f *Feature) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if async, ok := s.FeatureAsyncLoadMap[f]; ok {
+		return async
+	}
+	return f.asyncLoad
+}
+
 func (s *UserFeatureService) GetLoadFeaturesStageNames(context *context.RecommendContext) (stageNames []string) {
 	// if not have experiment, direct return scene name
 	if context.ExperimentResult == nil {
@@ -108,7 +117,7 @@ func (s *UserFeatureService) LoadUserFeatures(user *module.User, context *contex
 	stageNames := s.GetLoadFeaturesStageNames(context)
 
 	for _, stageName := range stageNames {
-		if features, ok := s.FeatureSceneMap[stageName]; ok {
+		if features, _, ok := s.getFeatures(stageName); ok {
 			// for close featureAsyncLoadCh
 			user.IncrementFeatureAsyncLoadCount(1)
 			defer user.DescFeatureAsyncLoadCount(1)
@@ -118,7 +127,7 @@ func (s *UserFeatureService) LoadUserFeatures(user *module.User, context *contex
 			if featureFuncExist {
 				var wg2 sync.WaitGroup
 				for _, fea := range features {
-					if s.FeatureAsyncLoadMap[fea] {
+					if s.isAsyncLoad(fea) {
 						user.IncrementFeatureAsyncLoadCount(1)
 						wg2.Add(1)
 						go func(fea *Feature) {
@@ -154,7 +163,7 @@ func (s *UserFeatureService) LoadUserFeatures(user *module.User, context *contex
 				}()
 			} else {
 				for _, fea := range features {
-					if s.FeatureAsyncLoadMap[fea] {
+					if s.isAsyncLoad(fea) {
 						user.IncrementFeatureAsyncLoadCount(1)
 						go func(fea *Feature) {
 							defer user.DescFeatureAsyncLoadCount(1)
@@ -192,14 +201,14 @@ func (s *UserFeatureService) LoadUserFeaturesForCallback(user *module.User, cont
 
 	stageNames := s.GetLoadFeaturesStageNames(context)
 	for _, stageName := range stageNames {
-		if features, ok := s.FeatureSceneMap[stageName]; ok {
+		if features, _, ok := s.getFeatures(stageName); ok {
 			// for close featureAsyncLoadCh
 			user.IncrementFeatureAsyncLoadCount(1)
 			defer user.DescFeatureAsyncLoadCount(1)
 
 			var syncFeatures []*Feature
 			for _, feature := range features {
-				if s.FeatureAsyncLoadMap[feature] {
+				if s.isAsyncLoad(feature) {
 					user.IncrementFeatureAsyncLoadCount(1)
 					go func(fea *Feature) {
 						defer user.DescFeatureAsyncLoadCount(1)
@@ -229,34 +238,55 @@ func (s *UserFeatureService) LoadUserFeaturesForCallback(user *module.User, cont
 }
 
 func UserLoadFeatureConfig(config *recconf.RecommendConfig) {
+	s := userFeatureService
+	s.loadMu.Lock()
+	defer s.loadMu.Unlock()
 	for name, sceneConf := range config.UserFeatureConfs {
-		if _, ok := userFeatureService.FeatureSceneMap[name]; ok {
-			if signOfFeatureLoadConfs(sceneConf.FeatureLoadConfs) == userFeatureService.FeatureSceneSigns[name] {
-				continue
-			}
+		sign := signOfFeatureLoadConfs(sceneConf.FeatureLoadConfs)
+		s.mu.RLock()
+		old, ok := s.FeatureSceneMap[name]
+		unchanged := ok && sign == s.FeatureSceneSigns[name]
+		s.mu.RUnlock()
+		if unchanged {
+			continue
 		}
-
-		var features []*Feature
 		for _, conf := range sceneConf.FeatureLoadConfs {
 			if conf.FeatureDaoConf.FeatureStore != SOURCE_USER {
 				panic("user load features config, FeatureStore value must is user")
 			}
-			f := LoadWithConfig(conf)
-			userFeatureService.FeatureAsyncLoadMap[f] = false
-			features = append(features, f)
-			if conf.FeatureDaoConf.FeatureAsyncLoad {
-				userFeatureService.FeatureAsyncLoadMap[f] = true
-			}
 		}
 
-		/**
-		userFeatureService.FeatureSceneAsyncMap[name] = true
-		userFeatureService.FeatureSceneAsyncMap[name] = false
-		if sceneConf.AsynLoadFeature {
-			userFeatureService.FeatureSceneAsyncMap[name] = true
+		features, reused := loadFeatureScene(sceneConf.FeatureLoadConfs, old)
+		for i, f := range features {
+			f.asyncLoad = sceneConf.FeatureLoadConfs[i].FeatureDaoConf.FeatureAsyncLoad
 		}
-		**/
-		userFeatureService.FeatureSceneMap[name] = features
-		userFeatureService.FeatureSceneSigns[name] = signOfFeatureLoadConfs(sceneConf.FeatureLoadConfs)
+		s.mu.Lock()
+		s.FeatureSceneMap[name] = features
+		s.FeatureSceneSigns[name] = sign
+		for _, f := range features {
+			s.FeatureAsyncLoadMap[f] = f.asyncLoad
+		}
+		obsolete := make(map[*Feature]bool, len(old))
+		for _, f := range old {
+			obsolete[f] = true
+		}
+		for _, current := range s.FeatureSceneMap {
+			for _, f := range current {
+				delete(obsolete, f)
+			}
+		}
+		for f := range obsolete {
+			delete(s.FeatureAsyncLoadMap, f)
+		}
+		s.mu.Unlock()
+		for _, f := range old {
+			if f.daoSign == "" {
+				continue
+			}
+			if c := f.featureCache(); c != nil && !reused[c] {
+				featureCacheAfterFunc(30*time.Second, c.InvalidateAll)
+				reused[c] = true
+			}
+		}
 	}
 }

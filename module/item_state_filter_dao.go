@@ -2,9 +2,11 @@ package module
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/goburrow/cache"
 )
 
 type ItemStateFilterDao interface {
@@ -29,4 +31,30 @@ func NewItemStateFilterDao(config recconf.FilterConfig, f FeatureTransFunc) Item
 	}
 
 	panic(fmt.Sprintf("ItemStateFilterDao:not found, name:%s", config.Name))
+}
+
+func NewItemStateFilterDaoWithCache(config recconf.FilterConfig, f FeatureTransFunc, inherited cache.Cache) ItemStateFilterDao {
+	if config.ItemStateDaoConf.FeatureViewCacheName != "" ||
+		(config.ItemStateDaoConf.AdapterType != recconf.DataSource_Type_FeatureStore && config.ItemStateDaoConf.AdapterType != recconf.DaoConf_Adapter_Hologres) {
+		return NewItemStateFilterDao(config, f)
+	}
+	baseConfig := config
+	baseConfig.ItemStateCacheSize = 0
+	dao := NewItemStateFilterDao(baseConfig, f)
+	c := inherited
+	if c == nil && config.ItemStateCacheSize > 0 {
+		cacheTime := 3600
+		if config.ItemStateCacheTime > 0 {
+			cacheTime = config.ItemStateCacheTime
+		}
+		c = cache.New(cache.WithMaximumSize(config.ItemStateCacheSize),
+			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
+	}
+	switch d := dao.(type) {
+	case *ItemStateFilterFeatureStoreDao:
+		d.itmCache = c
+	case *ItemStateFilterHologresDao:
+		d.itmCache = c
+	}
+	return dao
 }

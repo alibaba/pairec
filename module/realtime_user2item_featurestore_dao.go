@@ -14,6 +14,7 @@ import (
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/alibaba/pairec/v2/utils"
+	"github.com/goburrow/cache"
 )
 
 type RealtimeUser2ItemFeatureStoreDao struct {
@@ -92,6 +93,13 @@ func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeU
 		dao.events = append(dao.events, k)
 	}
 	return dao
+}
+
+func (d *RealtimeUser2ItemFeatureStoreDao) I2ICache() cache.Cache {
+	if d == nil || d.RealtimeUser2ItemBaseDao == nil {
+		return nil
+	}
+	return d.cache
 }
 
 func (d *RealtimeUser2ItemFeatureStoreDao) ListItemsByUser(user *User, context *context.RecommendContext) (ret []*Item) {
