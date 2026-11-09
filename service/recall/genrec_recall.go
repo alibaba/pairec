@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,41 +94,52 @@ func (r *GenRecRecall) GetCandidateItems(user *module.User, context *context.Rec
 // encodeUserFeatures converts user properties to PB features. Every feature is
 // written as string_feature as required by the GenRec processor. With a
 // whitelist, only the listed fields are encoded and missing ones are filled
-// with empty strings; without it, all properties are encoded.
+// with empty strings; without it, all properties are encoded. Warnings are
+// aggregated into one line per request to keep the global log from flooding.
 func (r *GenRecRecall) encodeUserFeatures(features map[string]interface{}, context *context.RecommendContext) map[string]*easyrec.PBFeature {
 	userFeatures := make(map[string]*easyrec.PBFeature, len(features))
+	var missingFields, unsupportedFields []string
 	if len(r.genRecConf.FeatureNames) > 0 {
 		for _, name := range r.genRecConf.FeatureNames {
 			value, ok := features[name]
 			if !ok {
 				userFeatures[name] = genRecStringFeature("")
-				log.Warning(fmt.Sprintf("requestId=%s\tmodule=GenRecRecall\tname=%s\tmsg=feature missing, fill empty\tfield=%s",
-					context.RecommendId, r.modelName, name))
+				missingFields = append(missingFields, name)
 				continue
 			}
-			r.encodeFeature(userFeatures, name, value, context)
+			if !r.encodeFeature(userFeatures, name, value) {
+				unsupportedFields = append(unsupportedFields, name)
+			}
 		}
-		return userFeatures
+	} else {
+		for name, value := range features {
+			if !r.encodeFeature(userFeatures, name, value) {
+				unsupportedFields = append(unsupportedFields, name)
+			}
+		}
 	}
-
-	for name, value := range features {
-		r.encodeFeature(userFeatures, name, value, context)
+	if len(missingFields) > 0 {
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=GenRecRecall\tname=%s\tmsg=features missing, fill empty\tfields=%s",
+			context.RecommendId, r.modelName, strings.Join(missingFields, ",")))
+	}
+	if len(unsupportedFields) > 0 {
+		log.Warning(fmt.Sprintf("requestId=%s\tmodule=GenRecRecall\tname=%s\tmsg=skip unsupported feature types\tfields=%s",
+			context.RecommendId, r.modelName, strings.Join(unsupportedFields, ",")))
 	}
 	return userFeatures
 }
 
-// encodeFeature encodes one feature; values of unsupported types are skipped
-// with a warning instead of being replaced by fabricated values.
-func (r *GenRecRecall) encodeFeature(userFeatures map[string]*easyrec.PBFeature, name string, value interface{}, context *context.RecommendContext) {
+// encodeFeature encodes one feature and reports whether it was encoded;
+// values of unsupported types are skipped instead of being replaced by
+// fabricated values.
+func (r *GenRecRecall) encodeFeature(userFeatures map[string]*easyrec.PBFeature, name string, value interface{}) bool {
 	separator := genRecMultiValueSeparator
 	if name == r.genRecConf.HistFeatureName {
 		separator = ";"
 	}
 	str, ok := genRecEncodeValue(value, separator)
 	if !ok {
-		log.Warning(fmt.Sprintf("requestId=%s\tmodule=GenRecRecall\tname=%s\tmsg=skip unsupported feature type\tfield=%s\ttype=%T",
-			context.RecommendId, r.modelName, name, value))
-		return
+		return false
 	}
 	if name == r.genRecConf.HistFeatureName {
 		// FeatureStore returns multi-value strings joined by CHR(29), while
@@ -135,6 +147,7 @@ func (r *GenRecRecall) encodeFeature(userFeatures map[string]*easyrec.PBFeature,
 		str = strings.ReplaceAll(str, genRecMultiValueSeparator, ";")
 	}
 	userFeatures[name] = genRecStringFeature(str)
+	return true
 }
 
 func genRecStringFeature(value string) *easyrec.PBFeature {
@@ -175,7 +188,11 @@ func genRecScalarString(value interface{}) (string, bool) {
 		return v, true
 	case json.Number:
 		return v.String(), true
-	case int, int32, int64, uint32, float32, float64:
+	case float32:
+		// utils.ToString formats float32 with bitSize 64, exposing the binary
+		// approximation; use 32-bit precision here.
+		return strconv.FormatFloat(float64(v), 'f', -1, 32), true
+	case int, int32, int64, uint32, float64:
 		return utils.ToString(v, ""), true
 	default:
 		return "", false

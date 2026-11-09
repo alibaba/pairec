@@ -2,22 +2,18 @@ package eas
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
-	"strings"
 
 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
 	"github.com/alibaba/pairec/v2/log"
-	proto "github.com/golang/protobuf/proto"
+	proto "google.golang.org/protobuf/proto"
 )
-
-// genRecGeneratePath is the fixed path of the GenRec generation API. It is
-// appended to the configured service address when missing.
-const genRecGeneratePath = "/generate"
 
 // GenRecRequestData carries the PB request and the sampling parameters of one
 // GenRec invocation. The sampling parameters live in the outer JSON body, not
@@ -46,24 +42,19 @@ type genRecHttpRequest struct {
 
 // GenrecRequest invokes the EAS GenRec /generate API: the PBRequest is
 // serialized, base64 encoded into image_data and wrapped in a JSON body; the
-// response is plain JSON instead of PBResponse.
+// response is plain JSON instead of PBResponse. The configured URL is used
+// as-is and must include the /generate path.
 type GenrecRequest struct {
 	EasRequest
 }
 
-// normalizeGenRecUrl appends the /generate suffix to the configured service
-// address. It is idempotent: addresses already carrying the suffix are used
-// as-is, so the suffix is never duplicated.
-func normalizeGenRecUrl(url string) string {
-	url = strings.TrimRight(url, "/")
-	if !strings.HasSuffix(url, genRecGeneratePath) {
-		url += genRecGeneratePath
+// genRecBodySnippet caps response bodies embedded in error messages.
+func genRecBodySnippet(body []byte) string {
+	const maxLen = 4096
+	if len(body) > maxLen {
+		return string(body[:maxLen]) + "...(truncated)"
 	}
-	return url
-}
-
-func (r *GenrecRequest) SetUrl(url string) {
-	r.EasRequest.SetUrl(normalizeGenRecUrl(url))
+	return string(body)
 }
 
 func (r *GenrecRequest) Invoke(requestData interface{}) (response interface{}, err error) {
@@ -92,31 +83,33 @@ func (r *GenrecRequest) Invoke(requestData interface{}) (response interface{}, e
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", r.url, bytes.NewReader(body))
+	// Per-request deadline; the shared easClient is left immutable.
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "POST", r.url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", r.auth)
 	req.Header.Set("Content-Type", "application/json")
 
-	easClient.Timeout = r.timeout
 	resp, err := easClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("genrec request failed, url:%s, status:%d, body:%s", r.url, resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("genrec request failed, url:%s, status:%d, body:%s", r.url, resp.StatusCode, genRecBodySnippet(respBody))
 	}
 
 	genRecResponse := &GenRecResponse{}
 	if err := json.Unmarshal(respBody, genRecResponse); err != nil {
-		return nil, fmt.Errorf("error:%s, body:%s", err.Error(), string(respBody))
+		return nil, fmt.Errorf("error:%s, body:%s", err.Error(), genRecBodySnippet(respBody))
 	}
 	log.Info(fmt.Sprintf("module=GenrecRequest\turl=%s\trid=%s\tstatus=%d", r.url, data.Rid, resp.StatusCode))
 	return genRecResponse, nil

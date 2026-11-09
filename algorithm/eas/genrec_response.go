@@ -4,7 +4,7 @@ package eas
 // the fields consumed by the recall are declared; the rest of the payload is
 // ignored during unmarshalling.
 type GenRecResponse struct {
-	OutputIds []int64       `json:"output_ids"`
+	OutputIds []int64        `json:"output_ids"`
 	MetaInfo  GenRecMetaInfo `json:"meta_info"`
 }
 
