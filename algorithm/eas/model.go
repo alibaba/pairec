@@ -24,6 +24,7 @@ const (
 	Eas_Processor_TFServing = "TFServing"
 	Eas_Processor_EASYREC   = "EasyRec"
 	Eas_Processor_LINUCB    = "Linucb"
+	Eas_Processor_GENREC    = "GenRec"
 )
 
 type EasModel struct {
@@ -154,6 +155,18 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		m.request = &req
 
 		return nil
+	} else if conf.EasConf.Processor == Eas_Processor_GENREC {
+		req := GenrecRequest{}
+		req.SetUrl(conf.EasConf.Url)
+		req.SetAuth(conf.EasConf.Auth)
+		req.SetTimeout(conf.EasConf.Timeout)
+		m.request = &req
+
+		if conf.EasConf.RetryTimes > 0 {
+			m.retryTimes = conf.EasConf.RetryTimes
+		}
+		return nil
+
 	} else if conf.EasConf.Processor == Eas_Processor_LINUCB {
 		req := LincubRequest{}
 		req.SetUrl(conf.EasConf.Url)
