@@ -7,6 +7,7 @@ import (
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 	"github.com/goburrow/cache"
 )
 
@@ -31,6 +32,30 @@ func NewRealTimeUser2ItemDao(config recconf.RecallConfig) RealTimeUser2ItemDao {
 	} else {
 		panic("RealTimeUser2ItemDao not implement")
 	}
+}
+
+func NewRealTimeUser2ItemDaoWithCache(config recconf.RecallConfig, inherited cache.Cache) RealTimeUser2ItemDao {
+	if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdapterType != recconf.DataSource_Type_FeatureStore {
+		return NewRealTimeUser2ItemDao(config)
+	}
+	baseConfig := config
+	baseConfig.RealTimeUser2ItemDaoConf.I2ICacheSize = 0
+	dao := NewRealTimeUser2ItemDao(baseConfig)
+	if utils.IsNil(dao) {
+		return nil
+	}
+	fsDao := dao.(*RealtimeUser2ItemFeatureStoreDao)
+	if inherited != nil {
+		fsDao.cache = inherited
+	} else if config.RealTimeUser2ItemDaoConf.I2ICacheSize > 0 {
+		cacheTime := 3600
+		if config.RealTimeUser2ItemDaoConf.I2ICacheTime > 0 {
+			cacheTime = config.RealTimeUser2ItemDaoConf.I2ICacheTime
+		}
+		fsDao.cache = cache.New(cache.WithMaximumSize(config.RealTimeUser2ItemDaoConf.I2ICacheSize),
+			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
+	}
+	return dao
 }
 
 type ItemScoreSlice []*Item

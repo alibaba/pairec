@@ -10,6 +10,7 @@ import (
 	"github.com/alibaba/pairec/v2/persist/fs"
 	"github.com/alibaba/pairec/v2/recconf"
 	"github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2/domain"
+	"github.com/goburrow/cache"
 )
 
 type FeatureFeatureStoreDao struct {
@@ -47,6 +48,13 @@ func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureS
 	}
 	dao.client = client
 	return dao
+}
+
+func (d *FeatureFeatureStoreDao) FeatureCache() cache.Cache {
+	if d == nil || d.FeatureBaseDao == nil {
+		return nil
+	}
+	return d.cache
 }
 
 func (d *FeatureFeatureStoreDao) FeatureFetch(user *User, items []*Item, context *context.RecommendContext) {

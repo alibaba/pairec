@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
@@ -28,11 +29,17 @@ type ICloneRecall interface {
 
 var recalls = make(map[string]Recall)
 var recallSigns = make(map[string]string)
+var recallsMu sync.RWMutex
+var recallLoadMu sync.Mutex
 
 func RegisterRecall(name string, recall Recall) {
+	recallsMu.Lock()
+	defer recallsMu.Unlock()
 	recalls[name] = recall
 }
 func GetRecall(name string) (Recall, error) {
+	recallsMu.RLock()
+	defer recallsMu.RUnlock()
 	recall, ok := recalls[name]
 	if !ok {
 		return nil, fmt.Errorf("recall:not found, recall name:%s", name)
@@ -45,19 +52,24 @@ func GetRecall(name string) (Recall, error) {
 	return recall, nil
 }
 func Load(config *recconf.RecommendConfig) {
+	recallLoadMu.Lock()
+	defer recallLoadMu.Unlock()
 	for _, conf := range config.RecallConfs {
 		if conf.Ha3KnowledgeVectorConf != nil &&
 			conf.RecallType != "HA3_CHAT_RECALL" &&
 			conf.RecallType != "HA3_KNOWLEDGE_RECALL" {
 			panic(fmt.Sprintf("Ha3KnowledgeVectorConf requires RecallType HA3_CHAT_RECALL or HA3_KNOWLEDGE_RECALL, got %q", conf.RecallType))
 		}
-		if _, ok := recalls[conf.Name]; ok {
-			sign, _ := json.Marshal(&conf)
-			if utils.Md5(string(sign)) == recallSigns[conf.Name] {
-				continue
-			}
+		sign, _ := json.Marshal(&conf)
+		recallsMu.RLock()
+		old, ok := recalls[conf.Name]
+		unchanged := ok && utils.Md5(string(sign)) == recallSigns[conf.Name]
+		recallsMu.RUnlock()
+		if unchanged {
+			continue
 		}
 
+		cacheConf, inherited, cacheSign := localCacheConfig(conf, old)
 		var recall Recall
 		if conf.RecallType == "UserCollaborativeFilterRecall" {
 			recall = NewUserCollaborativeFilterRecall(conf)
@@ -66,17 +78,17 @@ func Load(config *recconf.RecommendConfig) {
 		} else if conf.RecallType == "VectorRecall" {
 			recall = NewVectorRecall(conf)
 		} else if conf.RecallType == "UserCustomRecall" {
-			recall = NewUserCustomRecall(conf)
+			recall = NewUserCustomRecall(cacheConf)
 		} else if conf.RecallType == "HologresVectorRecall" {
 			recall = NewHologresVectorRecall(conf)
 		} else if conf.RecallType == "HologresVectorRecallV2" {
 			recall = NewHologresVectorRecallV2(conf)
 		} else if conf.RecallType == "ItemCollaborativeFilterRecall" {
-			recall = NewItemCollaborativeFilterRecall(conf)
+			recall = NewItemCollaborativeFilterRecall(cacheConf)
 		} else if conf.RecallType == "UserGroupHotRecall" {
-			recall = NewUserGroupHotRecall(conf)
+			recall = NewUserGroupHotRecall(cacheConf)
 		} else if conf.RecallType == "UserGlobalHotRecall" {
-			recall = NewUserGlobalHotRecall(conf)
+			recall = NewUserGlobalHotRecall(cacheConf)
 		} else if conf.RecallType == "I2IVectorRecall" {
 			recall = NewI2IVectorRecall(conf)
 		} else if conf.RecallType == "ColdStartRecall" {
@@ -86,7 +98,8 @@ func Load(config *recconf.RecommendConfig) {
 		} else if conf.RecallType == "BeRecall" {
 			recall = NewBeRecall(conf)
 		} else if conf.RecallType == "RealTimeU2IRecall" {
-			recall = NewRealTimeU2IRecall(conf)
+			inheritedI2I, i2iSign := i2iCacheConfig(conf, old)
+			recall = newRealTimeU2IRecallWithCache(conf, inheritedI2I, i2iSign)
 		} else if conf.RecallType == "OnlineHologresVectorRecall" {
 			recall = NewOnlineHologresVectorRecall(conf)
 		} else if conf.RecallType == "GraphRecall" {
@@ -109,12 +122,79 @@ func Load(config *recconf.RecommendConfig) {
 			panic(fmt.Sprintf("recall empty, name:%s", conf.Name))
 		}
 
-		RegisterRecall(conf.Name, recall)
-		sign, _ := json.Marshal(&conf)
+		applyLocalCache(recall, conf, inherited, cacheSign)
+		recallsMu.Lock()
+		recalls[conf.Name] = recall
 		recallSigns[conf.Name] = utils.Md5(string(sign))
-
+		recallsMu.Unlock()
+		if previous, ok := old.(*RealTimeU2IRecall); ok && previous != nil && previous.i2iCacheSign != "" {
+			if c := previous.i2iCache(); c != nil {
+				current, ok := recall.(*RealTimeU2IRecall)
+				if !ok || current.i2iCache() != c {
+					i2iCacheAfterFunc(30*time.Second, c.InvalidateAll)
+				}
+			}
+		}
 	}
+}
 
+// localCacheBase limits inheritance to the supported A recall implementations.
+func localCacheBase(r Recall) *BaseRecall {
+	if utils.IsNil(r) {
+		return nil
+	}
+	switch r := r.(type) {
+	case *ItemCollaborativeFilterRecall:
+		return r.BaseRecall
+	case *UserGlobalHotRecall:
+		return r.BaseRecall
+	case *UserGroupHotRecall:
+		return r.BaseRecall
+	case *UserCustomRecall:
+		return r.BaseRecall
+	}
+	return nil
+}
+
+func localCacheConfig(conf recconf.RecallConfig, old Recall) (recconf.RecallConfig, cache.Cache, string) {
+	if conf.CacheAdapter != "localCache" {
+		return conf, nil, ""
+	}
+	switch conf.RecallType {
+	case "ItemCollaborativeFilterRecall", "UserGlobalHotRecall", "UserGroupHotRecall", "UserCustomRecall":
+	default:
+		return conf, nil, ""
+	}
+	withoutTTL := conf
+	withoutTTL.CacheTime = 0
+	encoded, err := json.Marshal(withoutTTL)
+	if err != nil {
+		return conf, nil, ""
+	}
+	cacheSign := utils.Md5(string(encoded))
+	base := localCacheBase(old)
+	if base != nil && base.cacheSign == cacheSign {
+		if _, ok := base.cache.(*cache.LocalCache); ok {
+			// Avoid constructing a throwaway cache before assigning the old one.
+			conf.CacheAdapter = ""
+			return conf, base.cache, cacheSign
+		}
+	}
+	return conf, nil, cacheSign
+}
+
+func applyLocalCache(r Recall, conf recconf.RecallConfig, inherited cache.Cache, sign string) {
+	if base := localCacheBase(r); base != nil {
+		base.cacheSign = sign
+		if inherited != nil {
+			base.cache = inherited
+			base.cachePrefix = conf.CachePrefix
+			base.cacheTime = 1800
+			if conf.CacheTime > 0 {
+				base.cacheTime = conf.CacheTime
+			}
+		}
+	}
 }
 
 type BaseRecall struct {
@@ -122,6 +202,7 @@ type BaseRecall struct {
 	cache       cache.Cache
 	cachePrefix string
 	cacheTime   int
+	cacheSign   string
 	itemType    string
 	recallCount int
 	recallAlgo  string

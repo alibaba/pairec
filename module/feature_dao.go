@@ -10,6 +10,7 @@ import (
 	"github.com/alibaba/pairec/v2/context"
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/utils"
 	"github.com/goburrow/cache"
 )
 
@@ -83,6 +84,36 @@ func NewFeatureDao(config recconf.FeatureDaoConfig) FeatureDao {
 		return NewEmptyFeatureDao(config)
 	}
 
+}
+
+func NewFeatureDaoWithCache(config recconf.FeatureDaoConfig, inherited cache.Cache) FeatureDao {
+	if (config.AdapterType != recconf.DataSource_Type_FeatureStore && config.AdapterType != recconf.DaoConf_Adapter_Hologres) || config.FeatureCacheName != "" {
+		return NewFeatureDao(config)
+	}
+	baseConfig := config
+	baseConfig.CacheSize = 0
+	dao := NewFeatureDao(baseConfig)
+	if utils.IsNil(dao) {
+		return nil
+	}
+	var base *FeatureBaseDao
+	switch d := dao.(type) {
+	case *FeatureFeatureStoreDao:
+		base = d.FeatureBaseDao
+	case *FeatureHologresDao:
+		base = d.FeatureBaseDao
+	}
+	if inherited != nil {
+		base.cache = inherited
+	} else if config.CacheSize > 0 {
+		cacheTime := 3600
+		if config.CacheTime > 0 {
+			cacheTime = config.CacheTime
+		}
+		base.cache = cache.New(cache.WithMaximumSize(config.CacheSize),
+			cache.WithExpireAfterWrite(time.Second*time.Duration(cacheTime)))
+	}
+	return dao
 }
 
 type FeatureBaseDao struct {
