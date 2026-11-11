@@ -26,7 +26,8 @@ type FeatureFeatureStoreDao struct {
 }
 
 type FeatureStoreDaoOptions struct {
-	DlrmHSTU bool
+	DlrmHSTU   bool
+	HardSearch bool
 }
 
 func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureStoreDao {
@@ -38,7 +39,8 @@ func NewFeatureFeatureStoreDao(config recconf.FeatureDaoConfig) *FeatureFeatureS
 		userSelectFields: config.UserSelectFields,
 		itemSelectFields: config.ItemSelectFields,
 		featureStoreOptions: FeatureStoreDaoOptions{
-			DlrmHSTU: config.FeatureStoreOptions.DlrmHSTU,
+			DlrmHSTU:   config.FeatureStoreOptions.DlrmHSTU,
+			HardSearch: config.FeatureStoreOptions.HardSearch,
 		},
 	}
 	client, err := fs.GetFeatureStoreClient(config.FeatureStoreName)
@@ -194,6 +196,9 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithEntity(user *User, contex
 	modelOptions := domain.ModelOptions{}
 	if d.featureStoreOptions.DlrmHSTU {
 		modelOptions.DlrmHSTU = true
+	}
+	if d.featureStoreOptions.HardSearch {
+		modelOptions.HardSearch = true
 	}
 	features, err := model.GetOnlineFeaturesWithEntityWithOptions(map[string][]interface{}{entity.FeatureEntityJoinid: {key}}, d.fsEntity, modelOptions)
 	if err != nil {
@@ -364,6 +369,9 @@ func (d *FeatureFeatureStoreDao) doUserFeatureFetchWithFeatureView(user *User, c
 	featureViewOptions := domain.FeatureViewOptions{}
 	if d.featureStoreOptions.DlrmHSTU {
 		featureViewOptions.DlrmHSTU = true
+	}
+	if d.featureStoreOptions.HardSearch {
+		featureViewOptions.HardSearch = true
 	}
 	features, err := featureView.GetOnlineFeaturesWithOptions([]any{key}, featuresNames, nil, featureViewOptions)
 	if err != nil {

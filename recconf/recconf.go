@@ -270,6 +270,9 @@ type FeatureDaoConfig struct {
 }
 type FeatureStoreOptionsConfig struct {
 	DlrmHSTU bool
+	// HardSearch warms up filtered sequences asynchronously instead of reading them online.
+	// Only supported for user features backed by FeatureDB sequence feature views.
+	HardSearch bool
 }
 type FeatureConfig struct {
 	FeatureType         string

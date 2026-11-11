@@ -382,6 +382,7 @@ func TestFeatureCacheChangedReadDefinitionResetsEntries(t *testing.T) {
 		func(c *recconf.FeatureCacheConfig) { c.FeatureStoreViewName = "new_view" },
 		func(c *recconf.FeatureCacheConfig) { c.SelectFields = "age" },
 		func(c *recconf.FeatureCacheConfig) { c.FeatureStoreOptions.DlrmHSTU = true },
+		func(c *recconf.FeatureCacheConfig) { c.FeatureStoreOptions.HardSearch = true },
 		func(c *recconf.FeatureCacheConfig) {
 			c.FeatureStoreViewName = ""
 			c.FeatureStoreModelName = "model"

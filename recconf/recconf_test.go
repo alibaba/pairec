@@ -103,6 +103,7 @@ func TestFeatureCacheConfigValidation(t *testing.T) {
 		func(c *FeatureCacheConfig) { c.CacheSize = 0 },
 		func(c *FeatureCacheConfig) { c.CacheTime = -1 },
 		func(c *FeatureCacheConfig) { c.FeatureStore = "item"; c.FeatureStoreOptions.DlrmHSTU = true },
+		func(c *FeatureCacheConfig) { c.FeatureStore = "item"; c.FeatureStoreOptions.HardSearch = true },
 	} {
 		conf := view
 		change(&conf)
@@ -125,12 +126,12 @@ func TestFeatureCacheConfigValidation(t *testing.T) {
 
 func TestFeatureCacheDefinitionJSON(t *testing.T) {
 	var conf RecommendConfig
-	err := json.Unmarshal([]byte(`{"FeatureCacheConfs":{"shared":{"FeatureStoreName":"fs","FeatureStore":"user","FeatureStoreViewName":"view","SelectFields":"age","FeatureStoreOptions":{"DlrmHSTU":true},"CacheSize":10,"CacheTime":600}}}`), &conf)
+	err := json.Unmarshal([]byte(`{"FeatureCacheConfs":{"shared":{"FeatureStoreName":"fs","FeatureStore":"user","FeatureStoreViewName":"view","SelectFields":"age","FeatureStoreOptions":{"DlrmHSTU":true,"HardSearch":true},"CacheSize":10,"CacheTime":600}}}`), &conf)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cache := conf.FeatureCacheConfs["shared"]
-	if cache.FeatureStoreName != "fs" || cache.FeatureStoreViewName != "view" || cache.SelectFields != "age" || !cache.FeatureStoreOptions.DlrmHSTU {
+	if cache.FeatureStoreName != "fs" || cache.FeatureStoreViewName != "view" || cache.SelectFields != "age" || !cache.FeatureStoreOptions.DlrmHSTU || !cache.FeatureStoreOptions.HardSearch {
 		t.Fatalf("cache source was not parsed: %+v", cache)
 	}
 }

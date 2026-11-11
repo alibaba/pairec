@@ -176,6 +176,7 @@ func TestSharedFeatureRejectsDuplicateSourceSettings(t *testing.T) {
 		func(c *recconf.FeatureDaoConfig) { c.UserSelectFields = "*" },
 		func(c *recconf.FeatureDaoConfig) { c.ItemSelectFields = "age" },
 		func(c *recconf.FeatureDaoConfig) { c.FeatureStoreOptions.DlrmHSTU = true },
+		func(c *recconf.FeatureDaoConfig) { c.FeatureStoreOptions.HardSearch = true },
 	} {
 		conf := sharedFeatureTestConfig()
 		change(&conf)
@@ -397,7 +398,7 @@ func sharedFeatureModelProject(view *sharedTestFeatureView) *domain.Project {
 func TestSharedFeatureModelSDKAndContextMerge(t *testing.T) {
 	c := sharedFeatureTestCache(t)
 	view := &sharedTestFeatureView{fetch: func(keys []any, _ []string, options domain.FeatureViewOptions) ([]map[string]any, error) {
-		if !options.DlrmHSTU {
+		if !options.DlrmHSTU || !options.HardSearch {
 			t.Error("model options were not forwarded")
 		}
 		return []map[string]any{{"uid": keys[0], "label": "sdk", "online": "sdk-online"}}, nil
@@ -407,6 +408,7 @@ func TestSharedFeatureModelSDKAndContextMerge(t *testing.T) {
 	c.definition.FeatureStoreViewName = ""
 	c.definition.FeatureStoreModelName, c.definition.FeatureStoreEntityName = "model", "entity"
 	c.definition.FeatureStoreOptions.DlrmHSTU = true
+	c.definition.FeatureStoreOptions.HardSearch = true
 	for _, value := range []string{"a", "b"} {
 		dao := newSharedFeatureTestDao(conf, c, func() *domain.Project { return project })
 		ctx := sharedFeatureContext(map[string]any{"label_alias": value, "fallback": value})
@@ -420,6 +422,28 @@ func TestSharedFeatureModelSDKAndContextMerge(t *testing.T) {
 	}
 	if view.calls.Load() != 1 {
 		t.Fatal("model SDK result was not shared")
+	}
+}
+
+func TestSharedFeatureViewForwardsOptions(t *testing.T) {
+	c := sharedFeatureTestCache(t)
+	view := &sharedTestFeatureView{fetch: func(keys []any, _ []string, options domain.FeatureViewOptions) ([]map[string]any, error) {
+		if !options.DlrmHSTU || !options.HardSearch {
+			t.Error("view options were not forwarded")
+		}
+		return []map[string]any{{"uid": keys[0], "age": 18}}, nil
+	}}
+	c.definition.FeatureStoreOptions.DlrmHSTU = true
+	c.definition.FeatureStoreOptions.HardSearch = true
+	dao := newSharedFeatureTestDao(sharedFeatureTestConfig(), c, func() *domain.Project { return sharedFeatureProject(view) })
+	user := NewUser("u")
+	user.AddProperty("uid", "u")
+	dao.FeatureFetch(user, nil, sharedFeatureContext(nil))
+	if user.GetProperty("age") != 18 {
+		t.Fatalf("view fetch failed: %v", user.Properties)
+	}
+	if view.calls.Load() != 1 {
+		t.Fatalf("expected one view read, got %d", view.calls.Load())
 	}
 }
 
