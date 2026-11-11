@@ -176,6 +176,7 @@ type EasyrecAlgoDataGenerator struct {
 	parseFeature          bool
 	itemFeatures          []*feature
 	userFeatures          map[string]interface{}
+	userId                string
 	inputItemFeatures     []*feature
 	inputItemFeatureMap   map[string][]interface{}
 	parseInputItemFeature bool
@@ -278,6 +279,7 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoData() IAlgoData {
 	copy(copyItems, g.requestItem)
 
 	builder := easyrec.NewEasyrecRequestBuilder()
+	g.applyUserId(builder)
 	for k, v := range g.userFeatures {
 		builder.AddUserFeature(k, v)
 	}
@@ -314,6 +316,7 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int, me
 	copy(copyItems, g.requestItem)
 
 	builder := easyrec.NewEasyrecRequestBuilderDebugWithLevel(level)
+	g.applyUserId(builder)
 	if meta != nil && len(meta) > 0 {
 		builder.SetMetaData(meta)
 	}
@@ -347,4 +350,18 @@ func (g *EasyrecAlgoDataGenerator) GeneratorAlgoDataDebugWithLevel(level int, me
 
 func (g *EasyrecAlgoDataGenerator) HasFeatures() bool {
 	return len(g.requestItem) > 0
+}
+
+// SetUserId records the request user id so it can be exposed in meta_data.
+func (g *EasyrecAlgoDataGenerator) SetUserId(id string) {
+	g.userId = id
+}
+
+// applyUserId always exposes the user id in meta_data so downstream processors
+// (e.g. hard search) can build user-scoped keys without relying on user_features.
+// meta_data is additive; processors that do not read user_id ignore it.
+func (g *EasyrecAlgoDataGenerator) applyUserId(builder *easyrec.EasyrecRequestBuilder) {
+	if g.userId != "" {
+		builder.SetMetaData(map[string]string{"user_id": g.userId})
+	}
 }
