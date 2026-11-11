@@ -1,11 +1,7 @@
 package recall
 
 import (
-	"encoding/json"
 	"fmt"
-	"reflect"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/alibaba/pairec/v2/algorithm"
@@ -15,11 +11,9 @@ import (
 	"github.com/alibaba/pairec/v2/log"
 	"github.com/alibaba/pairec/v2/module"
 	"github.com/alibaba/pairec/v2/recconf"
+	"github.com/alibaba/pairec/v2/service/rank"
 	"github.com/alibaba/pairec/v2/utils"
 )
-
-// genRecMultiValueSeparator joins multi-value features (CHR(29)); hist uses ';'.
-const genRecMultiValueSeparator = "\x1d"
 
 // GenRecRecall calls the EAS GenRec generation API, which returns SID beam
 // results with mapped item ids directly, so no vector retrieval is needed.
@@ -29,23 +23,25 @@ type GenRecRecall struct {
 }
 
 func NewGenRecRecall(config recconf.RecallConfig) *GenRecRecall {
-	recall := &GenRecRecall{
+	return &GenRecRecall{
 		BaseRecall: NewBaseRecall(config),
 		genRecConf: config.GenRecConf,
 	}
-	if recall.genRecConf.HistFeatureName == "" {
-		recall.genRecConf.HistFeatureName = "hist"
-	}
-	return recall
 }
 
 func (r *GenRecRecall) GetCandidateItems(user *module.User, context *context.RecommendContext) (ret []*module.Item) {
 	start := time.Now()
 
+	// Features come from FeatureStore as typed slices, so the standard EasyRec
+	// builder encodes them (arrays become PB lists) the same way as rank.
+	algoGenerator := rank.CreateAlgoDataGenerator(eas.Eas_Processor_EASYREC, nil)
+	algoGenerator.SetItemFeatures(nil)
+	algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
+	algoData := algoGenerator.GeneratorAlgoData()
+	request := algoData.GetFeatures().(*easyrec.PBRequest)
+
 	algoRet, err := algorithm.Run(r.recallAlgo, &eas.GenRecRequestData{
-		Request: &easyrec.PBRequest{
-			UserFeatures: r.encodeUserFeatures(user.MakeUserFeatures2(), context),
-		},
+		Request:      request,
 		BeamWidth:    r.genRecConf.BeamWidth,
 		SidCount:     r.genRecConf.SidCount,
 		MaxNewTokens: r.genRecConf.MaxNewTokens,
@@ -89,112 +85,4 @@ func (r *GenRecRecall) GetCandidateItems(user *module.User, context *context.Rec
 	log.Info(fmt.Sprintf("requestId=%s\tmodule=GenRecRecall\tname=%s\tcount=%d\tcost=%d",
 		context.RecommendId, r.modelName, len(ret), utils.CostTime(start)))
 	return
-}
-
-// encodeUserFeatures converts user properties to PB features. Every feature is
-// written as string_feature as required by the GenRec processor. With a
-// whitelist, only the listed fields are encoded and missing ones are filled
-// with empty strings; without it, all properties are encoded. Warnings are
-// aggregated into one line per request to keep the global log from flooding.
-func (r *GenRecRecall) encodeUserFeatures(features map[string]interface{}, context *context.RecommendContext) map[string]*easyrec.PBFeature {
-	userFeatures := make(map[string]*easyrec.PBFeature, len(features))
-	var missingFields, unsupportedFields []string
-	if len(r.genRecConf.FeatureNames) > 0 {
-		for _, name := range r.genRecConf.FeatureNames {
-			value, ok := features[name]
-			if !ok {
-				userFeatures[name] = genRecStringFeature("")
-				missingFields = append(missingFields, name)
-				continue
-			}
-			if !r.encodeFeature(userFeatures, name, value) {
-				unsupportedFields = append(unsupportedFields, name)
-			}
-		}
-	} else {
-		for name, value := range features {
-			if !r.encodeFeature(userFeatures, name, value) {
-				unsupportedFields = append(unsupportedFields, name)
-			}
-		}
-	}
-	if len(missingFields) > 0 {
-		log.Warning(fmt.Sprintf("requestId=%s\tmodule=GenRecRecall\tname=%s\tmsg=features missing, fill empty\tfields=%s",
-			context.RecommendId, r.modelName, strings.Join(missingFields, ",")))
-	}
-	if len(unsupportedFields) > 0 {
-		log.Warning(fmt.Sprintf("requestId=%s\tmodule=GenRecRecall\tname=%s\tmsg=skip unsupported feature types\tfields=%s",
-			context.RecommendId, r.modelName, strings.Join(unsupportedFields, ",")))
-	}
-	return userFeatures
-}
-
-// encodeFeature encodes one feature and reports whether it was encoded;
-// values of unsupported types are skipped instead of being replaced by
-// fabricated values.
-func (r *GenRecRecall) encodeFeature(userFeatures map[string]*easyrec.PBFeature, name string, value interface{}) bool {
-	separator := genRecMultiValueSeparator
-	if name == r.genRecConf.HistFeatureName {
-		separator = ";"
-	}
-	str, ok := genRecEncodeValue(value, separator)
-	if !ok {
-		return false
-	}
-	if name == r.genRecConf.HistFeatureName {
-		// FeatureStore returns multi-value strings joined by CHR(29), while
-		// the GenRec hist field expects ';'.
-		str = strings.ReplaceAll(str, genRecMultiValueSeparator, ";")
-	}
-	userFeatures[name] = genRecStringFeature(str)
-	return true
-}
-
-func genRecStringFeature(value string) *easyrec.PBFeature {
-	return &easyrec.PBFeature{Value: &easyrec.PBFeature_StringFeature{StringFeature: value}}
-}
-
-// genRecEncodeValue renders a scalar as a string and joins array elements with
-// separator, preserving order and duplicates. Empty arrays become "".
-func genRecEncodeValue(value interface{}, separator string) (string, bool) {
-	if value == nil {
-		return "", true
-	}
-	if data, ok := value.([]byte); ok {
-		return string(data), true
-	}
-	rv := reflect.ValueOf(value)
-	switch rv.Kind() {
-	case reflect.Slice, reflect.Array:
-		items := make([]string, 0, rv.Len())
-		for i := 0; i < rv.Len(); i++ {
-			item, ok := genRecScalarString(rv.Index(i).Interface())
-			if !ok {
-				return "", false
-			}
-			items = append(items, item)
-		}
-		return strings.Join(items, separator), true
-	case reflect.String:
-		return rv.String(), true
-	default:
-		return genRecScalarString(value)
-	}
-}
-
-func genRecScalarString(value interface{}) (string, bool) {
-	switch v := value.(type) {
-	case string:
-		return v, true
-	case json.Number:
-		return v.String(), true
-	case float32:
-		// utils.ToString formats float32 with bitSize 64, exposing the binary
-		// approximation; use 32-bit precision here.
-		return strconv.FormatFloat(float64(v), 'f', -1, 32), true
-	case int, int32, int64, uint32, float64:
-		return utils.ToString(v, ""), true
-	default:
-		return "", false
-	}
 }

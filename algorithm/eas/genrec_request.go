@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
-	"github.com/alibaba/pairec/v2/log"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -95,7 +94,7 @@ func (r *GenrecRequest) Invoke(requestData interface{}) (response interface{}, e
 
 	resp, err := easClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("genrec request failed, url:%s, err:%w", r.url, err)
 	}
 	defer resp.Body.Close()
 
@@ -111,6 +110,5 @@ func (r *GenrecRequest) Invoke(requestData interface{}) (response interface{}, e
 	if err := json.Unmarshal(respBody, genRecResponse); err != nil {
 		return nil, fmt.Errorf("error:%s, body:%s", err.Error(), genRecBodySnippet(respBody))
 	}
-	log.Info(fmt.Sprintf("module=GenrecRequest\turl=%s\trid=%s\tstatus=%d", r.url, data.Rid, resp.StatusCode))
 	return genRecResponse, nil
 }
