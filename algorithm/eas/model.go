@@ -160,11 +160,70 @@ func (m *EasModel) Init(conf *recconf.AlgoConfig) error {
 		req.SetUrl(conf.EasConf.Url)
 		req.SetAuth(conf.EasConf.Auth)
 		req.SetTimeout(conf.EasConf.Timeout)
-		m.request = &req
 
+		url := strings.TrimPrefix(conf.EasConf.Url, "http://")
+		index := strings.Index(url, "/api/predict/")
+		if !strings.HasPrefix(conf.EasConf.Url, "http://") || index < 0 {
+			return fmt.Errorf("GenRec SDK requires an HTTP EAS URL, got %q", conf.EasConf.Url)
+		}
+		endpoint := url[:index]
+		name := url[index+len("/api/predict/"):]
+		var requestPath string
+		if pathIndex := strings.Index(name, "/"); pathIndex >= 0 {
+			requestPath = name[pathIndex:]
+			name = name[:pathIndex]
+		}
+
+		var client *eas.PredictClient
+		if conf.EasConf.EndpointType == eas.EndpointTypeDirect {
+			strs := strings.Split(endpoint, ".")
+			region := strs[2]
+			for i := 0; i < len(strs); i++ {
+				if strs[i] == "pai-eas" {
+					region = strs[i-1]
+					break
+				}
+			}
+			var directEndpoint string
+			if os.Getenv("DISCOVERY_ENDPOINT") != "" {
+				directEndpoint = os.Getenv("DISCOVERY_ENDPOINT")
+			} else {
+				directEndpoint = fmt.Sprintf("pai-eas-vpc.%s.aliyuncs.com", region)
+			}
+			client = eas.NewPredictClient(directEndpoint, name)
+			client.SetEndpointType(eas.EndpointTypeDirect)
+		} else {
+			client = eas.NewPredictClient(endpoint, name)
+		}
+		client.SetToken(conf.EasConf.Auth)
+		client.SetRequestPath(requestPath)
+		client.AddHeader("Content-Type", "application/json")
+		client.SetTimeout(int(req.timeout / time.Millisecond))
+		dialTimeout := 100 * time.Millisecond
+		if conf.EasConf.EndpointType != eas.EndpointTypeDirect && req.timeout > dialTimeout {
+			dialTimeout = req.timeout
+		}
+		client.SetHttpTransport(&http.Transport{
+			MaxConnsPerHost:       2000,
+			MaxIdleConnsPerHost:   2000,
+			MaxIdleConns:          2000,
+			TLSHandshakeTimeout:   100 * time.Millisecond,
+			ExpectContinueTimeout: 200 * time.Millisecond,
+			DialContext: (&net.Dialer{
+				Timeout:   dialTimeout,
+				KeepAlive: 10 * time.Minute,
+			}).DialContext,
+		})
 		if conf.EasConf.RetryTimes > 0 {
 			m.retryTimes = conf.EasConf.RetryTimes
 		}
+		client.SetRetryCount(m.retryTimes - 1)
+		m.retryTimes = 1
+		if err := client.Init(); err != nil {
+			return err
+		}
+		req.EasClient = client
+		m.request = &req
 		return nil
 
 	} else if conf.EasConf.Processor == Eas_Processor_LINUCB {

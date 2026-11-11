@@ -1,16 +1,13 @@
 package eas
 
 import (
-	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/alibaba/pairec/v2/algorithm/eas/easyrec"
+	"github.com/alibaba/pairec/v2/pkg/eas"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -41,10 +38,11 @@ type genRecHttpRequest struct {
 
 // GenrecRequest invokes the EAS GenRec /generate API: the PBRequest is
 // serialized, base64 encoded into image_data and wrapped in a JSON body; the
-// response is plain JSON instead of PBResponse. The configured URL is used
-// as-is and must include the /generate path.
+// response is plain JSON instead of PBResponse. The configured URL must
+// include the /generate path, which is passed to the SDK without suffix completion.
 type GenrecRequest struct {
 	EasRequest
+	EasClient *eas.PredictClient
 }
 
 // genRecBodySnippet caps response bodies embedded in error messages.
@@ -82,28 +80,13 @@ func (r *GenrecRequest) Invoke(requestData interface{}) (response interface{}, e
 		return nil, err
 	}
 
-	// Per-request deadline; the shared easClient is left immutable.
-	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "POST", r.url, bytes.NewReader(body))
+	respBody, err := r.EasClient.BytesPredict(body)
 	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", r.auth)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := easClient.Do(req)
-	if err != nil {
+		var predictErr *eas.PredictError
+		if errors.As(err, &predictErr) {
+			err = eas.NewPredictError(predictErr.Code, predictErr.RequestURL, genRecBodySnippet([]byte(predictErr.Message)))
+		}
 		return nil, fmt.Errorf("genrec request failed, url:%s, err:%w", r.url, err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("genrec request failed, url:%s, status:%d, body:%s", r.url, resp.StatusCode, genRecBodySnippet(respBody))
 	}
 
 	genRecResponse := &GenRecResponse{}
