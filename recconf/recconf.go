@@ -1242,6 +1242,8 @@ type SSDSortConfig struct {
 	EmbeddingPrecision string
 	Gamma              float64
 	UseSSDStar         bool
+	// RemainItem 为 true 时，重排头部后按分数降序保留其余 item，供后续重排使用。
+	RemainItem         bool
 	CacheTimeInMinutes int
 	CacheSize          int
 	NormalizeEmb       string
