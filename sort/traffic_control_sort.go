@@ -386,27 +386,42 @@ func upliftItemLimit(experimentParams *ExperimentParams) int {
 	return 5
 }
 
-// selectMacroQuantityUpliftItems 按原始排名为所有按量全局目标选择共享的上提物品名额。
-// 同一物品命中多个正向按量目标时只占一个名额。
-func selectMacroQuantityUpliftItems(matchedTargets [][]string, activeControllers map[string]*PIDController, targetAlphaMap map[string]float64, limit int) []bool {
+// selectMacroQuantityUpliftItems allocates the shared per-request uplift quota for all
+// quantity-based macro targets. Candidates are scanned in original rank order, but items
+// still outside the exposure window are served first: uplifting an already-exposed item
+// cannot add any new exposure for the target, so spending the quota on it starves the
+// targets that still have to grow. The second pass spends any leftover quota inside the
+// window, so no budget is wasted and no uplift that used to happen is dropped. An item
+// matching several positive quantity targets still consumes a single slot.
+//
+// exposureBoundary reuses the convention of the micro control path (an item is outside the
+// exposure window when its position is greater than ctx.Size); a non-positive value disables
+// the preference and keeps the legacy rank-only order.
+func selectMacroQuantityUpliftItems(matchedTargets [][]string, activeControllers map[string]*PIDController, targetAlphaMap map[string]float64, limit, exposureBoundary int) []bool {
 	selected := make([]bool, len(matchedTargets))
 	if limit <= 0 {
 		return selected
 	}
 
 	selectedCount := 0
-	for itemIndex, targetIds := range matchedTargets {
-		for _, targetId := range targetIds {
-			controller, ok := activeControllers[targetId]
-			if !ok || controller.task.ControlType != constants.TrafficControlTaskControlTypeQuantity || targetAlphaMap[targetId] <= 0 {
+	for pass := 0; pass < 2 && selectedCount < limit; pass++ {
+		for itemIndex, targetIds := range matchedTargets {
+			outside := exposureBoundary <= 0 || itemIndex >= exposureBoundary
+			if (pass == 0) != outside {
 				continue
 			}
-			selected[itemIndex] = true
-			selectedCount++
-			break
-		}
-		if selectedCount >= limit {
-			break
+			for _, targetId := range targetIds {
+				controller, ok := activeControllers[targetId]
+				if !ok || controller.task.ControlType != constants.TrafficControlTaskControlTypeQuantity || targetAlphaMap[targetId] <= 0 {
+					continue
+				}
+				selected[itemIndex] = true
+				selectedCount++
+				break
+			}
+			if selectedCount >= limit {
+				break
+			}
 		}
 	}
 	return selected
@@ -506,7 +521,7 @@ func macroControl(ctx *context.RecommendContext, controllerMap map[string]*PIDCo
 		d, _ := json.Marshal(targetAlphaMap)
 		ctx.LogDebug(fmt.Sprintf("module=TrafficControlSort\tmacro control\tthe relationship between target and alpha after increase weight: %s", string(d)))
 	}
-	quantityUpliftSelected := selectMacroQuantityUpliftItems(matchedTargets, activeControllers, targetAlphaMap, upliftItemLimit(experimentParams))
+	quantityUpliftSelected := selectMacroQuantityUpliftItems(matchedTargets, activeControllers, targetAlphaMap, upliftItemLimit(experimentParams), ctx.Size)
 	// compute delta rank
 	pageNo := utils.ToInt(ctx.GetParameter("page_number"), 1)
 	if pageNo < 1 {
@@ -645,7 +660,7 @@ func computeMacroControlAlpha(ctx *context.RecommendContext, controllerMap map[s
 					if !ok {
 						return
 					}
-					result, ok := computeMacroTargetAlpha(ctx, expId, allTrafficMap, expTrafficMap, job)
+					result, ok := computeMacroTargetAlphaFunc(ctx, expId, allTrafficMap, expTrafficMap, job)
 					if !ok {
 						continue
 					}
@@ -680,8 +695,21 @@ Collect:
 			collectResult(result)
 		case <-gCtx.Done():
 			timedOut = errors.Is(gCtx.Err(), gocontext.DeadlineExceeded)
-			for result := range results {
-				collectResult(result)
+			// Drain only what is already buffered and return immediately so the 12ms budget
+			// holds under load. The background goroutine still owns closing results after
+			// wg.Wait(), so there is no send-on-closed-channel risk and in-flight workers are
+			// never waited on here (they exit on their own gCtx.Done() checks).
+		Drain:
+			for {
+				select {
+				case result, ok := <-results:
+					if !ok {
+						break Drain
+					}
+					collectResult(result)
+				default:
+					break Drain
+				}
 			}
 			break Collect
 		}
@@ -695,6 +723,11 @@ Collect:
 	}
 	return targetAlphaMap
 }
+
+// computeMacroTargetAlphaFunc is an indirection seam that lets a test inject a slow worker to
+// exercise the 12ms timeout path deterministically; production always calls computeMacroTargetAlpha.
+// The indirection costs one indirect call per target job (a handful per request), which is negligible.
+var computeMacroTargetAlphaFunc = computeMacroTargetAlpha
 
 func computeMacroTargetAlpha(ctx *context.RecommendContext, expId string, allTrafficMap, expTrafficMap map[string]*experiments.TrafficControlTargetTraffic, job macroAlphaJob) (result targetAlpha, ok bool) {
 	controller := job.Controller
@@ -739,6 +772,10 @@ func computeMacroTargetAlpha(ctx *context.RecommendContext, expId string, allTra
 				taskTraffic = 1
 				measureTime = time.Now().Truncate(time.Second)
 			}
+		}
+		if taskTraffic <= 0 {
+			// guard against a zero task-level aggregate to avoid Inf/NaN in the percentage
+			taskTraffic = 1
 		}
 		trafficPercentage := targetTraffic / taskTraffic
 		controller.setMeasurement(experimentId, "", trafficPercentage, measureTime, job.Params)
@@ -1093,6 +1130,10 @@ func selectTrafficControlTraffic(tasks []*model.TrafficControlTask, env, expId s
 				if !ok {
 					return nil
 				}
+				// TaskTraffic is only consumed by the percent-macro path, which already guards a zero
+				// aggregate (taskTraffic<=0 -> 1) against Inf/NaN. Quantity-macro and single-item paths
+				// never read it, so a missing task-level aggregate must NOT drop the record: keep the
+				// SDK behaviour of a zero TaskTraffic when the key is absent.
 				return &experiments.TrafficControlTargetTraffic{
 					ItemOrExpId: key, TrafficControlTaskId: task.TrafficControlTaskId,
 					TrafficControlTargetId: id, TargetTraffic: detail.Traffic,
@@ -1233,7 +1274,15 @@ func isControlledByUser(user *module.User, controllerMap map[string]*PIDControll
 
 	for targetId, controller := range controllerMap {
 		if controller.userExprProg == nil {
-			controllerNewMap[targetId] = controller
+			// unconfigured user condition matches every user; a genuine parse/compile
+			// failure excludes the target for this user (fail-closed), mirroring the item side.
+			if controller.userExprUnconfigured {
+				controllerNewMap[targetId] = controller
+			} else {
+				controller.userExprNilWarnOnce.Do(func() {
+					log.Warning(fmt.Sprintf("module=TrafficControlSort\tuser expression failed to compile, all users are excluded\t%s", trafficIdentity(controller.task.TrafficControlTaskId, controller.target.TrafficControlTargetId, controller.target.Name)))
+				})
+			}
 			continue
 		}
 
@@ -1242,8 +1291,12 @@ func isControlledByUser(user *module.User, controllerMap map[string]*PIDControll
 		}
 		result, err := machine.Run(controller.userExprProg, properties)
 		if err != nil {
-			log.Warning(fmt.Sprintf("module=PIDController\tcompute user expression field, err:%v", err))
-			return controllerNewMap
+			log.Warning(fmt.Sprintf("module=TrafficControlSort\tcompute user expression field, err:%v\t%s", err, trafficIdentity(controller.task.TrafficControlTaskId, controller.target.TrafficControlTargetId, controller.target.Name)))
+			// fail-closed for this target only and keep evaluating the rest, mirroring the item
+			// side (isControlledItemFeaturesWithVM returns false on a run error). Returning the
+			// partial map here would silently drop every not-yet-visited target, and since Go map
+			// iteration order is random the dropped set would differ from request to request.
+			continue
 		}
 		if result.(bool) { // 这里一定是 bool
 			controllerNewMap[targetId] = controller
@@ -1319,10 +1372,14 @@ func isControlledItemFeatures(controller *PIDController, itemId module.ItemId, p
 
 func isControlledItemFeaturesWithVM(controller *PIDController, itemId module.ItemId, properties map[string]interface{}, machine *vm.VM) bool {
 	if controller.itemExprProg == nil {
-		// 物品表达式未编译成功（未配置条件或解析/编译失败）时拦截所有物品，
-		// 避免错误配置把全量物品当成调控目标；警告日志每个控制器只打一次。
+		// "no item condition configured" is a legitimate config that matches every item
+		// (same convention as isControlledByUser); only a genuine parse/compile failure
+		// excludes all items, so a bad config can never be amplified into full coverage.
+		if controller.itemExprUnconfigured {
+			return true
+		}
 		controller.itemExprNilWarnOnce.Do(func() {
-			log.Warning(fmt.Sprintf("module=TrafficControlSort\titem expression is not compiled, all items are excluded\t%s", trafficIdentity(controller.task.TrafficControlTaskId, controller.target.TrafficControlTargetId, controller.target.Name)))
+			log.Warning(fmt.Sprintf("module=TrafficControlSort\titem expression failed to compile, all items are excluded\t%s", trafficIdentity(controller.task.TrafficControlTaskId, controller.target.TrafficControlTargetId, controller.target.Name)))
 		})
 		return false
 	}

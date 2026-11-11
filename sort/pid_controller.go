@@ -39,7 +39,13 @@ type PIDController struct {
 	errDiscount       float64                     // err discount
 	errThreshold      float64                     // 变速积分阈值, 初始值设为目标值的20%-30%; 快速响应系统：较大阈值; 慢速系统：较小阈值
 
-	itemExprNilWarnOnce sync.Once // warn only once when the item expression is missing
+	itemExprNilWarnOnce sync.Once // warn only once when the item expression failed to compile
+	userExprNilWarnOnce sync.Once // warn only once when the user expression failed to compile
+
+	// itemExprUnconfigured / userExprUnconfigured distinguish "no condition configured"
+	// (a legitimate match-all config) from a genuine parse/compile failure (exclude-all).
+	itemExprUnconfigured bool
+	userExprUnconfigured bool
 
 	userExprProg *vm.Program // the compiled expression of valid user
 	itemExprProg *vm.Program // the compiled expression of candidate items
@@ -463,6 +469,10 @@ func (p *PIDController) GenerateItemExpress() {
 			}
 			log.Info(fmt.Sprintf("module=PIDController\t%s\tcompile item expression success, expression:%s", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name), itemExpression))
 		}
+	} else {
+		// no item condition configured at all: the target intentionally matches every item,
+		// which must stay distinguishable from a parse/compile failure (see isControlledItemFeaturesWithVM)
+		p.itemExprUnconfigured = true
 	}
 }
 
@@ -471,8 +481,13 @@ func (p *PIDController) GenerateUserExpress() {
 	if err != nil {
 		log.Error(fmt.Sprintf("module=PIDControl\t%s\tparse user condition field, please check %s or %s", trafficIdentity(p.task.TrafficControlTaskId, p.target.TrafficControlTargetId, p.target.Name),
 			p.task.UserConditionArray, p.task.UserConditionExpress))
+		// parse failure is a genuine error, not "unconfigured": keep userExprUnconfigured
+		// false so isControlledByUser excludes every user (fail-closed) instead of matching all
+		return
 	}
 	if taskUserExpression == "" {
+		// no user condition configured at all: the target intentionally matches every user
+		p.userExprUnconfigured = true
 		return
 	}
 	p.userExprProg, err = expr.Compile(taskUserExpression, expr.AsBool())
@@ -624,7 +639,15 @@ func ParseExpression(conditionArray, conditionExpress string) (string, error) {
 				}
 			} else if condition.Option == "in" {
 				if condition.Type == "STRING" {
-					valueArr := strings.Split(condition.Value.(string), ",")
+					// a STRING/in value is normally a comma-separated string, but the config JSON may
+					// legitimately carry an array or a number here; assert instead of panicking so the
+					// error flows into GenerateItemExpress/GenerateUserExpress and fail-closes the target
+					// rather than crashing the background loader goroutine (which has no recover).
+					raw, ok := condition.Value.(string)
+					if !ok {
+						return "", fmt.Errorf("condition field %s: expect a comma-separated string value for STRING/in, got %T", condition.Field, condition.Value)
+					}
+					valueArr := strings.Split(raw, ",")
 					for i, value := range valueArr {
 						valueArr[i] = fmt.Sprintf("'%s'", value)
 					}
