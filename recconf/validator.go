@@ -39,5 +39,8 @@ func (conf FeatureCacheConfig) Validate() error {
 	if conf.FeatureStore == "item" && conf.FeatureStoreOptions.DlrmHSTU {
 		return fmt.Errorf("FeatureCache DlrmHSTU is only supported for user features")
 	}
+	if conf.FeatureStore == "item" && conf.FeatureStoreOptions.HardSearch {
+		return fmt.Errorf("FeatureCache HardSearch is only supported for user features")
+	}
 	return nil
 }

@@ -137,7 +137,7 @@ func (d *SharedFeatureFeatureStoreDao) userFeatureFetch(user *User, ctx *reccont
 				return nil, fmt.Errorf("feature view not found(%s)", conf.FeatureStoreViewName)
 			}
 			features, err := view.GetOnlineFeaturesWithOptions([]any{key}, sharedFeatureFields(conf.SelectFields), nil,
-				domain.FeatureViewOptions{DlrmHSTU: conf.FeatureStoreOptions.DlrmHSTU})
+				domain.FeatureViewOptions{DlrmHSTU: conf.FeatureStoreOptions.DlrmHSTU, HardSearch: conf.FeatureStoreOptions.HardSearch})
 			if err != nil {
 				return nil, err
 			}
@@ -175,7 +175,7 @@ func (d *SharedFeatureFeatureStoreDao) userFeatureFetch(user *User, ctx *reccont
 	}
 	return d.loadSharedUser(user, ctx, c, key, policy, func() (map[string]any, error) {
 		features, err := model.GetOnlineFeaturesWithEntityWithOptions(map[string][]any{entity.FeatureEntityJoinid: {key}},
-			conf.FeatureStoreEntityName, domain.ModelOptions{DlrmHSTU: conf.FeatureStoreOptions.DlrmHSTU})
+			conf.FeatureStoreEntityName, domain.ModelOptions{DlrmHSTU: conf.FeatureStoreOptions.DlrmHSTU, HardSearch: conf.FeatureStoreOptions.HardSearch})
 		if err != nil {
 			return nil, err
 		}

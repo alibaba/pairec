@@ -89,10 +89,8 @@ github.com/aliyun/aliyun-log-go-sdk v0.1.27 h1:fXtaOAcdR3DsqN9GZkfJue8B2Dba0TV+8
 github.com/aliyun/aliyun-log-go-sdk v0.1.27/go.mod h1:aBG0R+MWRTgvlIODQkz+a3/RM9bQYKsmSbKdbIx4vpc=
 github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1 h1:jSMfOm0fpc83+YersEbXhYG7/4o1z0u698FiacPD77o=
 github.com/aliyun/aliyun-odps-go-sdk/arrow v0.0.1/go.mod h1:ki4zr1YK8ehW1rQxMFoAVTnjZeRNcSbVNyJxJZqR9i4=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.4.1-0.20261026060921-146b7f341c29 h1:wMOqTc0CPeqlE9/0OiDz2FetTshIykX+OJqTz4G0wDU=
-github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.4.1-0.20261026060921-146b7f341c29/go.mod h1:Fk/aeR8Le+tyDMWLevf+jEg0tkcvMmCJiN65yIdg0J0=
-github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260920031109-2a051209f8e3 h1:6OoIG+NDLkPr0qXSRtKw2ud9rk6kAdx3y3dnur5nfPM=
-github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20260920031109-2a051209f8e3/go.mod h1:TjHkSEFlBAPhzp5sT5rheXSorgIdKxVh/2MVG2qHXmA=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.4.1-0.20261111061421-fe1d56d38b64 h1:W1Rroc177zI9+XTN9lTjVyT4fi4okXmRv44pfbVdBJo=
+github.com/aliyun/aliyun-pai-featurestore-go-sdk/v2 v2.4.1-0.20261111061421-fe1d56d38b64/go.mod h1:Fk/aeR8Le+tyDMWLevf+jEg0tkcvMmCJiN65yIdg0J0=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20261022050109-62befb639226 h1:MncW5cL5UioeWcQEh6lKxEZoQB9L6JyPfxwc7S6qp5M=
 github.com/aliyun/aliyun-pairec-config-go-sdk/v2 v2.1.3-0.20261022050109-62befb639226/go.mod h1:TjHkSEFlBAPhzp5sT5rheXSorgIdKxVh/2MVG2qHXmA=
 github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7 h1:+d/mcgaxx1jaWtFN2WrBHy4XeM9IK5gmZvbbpVkhqHE=
