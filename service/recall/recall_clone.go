@@ -62,6 +62,17 @@ func (r *OnlineVectorRecall) CloneWithConfig(params map[string]interface{}) Reca
 	return r
 }
 
+// GenRecRecall
+
+func (r *GenRecRecall) CloneWithConfig(params map[string]interface{}) Recall {
+	if newR := r.cloneWithBuilder(params, func(cfg recconf.RecallConfig) Recall {
+		return NewGenRecRecall(cfg)
+	}); newR != nil {
+		return newR
+	}
+	return r
+}
+
 // UserCustomRecall
 
 func (r *UserCustomRecall) CloneWithConfig(params map[string]interface{}) Recall {
