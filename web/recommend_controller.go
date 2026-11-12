@@ -28,6 +28,9 @@ type RecommendParam struct {
 	Size     int                    `json:"size"` // get recommend items size
 	Debug    bool                   `json:"debug"`
 	Features map[string]interface{} `json:"features"`
+	// DebugLevel overrides the debug_level sent to the easyrec processor on
+	// the rank paths, it is only used when Debug is true.
+	DebugLevel int `json:"debug_level"`
 }
 
 func (r *RecommendParam) GetParameter(name string) interface{} {
@@ -159,6 +162,7 @@ func (c *RecommendController) makeRecommendContext() {
 	c.context = context.NewRecommendContext()
 	c.context.Size = c.param.Size
 	c.context.Debug = c.param.Debug
+	c.context.DebugLevel = c.param.DebugLevel
 	c.context.Param = &c.param
 	c.context.RecommendId = c.RequestId
 	c.context.Config = recconf.Config
