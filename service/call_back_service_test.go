@@ -68,3 +68,37 @@ func TestCallBackService_Rank_EmptyItems(t *testing.T) {
 
 	svc.Rank(ctx)
 }
+
+// TestCallBackService_Rank_EasyRecSetsUserId exercises the EasyRec branch that
+// injects meta_data["user_id"] (hard search needs it). With zero items the
+// generator reports HasFeatures()==false and Rank returns before any network
+// call, so the SetUserId type-assertion line runs offline without panicking.
+func TestCallBackService_Rank_EasyRecSetsUserId(t *testing.T) {
+	const scene = "test_scene"
+
+	ctx := context.NewRecommendContext()
+	ctx.Param = &stubParam{scene: scene}
+	ctx.RecommendId = "test-req-id"
+	ctx.Config = &recconf.RecommendConfig{
+		CallBackConfs: map[string]recconf.CallBackConfig{
+			scene: {
+				RankConf: recconf.RankConfig{
+					Processor:    "EasyRec",
+					RankAlgoList: []string{"dummy_algo"},
+				},
+			},
+		},
+	}
+
+	svc := NewCallBackService()
+	svc.User = module.NewUser("188569")
+	svc.Items = nil
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Rank() panicked in EasyRec branch: %v", r)
+		}
+	}()
+
+	svc.Rank(ctx)
+}

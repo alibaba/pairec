@@ -169,6 +169,7 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 	if rankConfig.Processor == eas.Eas_Processor_EASYREC {
 		userFeatures = r.User.MakeUserFeatures2()
 		algoGenerator.SetItemFeatures(rankConfig.ItemFeatures)
+		algoGenerator.(*rank.EasyrecAlgoDataGenerator).SetUserId(string(r.User.Id))
 	} else {
 		userFeatures = r.User.MakeUserFeatures()
 	}
