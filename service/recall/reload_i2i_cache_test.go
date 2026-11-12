@@ -43,6 +43,92 @@ func i2iReloadConf() recconf.RecallConfig {
 	return conf
 }
 
+type behaviorShareConstructionView struct {
+	domain.FeatureView
+	calls atomic.Int32
+}
+
+func (v *behaviorShareConstructionView) GetName() string { return "trigger" }
+
+func (v *behaviorShareConstructionView) GetBehaviorFeatures([]any, []any, []string) ([]map[string]any, error) {
+	v.calls.Add(1)
+	return []map[string]any{
+		{"item_id": "seed", "event": "click", "timestamp": int64(100)},
+		{"item_id": "other", "event": "click", "timestamp": int64(50)},
+	}, nil
+}
+
+func TestRealtimeU2IBehaviorShareConstruction(t *testing.T) {
+	if runI2IReloadSubprocess(t) {
+		return
+	}
+	prepareI2IReloadSource(t)
+	client, err := fs.GetFeatureStoreClient("i2i_reload_fs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := &behaviorShareConstructionView{}
+	client.GetProject().FeatureViewMap.Store("trigger", view)
+	conf := i2iReloadConf()
+	conf.RealTimeUser2ItemDaoConf.I2ICacheSize = 0
+	conf.RealTimeUser2ItemDaoConf.Item2ItemFeatureViewName = ""
+	conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.NoUsePlayTimeField = true
+	conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.WeightExpression = "eventTime"
+	conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.TriggerCount = 1
+	user := module.NewUser("u")
+	ctx := reccontext.NewRecommendContext()
+	check := func(r *RealTimeU2IRecall, ctx *reccontext.RecommendContext, count int, score float64) {
+		t.Helper()
+		items := r.GetCandidateItems(user, ctx)
+		if len(items) != count {
+			t.Fatalf("召回数量=%d，期望%d", len(items), count)
+		}
+		for _, item := range items {
+			if item.Id == "seed" && item.Score == score {
+				return
+			}
+		}
+		t.Fatalf("seed 分数错误，期望%v", score)
+	}
+	// 缺省开关保持原构造与直读路径。
+	check(NewRealTimeU2IRecall(conf), ctx, 1, 300)
+	conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.ShareBehaviorInRequest = true
+	first := NewRealTimeU2IRecall(conf)
+	check(first, ctx, 1, 300)
+	conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.EventWeight = "click:2"
+	conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.TriggerCount = 2
+	encoded, err := json.Marshal(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var params map[string]interface{}
+	if err := json.Unmarshal(encoded, &params); err != nil {
+		t.Fatal(err)
+	}
+	cloned := first.CloneWithConfig(params).(*RealTimeU2IRecall)
+	check(cloned, ctx, 2, 200)
+	// 缓存继承专用构造也必须传入开关，但不共享加权后的 Item。
+	check(newRealTimeU2IRecallWithCache(conf, nil, "share-test"), ctx, 2, 200)
+	if view.calls.Load() != 2 {
+		t.Fatalf("同参数构造/AB 路未共享：calls=%d", view.calls.Load())
+	}
+	conf.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.ShareBehaviorInRequest = false
+	encoded, _ = json.Marshal(conf)
+	if err := json.Unmarshal(encoded, &params); err != nil {
+		t.Fatal(err)
+	}
+	disabled := first.CloneWithConfig(params).(*RealTimeU2IRecall)
+	check(disabled, ctx, 2, 200)
+	check(disabled, ctx, 2, 200)
+	if view.calls.Load() != 4 {
+		t.Fatal("关闭开关的 AB 路未独立读取")
+	}
+	check(first, reccontext.NewRecommendContext(), 1, 300)
+	if view.calls.Load() != 5 {
+		t.Fatal("不同请求复用了原始行为数据")
+	}
+}
+
 func TestRealtimeU2ICacheReloadSignature(t *testing.T) {
 	conf := i2iReloadConf()
 	_, sign := i2iCacheConfig(conf, nil)

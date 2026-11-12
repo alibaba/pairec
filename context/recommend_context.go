@@ -96,6 +96,21 @@ func (r *RecommendContext) GetContextParam(name string) interface{} {
 	defer r.mu.RUnlock()
 	return r.contexParams[name]
 }
+
+// LoadOrStoreContextParam 原子读取已有值，不存在时保存新值；loaded 表示是否已存在。
+func (r *RecommendContext) LoadOrStoreContextParam(name string, value interface{}) (actual interface{}, loaded bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if actual, ok := r.contexParams[name]; ok {
+		return actual, true
+	}
+	if r.contexParams == nil {
+		r.contexParams = make(map[string]interface{})
+	}
+	r.contexParams[name] = value
+	return value, false
+}
+
 func (r *RecommendContext) DeleteContextParam(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -689,6 +689,9 @@ type UserTriggerDaoConfig struct {
 	AdditionUid string
 
 	TriggerTimeWindow int64 // only use behaviors within recent N seconds, 0 means no time window filter
+
+	// 仅 featurestore 适配器生效，同一请求内共享取数参数相同的原始行为明细。
+	ShareBehaviorInRequest bool
 }
 type TriggerDiversityRuleConfig struct {
 	Dimensions []string

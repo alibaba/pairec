@@ -19,7 +19,6 @@ import (
 
 type RealtimeUser2ItemFeatureStoreDao struct {
 	*RealtimeUser2ItemBaseDao
-	hasPlayTimeField          bool
 	itemCount                 int
 	fsClient                  *fs.FSClient
 	userTriggerTable          string
@@ -33,6 +32,10 @@ type RealtimeUser2ItemFeatureStoreDao struct {
 	events                    []any
 	similarItemIdField        string
 	additionUid               string
+	featureStoreName          string
+	behaviorShareKeyPrefix    string
+	shareBehaviorInRequest    bool
+	hasPlayTimeField          bool
 }
 
 func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeUser2ItemFeatureStoreDao {
@@ -49,6 +52,8 @@ func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeU
 		timestampFieldName:       "timestamp",
 		similarItemIdField:       "similar_item_ids",
 		additionUid:              config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.AdditionUid,
+		featureStoreName:         config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.FeatureStoreName,
+		shareBehaviorInRequest:   config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.ShareBehaviorInRequest,
 	}
 	if config.RealTimeUser2ItemDaoConf.UserTriggerDaoConf.NoUsePlayTimeField {
 		dao.hasPlayTimeField = false
@@ -91,6 +96,9 @@ func NewRealtimeUser2ItemFeatureStoreDao(config recconf.RecallConfig) *RealtimeU
 
 	for k := range dao.eventWeightMap {
 		dao.events = append(dao.events, k)
+	}
+	if dao.shareBehaviorInRequest {
+		dao.initBehaviorShareKeyPrefix()
 	}
 	return dao
 }
@@ -343,7 +351,13 @@ func (d *RealtimeUser2ItemFeatureStoreDao) GetTriggerInfos(user *User, context *
 		}
 	}
 
-	features, err := featureView.GetBehaviorFeatures(ids, d.events, selectFields)
+	var features []map[string]any
+	var err error
+	if d.shareBehaviorInRequest {
+		features, err = d.getSharedBehaviorFeatures(featureView, ids, selectFields, context)
+	} else {
+		features, err = featureView.GetBehaviorFeatures(ids, d.events, selectFields)
+	}
 	if err != nil {
 		log.Error(fmt.Sprintf("requestId=%s\tmodule=RealtimeUser2ItemFeatureStoreDao\terror=featurestore error(%v)", context.RecommendId, err))
 		return
