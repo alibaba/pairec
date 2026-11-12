@@ -84,13 +84,23 @@ func (r *RankService) Rank(user *module.User, items []*module.Item, context *con
 		algoGenerator.AddFeatures(item, features, userFeatures)
 		i++
 		if i%batchCount == 0 {
-			algoData := algoGenerator.GeneratorAlgoData()
+			var algoData rank.IAlgoData
+			if context.Debug {
+				algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(rank.ResolveDebugLevel(context.DebugLevel), map[string]string{"request_id": context.RecommendId})
+			} else {
+				algoData = algoGenerator.GeneratorAlgoData()
+			}
 			algoDataList = append(algoDataList, algoData)
 		}
 	}
 
 	if algoGenerator.HasFeatures() {
-		algoData := algoGenerator.GeneratorAlgoData()
+		var algoData rank.IAlgoData
+		if context.Debug {
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(rank.ResolveDebugLevel(context.DebugLevel), map[string]string{"request_id": context.RecommendId})
+		} else {
+			algoData = algoGenerator.GeneratorAlgoData()
+		}
 		algoDataList = append(algoDataList, algoData)
 	}
 

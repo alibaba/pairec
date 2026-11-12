@@ -16,7 +16,10 @@ type IParam interface {
 	GetParameter(name string) interface{}
 }
 type RecommendContext struct {
-	Debug            bool
+	Debug bool
+	// DebugLevel carries the request level debug_level, it only takes effect
+	// when Debug is true and the rank paths build the easyrec request.
+	DebugLevel       int
 	Size             int
 	Param            IParam
 	Config           *recconf.RecommendConfig

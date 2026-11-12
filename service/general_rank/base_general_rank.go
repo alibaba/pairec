@@ -136,7 +136,7 @@ func (r *BaseGeneralRank) doRankWithAlgo(user *module.User, items []*module.Item
 		if i%r.rankConfig.BatchCount == 0 {
 			var algoData rank.IAlgoData
 			if context.Debug {
-				algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100, map[string]string{"request_id": context.RecommendId})
+				algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(rank.ResolveDebugLevel(context.DebugLevel), map[string]string{"request_id": context.RecommendId})
 			} else {
 				algoData = algoGenerator.GeneratorAlgoData()
 			}
@@ -147,7 +147,7 @@ func (r *BaseGeneralRank) doRankWithAlgo(user *module.User, items []*module.Item
 	if algoGenerator.HasFeatures() {
 		var algoData rank.IAlgoData
 		if context.Debug {
-			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(100, map[string]string{"request_id": context.RecommendId})
+			algoData = algoGenerator.GeneratorAlgoDataDebugWithLevel(rank.ResolveDebugLevel(context.DebugLevel), map[string]string{"request_id": context.RecommendId})
 		} else {
 			algoData = algoGenerator.GeneratorAlgoData()
 		}
