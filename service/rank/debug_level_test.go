@@ -16,13 +16,16 @@ func TestResolveDebugLevel(t *testing.T) {
 	}{
 		{"unset keeps default", 0, DefaultDebugLevel},
 		{"negative keeps default", -1, DefaultDebugLevel},
-		{"feature detail level", 1, 1},
-		{"callback debug level", 2, 2},
-		{"processor write log level", 6, 6},
-		{"default level explicit", DefaultDebugLevel, DefaultDebugLevel},
-		{"recall debug level", 102, 102},
-		{"max int32", math.MaxInt32, math.MaxInt32},
-		{"out of int32 range keeps default", math.MaxInt32 + 1, DefaultDebugLevel},
+		{"features without prediction", 1, 1},
+		{"features and tensors with prediction", 2, 2},
+		{"output features without prediction", 3, 3},
+		{"save prediction request", DefaultDebugLevel, DefaultDebugLevel},
+		{"vector recall debug", 102, 102},
+		{"per stage prediction time", 903, 903},
+		{"missing feature fields log", 904, 904},
+		{"undocumented level keeps default", 6, DefaultDebugLevel},
+		{"unknown level keeps default", 4, DefaultDebugLevel},
+		{"max int32 keeps default", math.MaxInt32, DefaultDebugLevel},
 	}
 
 	for _, c := range cases {
@@ -55,13 +58,21 @@ func TestEasyrecAlgoDataGeneratorDebugLevel(t *testing.T) {
 	})
 
 	t.Run("debug request carries request level and request id", func(t *testing.T) {
-		level := ResolveDebugLevel(6)
+		level := ResolveDebugLevel(2)
 		request := newGenerator().GeneratorAlgoDataDebugWithLevel(level, meta).GetFeatures().(*easyrec.PBRequest)
-		if request.DebugLevel != int32(6) {
-			t.Fatalf("debug_level = %d, want 6", request.DebugLevel)
+		if request.DebugLevel != int32(2) {
+			t.Fatalf("debug_level = %d, want 2", request.DebugLevel)
 		}
 		if request.MetaData["request_id"] != "request_1" {
 			t.Fatalf("meta_data = %v, want request_id=request_1", request.MetaData)
+		}
+	})
+
+	t.Run("debug request with undocumented level keeps default", func(t *testing.T) {
+		level := ResolveDebugLevel(6)
+		request := newGenerator().GeneratorAlgoDataDebugWithLevel(level, meta).GetFeatures().(*easyrec.PBRequest)
+		if request.DebugLevel != int32(DefaultDebugLevel) {
+			t.Fatalf("debug_level = %d, want %d", request.DebugLevel, DefaultDebugLevel)
 		}
 	})
 
