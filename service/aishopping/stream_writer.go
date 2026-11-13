@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 type StreamWriter struct {
@@ -11,6 +12,7 @@ type StreamWriter struct {
 	sessionId string
 	writer    http.ResponseWriter
 	flusher   http.Flusher
+	content   strings.Builder
 }
 
 type StreamEvent struct {
@@ -31,7 +33,16 @@ func (w *StreamWriter) EmitContent(content string) error {
 	if content == "" {
 		return nil
 	}
-	return w.emit(map[string]interface{}{"content": content})
+	if err := w.emit(map[string]interface{}{"content": content}); err != nil {
+		return err
+	}
+	w.content.WriteString(content)
+	return nil
+}
+
+// Content returns the reply text successfully emitted to the client.
+func (w *StreamWriter) Content() string {
+	return w.content.String()
 }
 
 func (w *StreamWriter) EmitCitation(itemId string) error {
