@@ -29,6 +29,7 @@ type SSDSort struct {
 	suffixParam          string
 	gamma                float64
 	useSSDStar           bool
+	remainItem           bool
 	mu                   sync.RWMutex
 	embCache             cache.Cache
 	lastTableSuffixParam string
@@ -67,6 +68,7 @@ func NewSSDSort(config recconf.SSDSortConfig) *SSDSort {
 		suffixParam:          config.TableSuffixParam,
 		gamma:                0.25,
 		useSSDStar:           config.UseSSDStar,
+		remainItem:           config.RemainItem,
 		embCache:             cache.New(cache.WithMaximumSize(cacheSize), cache.WithExpireAfterAccess(cacheTime*time.Minute)),
 		lastTableSuffixParam: "",
 		normalizeEmb:         true,
@@ -302,6 +304,7 @@ func (s *SSDSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 	candidateCnt := params.GetInt("ssd_candidate_count", s.candidateCnt)
 	minScorePercent := params.GetFloat("ssd_min_score_percent", s.minScorePercent)
 
+	allItems := items
 	if (candidateCnt > 0 || minScorePercent > 0) && len(items) > ctx.Size {
 		if candidateCnt > 0 {
 			cnt := utils.MaxInt(ctx.Size, candidateCnt)
@@ -323,16 +326,41 @@ func (s *SSDSort) doSort(items []*module.Item, ctx *context.RecommendContext) []
 		ctx.LogInfo(fmt.Sprintf("module=SSDSort\tcandidate count=%d", len(items)))
 	}
 
+	result := items
 	if s.hasEmbeddingTable() {
 		if err := s.loadEmbeddingCache(ctx, items); err != nil {
 			ctx.LogError(fmt.Sprintf("load embedding table cache failed %v", err))
-			return items
+		} else {
+			result = s.SSDWithSlidingWindow(items, ctx)
 		}
-		return s.SSDWithSlidingWindow(items, ctx)
 	} else {
 		ctx.LogWarning("no embedding table and hooks")
 	}
-	return items
+	if s.remainItem {
+		result = appendRemainingItems(result, allItems)
+	}
+	return result
+}
+
+// appendRemainingItems 将未选中的 item 按 all 中的顺序追加到重排结果后。
+func appendRemainingItems(selected, all []*module.Item) []*module.Item {
+	if len(selected) >= len(all) {
+		return selected
+	}
+	selectedCount := make(map[*module.Item]int, len(selected))
+	for _, item := range selected {
+		selectedCount[item]++
+	}
+	result := make([]*module.Item, 0, len(all))
+	result = append(result, selected...)
+	for _, item := range all {
+		if selectedCount[item] > 0 {
+			selectedCount[item]--
+		} else {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 // SSDWithSlidingWindow paper: https://arxiv.org/pdf/2107.05204
