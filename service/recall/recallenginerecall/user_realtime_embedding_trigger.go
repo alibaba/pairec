@@ -19,6 +19,9 @@ import (
 	"github.com/alibaba/pairec/v2/service/rank"
 )
 
+// realtimeEmbeddingDebugLevel is the debug_level sent to the recall algo when the request is in debug mode
+const realtimeEmbeddingDebugLevel = 100
+
 type UserRealtimeEmbeddingTrigger struct {
 	features       []*feature.Feature
 	recallAlgo     string
@@ -92,11 +95,7 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 	//plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger_loadfeature\tcost=%v", context.RecommendId, utils.CostTime(start)))
 
 	userFeatures := user.MakeUserFeatures2()
-	algoGenerator := rank.CreateAlgoDataGenerator(t.recallAlgoType, nil)
-	algoGenerator.SetItemFeatures(nil)
-	algoGenerator.AddFeatures(nil, nil, userFeatures)
-	//algoData := algoGenerator.GeneratorAlgoDataDebugWithLevel(102, map[string]string{"request_id": context.RecommendId})
-	algoData := algoGenerator.GeneratorAlgoData()
+	algoData := t.buildAlgoData(userFeatures, context)
 	//easyrecRequest := algoData.GetFeatures().(*easyrec.PBRequest)
 	//easyrecRequest.FaissNeighNum = int32(t.embeddingNum)
 	algoRet, err := algorithm.Run(t.recallAlgo, algoData.GetFeatures())
@@ -158,4 +157,16 @@ func (t *UserRealtimeEmbeddingTrigger) GetTriggerKey(u *module.User, context *co
 	}
 	//plog.Info(fmt.Sprintf("requestId=%s\tmodule=UserRealtimeEmbeddingTrigger\tcost=%v", context.RecommendId, utils.CostTime(start)))
 	return triggerResult
+}
+
+// buildAlgoData builds the recall algo request, the debug_level is only set for debug requests
+func (t *UserRealtimeEmbeddingTrigger) buildAlgoData(userFeatures map[string]interface{}, context *context.RecommendContext) rank.IAlgoData {
+	algoGenerator := rank.CreateAlgoDataGenerator(t.recallAlgoType, nil)
+	algoGenerator.SetItemFeatures(nil)
+	algoGenerator.AddFeatures(nil, nil, userFeatures)
+	if context.Debug {
+		return algoGenerator.GeneratorAlgoDataDebugWithLevel(realtimeEmbeddingDebugLevel, map[string]string{"request_id": context.RecommendId})
+	}
+
+	return algoGenerator.GeneratorAlgoData()
 }
