@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -221,6 +222,21 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 		return
 	}
 
+	// 主模型 = RankAlgoList[0]，独占老三字段（raw_features / generate_features /
+	// context_features）的写入权。多模型并行打分时，如果每个 goroutine 都往同
+	// 名 key 上 AddProperty，Properties[key]=value 会互相整段覆盖，最终哪个
+	// 模型胜出取决于 goroutine 完成先后，日志字段甚至可能来自不同模型（例如
+	// raw_features 是 A 的、generate_features 是 B 的）。收敛到主模型独占后，
+	// 单模型用户 byte-for-byte 零感知，多模型用户日志结果确定。
+	//
+	// 非主模型的特征以 <algo>_raw_features / <algo>_generate_features /
+	// <algo>_context_features 带前缀 key 写入 Properties。web/callback_controller.go
+	// 侧不会 delete 这些前缀 key，它们会随 json.Marshal(item.GetFeatures())
+	// 自然序列化进已有的 item_features 字段，datahub schema 零变更。
+	// 主模型调用失败时采取严格语义：老三字段留空、不用其他模型兜底，
+	// 避免重新引入不确定性。
+	primaryAlgo := rankConfig.RankAlgoList[0]
+
 	var wg sync.WaitGroup
 	for _, algoName := range rankConfig.RankAlgoList {
 		wg.Add(1)
@@ -263,24 +279,17 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 					algoData.SetAlgoResult(algo, result)
 					if processor == eas.Eas_Processor_EASYREC {
 						itemList := algoData.GetItems()
+						isPrimary := algo == primaryAlgo
 						for j := 0; j < len(result) && j < len(itemList); j++ {
 							switch response := result[j].(type) {
 							case *eas.EasyrecResponse:
-								if writeRawFeatrues {
-									itemList[j].AddProperty("raw_features", response.RawFeatures)
-								}
-
-								itemList[j].AddProperty("generate_features", response.GenerateFeatures)
-								//itemList[j].Properties["generate_features"] = response.GenerateFeatures
-								itemList[j].AddProperty("context_features", response.ContextFeatures)
+								writeEasyrecCallbackFeatures(itemList[j], algo, isPrimary, writeRawFeatrues,
+									response.RawFeatures, response.GenerateFeatures, response.ContextFeatures)
 							case *eas.EasyrecClassificationResponse:
-								if writeRawFeatrues {
-									itemList[j].AddProperty("raw_features", response.RawFeatures)
-								}
-
-								itemList[j].AddProperty("generate_features", response.GenerateFeatures)
-								//itemList[j].Properties["generate_features"] = response.GenerateFeatures
-								itemList[j].AddProperty("context_features", response.ContextFeatures)
+								// EasyrecClassificationResponse 内嵌 EasyrecResponse，
+								// 三段特征字段类型完全一致，共用同一个写入函数。
+								writeEasyrecCallbackFeatures(itemList[j], algo, isPrimary, writeRawFeatrues,
+									response.RawFeatures, response.GenerateFeatures, response.ContextFeatures)
 							default:
 								log.Error(fmt.Sprintf("requestId=%s\tmodule=callback\terror=algo response type(%T) not supported", context.RecommendId, response))
 							}
@@ -296,4 +305,45 @@ func (r *CallBackService) Rank(context *context.RecommendContext) {
 	wg.Wait()
 
 	log.Info(fmt.Sprintf("requestId=%s\tmodule=CallBackRank\tcost=%d", context.RecommendId, utils.CostTime(start)))
+}
+
+// writeEasyrecCallbackFeatures 把一个 EasyRec 响应的三段特征写入 item.Properties，
+// 服务于 CallBackService.Rank 的多模型并行打分场景。
+//
+// 主模型（isPrimary=true）写老三个 key：raw_features / generate_features /
+// context_features。generate_features 必须继续以 *bytes.Buffer 指针形态存储，
+// 因为 web/callback_controller.go 侧依赖 buf.(*bytes.Buffer).String() 断言把它
+// 读出来落到 datahub 老三列之一；改成 string 会触发类型断言 panic。
+//
+// 非主模型写带 <algo>_ 前缀的 key：controller 不 delete 这些前缀 key，它们
+// 会随 json.Marshal(item.GetFeatures()) 序列化进已有的 item_features 字段。
+// 由于 *bytes.Buffer 未实现 MarshalJSON、内部字段也不导出，直接放进 Properties
+// 序列化后是空对象，所以带前缀路径上必须先 .String() 转成 string 再存。
+//
+// writeRawFeatrues 是 CallBackConfig.RawFeatures + RawFeaturesRate 的采样开关，
+// 同时约束老 key 与带前缀 key 的 raw_features 写入，防止采样语义失效导致
+// item_features JSON 无脑膨胀。generate_features / context_features 不受此
+// 开关约束，保持与升级前一致的行为。
+func writeEasyrecCallbackFeatures(item *module.Item, algo string, isPrimary, writeRawFeatrues bool,
+	rawFeatures string, generateFeatures *bytes.Buffer, contextFeatures string) {
+	if item == nil {
+		return
+	}
+	if isPrimary {
+		if writeRawFeatrues {
+			item.AddProperty("raw_features", rawFeatures)
+		}
+		item.AddProperty("generate_features", generateFeatures)
+		item.AddProperty("context_features", contextFeatures)
+		return
+	}
+	if writeRawFeatrues {
+		item.AddProperty(algo+"_raw_features", rawFeatures)
+	}
+	genStr := ""
+	if generateFeatures != nil {
+		genStr = generateFeatures.String()
+	}
+	item.AddProperty(algo+"_generate_features", genStr)
+	item.AddProperty(algo+"_context_features", contextFeatures)
 }
