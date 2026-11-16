@@ -320,6 +320,9 @@ func (r *RecallEngineServiceRecall) buildRequest(user *module.User, context *con
 func (r *RecallEngineServiceRecall) GetItems(user *module.User, context *context.RecommendContext) (ret []*module.Item, err error) {
 	start := time.Now()
 	recallRequest := r.buildRequest(user, context)
+	if len(recallRequest.Recalls) == 0 {
+		return nil, nil
+	}
 
 	response, err := r.client.GetRecallEngineClient().Recall(recallRequest)
 	if err != nil {
