@@ -80,7 +80,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			return err
 		}
 		knowledgeStart := time.Now()
-		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, blob.knowledgeQuery(req.UserText))
+		knowledgeResult, knowledgeErr := knowledgeRecall.SearchKnowledge(ctx, blob.knowledgeQuery(req.UserText, previousSearch))
 		knowledgeCost := utils.CostTime(knowledgeStart)
 		if knowledgeErr != nil {
 			if req.EnableSuggestion && suggestionPrerequisite == nil {
@@ -149,7 +149,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 			}
 		}
 	}
-	blob.recordTurn(req.UserText, loopResult.LastSearch)
+	blob.recordTurn(req.UserText, writer.Content(), loopResult.LastSearch)
 	if loopResult.LastSearch != nil {
 		blob.ToolParamsConfigID = toolParamsConfigID
 	}
@@ -160,7 +160,7 @@ func (o *ChatSearchOrchestrator) Run(ctx context.Context, req *Request, writer *
 		return err
 	}
 	directReply := !loopResult.MainReplyFallback && loopResult.LastSearch == nil && loopResult.FinalSearchStatus == finalSearchNotAttempted
-	if coordinator != nil && !directReply {
+	if coordinator != nil && !directReply && !loopResult.QueryOnly {
 		outcome := coordinator.Collect(loopResult)
 		if outcome.Err != nil {
 			log.Warning(fmt.Sprintf("requestId=%s\tuid=%s\tsession_id=%s\tmodule=AIShoppingChat\tphase=suggestion\tstatus=error\tcode=%s\tretryable=%t\terr=%s",
