@@ -401,15 +401,14 @@ type RecallConfig struct {
 	ItemFilterParams []FilterParamConfig
 }
 
-// GenRecConfig holds the sampling parameters for the GenRec generative recall.
-// The parameters map to sampling_params of the EAS /generate API: SidCount
-// maps to n, and MaxNewTokens must equal the SID depth of the model. All user
-// properties are sent, mirroring the EasyRec rank path where the model
-// processor picks the fields it needs.
+// GenRecConfig holds the sampling and filter parameters for GenRec recall.
+// All user properties are still sent in PB, mirroring the EasyRec rank path.
 type GenRecConfig struct {
-	BeamWidth    int // sampling_params.beam_width, only the integer form is supported
-	SidCount     int // sampling_params.n, number of SID sequences, not the expanded item count
-	MaxNewTokens int // sampling_params.max_new_tokens, SID depth of the model
+	BeamWidth         int      // sampling_params.beam_width, used when DynamicBeamWidths is empty
+	DynamicBeamWidths []int    // custom_params.dynamic_beam_widths, takes precedence over BeamWidth
+	SidCount          int      // sampling_params.n; zero omits n only in dynamic beam mode
+	MaxNewTokens      int      // sampling_params.max_new_tokens, SID depth of the model
+	FilterFeatures    []string // User feature names sent in custom_params; empty disables filter parameter forwarding
 }
 
 type Ha3ChatRecallConfig struct {

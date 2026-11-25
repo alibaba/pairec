@@ -15,17 +15,20 @@ import (
 // GenRec invocation. The sampling parameters live in the outer JSON body, not
 // in the proto, so they are passed alongside the PBRequest.
 type GenRecRequestData struct {
-	Request      *easyrec.PBRequest
-	BeamWidth    int
-	SidCount     int
-	MaxNewTokens int
-	Rid          string
+	Request           *easyrec.PBRequest
+	BeamWidth         int
+	DynamicBeamWidths []int
+	SidCount          int
+	MaxNewTokens      int
+	FilterParams      map[string]interface{}
+	Rid               string
 }
 
 type genRecSamplingParams struct {
-	BeamWidth    int `json:"beam_width"`
-	N            int `json:"n"`
-	MaxNewTokens int `json:"max_new_tokens"`
+	BeamWidth    *int                   `json:"beam_width,omitempty"`
+	N            *int                   `json:"n,omitempty"`
+	MaxNewTokens int                    `json:"max_new_tokens"`
+	CustomParams map[string]interface{} `json:"custom_params,omitempty"`
 }
 
 type genRecHttpRequest struct {
@@ -65,16 +68,36 @@ func (r *GenrecRequest) Invoke(requestData interface{}) (response interface{}, e
 		return nil, err
 	}
 
+	// Keep custom parameters local to this invocation; never mutate caller maps.
+	customParams := make(map[string]interface{}, len(data.FilterParams)+1)
+	for name, value := range data.FilterParams {
+		// Beam parameters must come from configuration, not filter parameters.
+		if name == "dynamic_beam_widths" {
+			continue
+		}
+		customParams[name] = value
+	}
+	samplingParams := genRecSamplingParams{
+		N:            &data.SidCount,
+		MaxNewTokens: data.MaxNewTokens,
+		CustomParams: customParams,
+	}
+	if len(data.DynamicBeamWidths) > 0 {
+		customParams["dynamic_beam_widths"] = data.DynamicBeamWidths
+		if data.SidCount == 0 {
+			samplingParams.N = nil
+		}
+	} else {
+		// Preserve the fixed beam request, including explicitly encoded zero values.
+		samplingParams.BeamWidth = &data.BeamWidth
+	}
+
 	body, err := json.Marshal(&genRecHttpRequest{
-		InputIds:  []int{0},
-		ImageData: base64.StdEncoding.EncodeToString(pbData),
-		Stream:    false,
-		SamplingParams: genRecSamplingParams{
-			BeamWidth:    data.BeamWidth,
-			N:            data.SidCount,
-			MaxNewTokens: data.MaxNewTokens,
-		},
-		Rid: data.Rid,
+		InputIds:       []int{0},
+		ImageData:      base64.StdEncoding.EncodeToString(pbData),
+		Stream:         false,
+		SamplingParams: samplingParams,
+		Rid:            data.Rid,
 	})
 	if err != nil {
 		return nil, err

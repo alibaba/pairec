@@ -31,21 +31,30 @@ func NewGenRecRecall(config recconf.RecallConfig) *GenRecRecall {
 
 func (r *GenRecRecall) GetCandidateItems(user *module.User, context *context.RecommendContext) (ret []*module.Item) {
 	start := time.Now()
+	userFeatures := user.MakeUserFeatures2()
+	filterParams := make(map[string]interface{}, len(r.genRecConf.FilterFeatures))
+	for _, name := range r.genRecConf.FilterFeatures {
+		if value, ok := userFeatures[name]; ok {
+			filterParams[name] = value
+		}
+	}
 
 	// Features come from FeatureStore as typed slices, so the standard EasyRec
 	// builder encodes them (arrays become PB lists) the same way as rank.
 	algoGenerator := rank.CreateAlgoDataGenerator(eas.Eas_Processor_EASYREC, nil)
 	algoGenerator.SetItemFeatures(nil)
-	algoGenerator.AddFeatures(nil, nil, user.MakeUserFeatures2())
+	algoGenerator.AddFeatures(nil, nil, userFeatures)
 	algoData := algoGenerator.GeneratorAlgoData()
 	request := algoData.GetFeatures().(*easyrec.PBRequest)
 
 	algoRet, err := algorithm.Run(r.recallAlgo, &eas.GenRecRequestData{
-		Request:      request,
-		BeamWidth:    r.genRecConf.BeamWidth,
-		SidCount:     r.genRecConf.SidCount,
-		MaxNewTokens: r.genRecConf.MaxNewTokens,
-		Rid:          context.RecommendId,
+		Request:           request,
+		BeamWidth:         r.genRecConf.BeamWidth,
+		DynamicBeamWidths: r.genRecConf.DynamicBeamWidths,
+		SidCount:          r.genRecConf.SidCount,
+		MaxNewTokens:      r.genRecConf.MaxNewTokens,
+		FilterParams:      filterParams,
+		Rid:               context.RecommendId,
 	})
 	if err != nil {
 		context.LogError(fmt.Sprintf("requestId=%s\tmodule=GenRecRecall\tname=%s\terr=%v", context.RecommendId, r.modelName, err))
