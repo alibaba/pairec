@@ -396,12 +396,23 @@ type RecallConfig struct {
 
 	Ha3ChatRecallConf      Ha3ChatRecallConfig
 	Ha3KnowledgeVectorConf *Ha3KnowledgeVectorConfig
+	GenRecConf             GenRecConfig
 	FilterParams           []FilterParamConfig
 	// ItemFilterParams should only hold item conditions. ColdStartRecall on
 	// featurestore evaluates them while loading item features, so items not
 	// matching never enter the item cache and cost nothing per request. Written
 	// the same way as FilterParams, expressions included.
 	ItemFilterParams []FilterParamConfig
+}
+
+// GenRecConfig holds the sampling and filter parameters for GenRec recall.
+// All user properties are still sent in PB, mirroring the EasyRec rank path.
+type GenRecConfig struct {
+	BeamWidth         int      // sampling_params.beam_width, used when DynamicBeamWidths is empty
+	DynamicBeamWidths []int    // custom_params.dynamic_beam_widths, takes precedence over BeamWidth
+	SidCount          int      // sampling_params.n; zero omits n only in dynamic beam mode
+	MaxNewTokens      int      // sampling_params.max_new_tokens, SID depth of the model
+	FilterFeatures    []string // User feature names sent in custom_params; empty disables filter parameter forwarding
 }
 
 type Ha3ChatRecallConfig struct {

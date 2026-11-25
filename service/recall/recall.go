@@ -110,6 +110,8 @@ func Load(config *recconf.RecommendConfig) {
 			recall = NewOpenSearchRecall(conf)
 		} else if conf.RecallType == "OnlineVectorRecall" {
 			recall = NewOnlineVectorRecall(conf)
+		} else if conf.RecallType == "GenRecRecall" {
+			recall = NewGenRecRecall(conf)
 		} else if conf.RecallType == "RecallEngineRecall" {
 			recall = NewRecallEngineRecall(conf)
 		} else if conf.RecallType == "HA3_CHAT_RECALL" {
